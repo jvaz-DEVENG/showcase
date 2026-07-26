@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Reflex Rush</title>
+<meta name="description" content="Jogo de reflexo em 30 segundos: acerte os alvos antes que somem e monte combos. Feito em HTML/CSS/JS puro." />
+<style>
+  :root{
+    --bg-0:#0b0e14;
+    --bg-1:#121722;
+    --panel:#161c29;
+    --text:#e8ecf4;
+    --muted:#8b93a7;
+    --accent:#5eead4;
+    --accent-2:#a78bfa;
+    --danger:#f87171;
+    --ring:rgba(94,234,212,.35);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg-0:#eef1f6;
+      --bg-1:#e4e9f2;
+      --panel:#ffffff;
+      --text:#131722;
+      --muted:#5b6478;
+      --accent:#0d9488;
+      --accent-2:#7c3aed;
+      --danger:#dc2626;
+      --ring:rgba(13,148,136,.25);
+    }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, var(--bg-1), transparent),
+      radial-gradient(1200px 600px at 100% 110%, var(--bg-1), transparent),
+      var(--bg-0);
+    color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    padding:20px;
+    overflow-x:hidden;
+  }
+  h1{
+    margin:0;
+    font-size:clamp(22px,4vw,32px);
+    letter-spacing:.5px;
+  }
+  h1 span{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .subtitle{
+    margin:2px 0 0;
+    color:var(--muted);
+    font-size:14px;
+    text-align:center;
+  }
+  .hud{
+    width:min(560px,92vw);
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .stat{
+    flex:1;
+    background:var(--panel);
+    border-radius:14px;
+    padding:10px 14px;
+    text-align:center;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 20px -12px rgba(0,0,0,.5);
+  }
+  .stat b{
+    display:block;
+    font-size:20px;
+  }
+  .stat span{
+    display:block;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    margin-top:2px;
+  }
+  #combo-stat b{ color:var(--accent-2); }
+  #score-stat b{ color:var(--accent); }
+  #time-stat b{ color:var(--text); }
+  #time-stat.low b{ color:var(--danger); }
+
+  .arena{
+    position:relative;
+    width:min(560px,92vw);
+    height:min(420px,60vh);
+    background:var(--panel);
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 40px -20px rgba(0,0,0,.6);
+    touch-action:none;
+    user-select:none;
+  }
+  .arena::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(128,140,168,.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(128,140,168,.08) 1px, transparent 1px);
+    background-size:28px 28px;
+    pointer-events:none;
+  }
+
+  .target{
+    position:absolute;
+    border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, var(--accent), var(--accent-2));
+    box-shadow:0 0 0 0 var(--ring);
+    cursor:pointer;
+    animation:pop .12s ease-out;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .target.life-bar::after{
+    content:"";
+    position:absolute;
+    inset:-6px;
+    border-radius:50%;
+    border:2px solid rgba(255,255,255,.35);
+    animation-name:shrink;
+    animation-timing-function:linear;
+    animation-fill-mode:forwards;
+  }
+  @keyframes pop{
+    from{ transform:scale(.4); opacity:0; }
+    to{ transform:scale(1); opacity:1; }
+  }
+  @keyframes shrink{
+    from{ box-shadow: 0 0 0 0 rgba(255,255,255,.5) inset; opacity:1; }
+    to{ transform:scale(.15); opacity:0; }
+  }
+
+  .overlay{
+    position:absolute; inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    background:rgba(10,12,18,.55);
+    backdrop-filter:blur(6px);
+    text-align:center;
+    padding:20px;
+  }
+  @media (prefers-color-scheme: light){
+    .overlay{ background:rgba(240,242,247,.7); }
+  }
+  .overlay h2{ margin:0; font-size:24px; }
+  .overlay p{ margin:0; color:var(--muted); font-size:14px; max-width:340px; }
+  .big-score{ font-size:42px; font-weight:700; color:var(--accent); }
+  .best-line{ font-size:13px; color:var(--muted); }
+  .best-line b{ color:var(--accent-2); }
+
+  button{
+    appearance:none;
+    border:none;
+    cursor:pointer;
+    padding:12px 26px;
+    border-radius:999px;
+    font-size:15px;
+    font-weight:600;
+    color:#08131a;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    box-shadow:0 10px 24px -10px var(--ring);
+    transition:transform .12s ease;
+  }
+  button:active{ transform:scale(.96); }
+
+  footer{
+    color:var(--muted);
+    font-size:12px;
+    text-align:center;
+  }
+  footer a{ color:var(--accent); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+
+  <h1>⚡ <span>Reflex Rush</span></h1>
+  <p class="subtitle">Clique nos alvos antes que sumam. 30 segundos. Quanto mais rápido, maior o combo.</p>
+
+  <div class="hud">
+    <div class="stat" id="score-stat"><b id="score-val">0</b><span>Pontos</span></div>
+    <div class="stat" id="combo-stat"><b id="combo-val">x1</b><span>Combo</span></div>
+    <div class="stat" id="time-stat"><b id="time-val">30</b><span>Segundos</span></div>
+  </div>
+
+  <div class="arena" id="arena">
+    <div class="overlay" id="overlay">
+      <h2>Pronto pra testar seu reflexo?</h2>
+      <p>Alvos vão surgir em posições aleatórias e sumir rápido. Acerte em sequência sem errar pra subir o multiplicador de combo.</p>
+      <button id="start-btn">Começar</button>
+    </div>
+  </div>
+
+  <footer>Feito com HTML, CSS e JS puro — sem dependências. <a href="../../" >← voltar ao showcase</a></footer>
+
+<script>
+(function(){
+  "use strict";
+
+  const arena = document.getElementById('arena');
+  const overlay = document.getElementById('overlay');
+  const scoreVal = document.getElementById('score-val');
+  const comboVal = document.getElementById('combo-val');
+  const timeVal = document.getElementById('time-val');
+  const timeStat = document.getElementById('time-stat');
+
+  const ROUND_SECONDS = 30;
+  const BEST_KEY = 'reflexRushBest';
+
+  let score = 0;
+  let combo = 0;
+  let multiplier = 1;
+  let timeLeft = ROUND_SECONDS;
+  let running = false;
+  let spawnTimeout = null;
+  let tickInterval = null;
+  let audioCtx = null;
+
+  function getBest(){
+    return Number(localStorage.getItem(BEST_KEY) || 0);
+  }
+  function setBest(v){
+    localStorage.setItem(BEST_KEY, String(v));
+  }
+
+  function beep(freq){
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.12);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.13);
+    }catch(e){ /* audio is optional */ }
+  }
+
+  function updateHud(){
+    scoreVal.textContent = score;
+    comboVal.textContent = 'x' + multiplier;
+    timeVal.textContent = Math.max(0, Math.ceil(timeLeft));
+    timeStat.classList.toggle('low', timeLeft <= 10);
+  }
+
+  function progress(){
+    return 1 - (timeLeft / ROUND_SECONDS); // 0 -> 1 as round advances
+  }
+
+  function spawnTarget(){
+    if(!running) return;
+
+    const rect = arena.getBoundingClientRect();
+    const p = progress();
+    const size = Math.max(30, 62 - p * 28); // shrinks over time
+    const life = Math.max(420, 950 - p * 500); // gets faster over time
+
+    const maxX = Math.max(0, rect.width - size);
+    const maxY = Math.max(0, rect.height - size);
+    const x = Math.random() * maxX;
+    const y = Math.random() * maxY;
+
+    const el = document.createElement('div');
+    el.className = 'target life-bar';
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.setProperty('animation-duration', life + 'ms');
+
+    const afterStyle = document.createElement('style');
+    const id = 'life-' + Math.random().toString(36).slice(2);
+    el.dataset.lifeId = id;
+    afterStyle.textContent = `.target[data-life-id="${id}"]::after{ animation-duration:${life}ms; }`;
+    document.head.appendChild(afterStyle);
+
+    let resolved = false;
+    const expireTimer = setTimeout(() => {
+      if(resolved) return;
+      resolved = true;
+      combo = 0;
+      multiplier = 1;
+      updateHud();
+      el.remove();
+      afterStyle.remove();
+      scheduleNext(120);
+    }, life);
+
+    function hit(ev){
+      if(resolved) return;
+      resolved = true;
+      ev.preventDefault();
+      clearTimeout(expireTimer);
+      combo += 1;
+      multiplier = Math.min(5, Math.floor(combo / 5) + 1);
+      const gained = 10 * multiplier;
+      score += gained;
+      beep(420 + multiplier * 80);
+      updateHud();
+      el.remove();
+      afterStyle.remove();
+      scheduleNext(60);
+    }
+
+    el.addEventListener('pointerdown', hit, { passive:false });
+    arena.appendChild(el);
+  }
+
+  function scheduleNext(delay){
+    if(!running) return;
+    clearTimeout(spawnTimeout);
+    spawnTimeout = setTimeout(spawnTarget, delay);
+  }
+
+  function clearTargets(){
+    arena.querySelectorAll('.target').forEach(t => t.remove());
+    document.querySelectorAll('style[data-tmp]').forEach(s => s.remove());
+  }
+
+  function startGame(){
+    score = 0; combo = 0; multiplier = 1; timeLeft = ROUND_SECONDS;
+    running = true;
+    overlay.remove();
+    updateHud();
+    scheduleNext(300);
+
+    const start = performance.now();
+    tickInterval = setInterval(() => {
+      const elapsed = (performance.now() - start) / 1000;
+      timeLeft = Math.max(0, ROUND_SECONDS - elapsed);
+      updateHud();
+      if(timeLeft <= 0){
+        endGame();
+      }
+    }, 100);
+  }
+
+  function endGame(){
+    running = false;
+    clearInterval(tickInterval);
+    clearTimeout(spawnTimeout);
+    clearTargets();
+
+    const best = getBest();
+    const isNewBest = score > best;
+    if(isNewBest) setBest(score);
+
+    const end = document.createElement('div');
+    end.className = 'overlay';
+    end.innerHTML = `
+      <h2>${isNewBest ? '🏆 Novo recorde!' : 'Tempo esgotado'}</h2>
+      <div class="big-score">${score}</div>
+      <p class="best-line">Recorde: <b>${isNewBest ? score : best}</b> pontos</p>
+      <button id="restart-btn">Jogar de novo</button>
+    `;
+    arena.appendChild(end);
+    document.getElementById('restart-btn').addEventListener('click', () => {
+      end.remove();
+      startGame();
+    });
+  }
+
+  document.getElementById('start-btn').addEventListener('click', startGame);
+
+  document.addEventListener('keydown', (e) => {
+    if((e.code === 'Space' || e.code === 'Enter') && !running){
+      const btn = document.getElementById('start-btn') || document.getElementById('restart-btn');
+      if(btn) btn.click();
+    }
+  });
+})();
+</script>
+</body>
+</html>

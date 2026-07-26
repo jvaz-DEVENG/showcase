@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gerador de Título SEO para Marketplace</title>
+<meta name="description" content="Gera títulos otimizados para Mercado Livre, Amazon e Shopee a partir do nome do produto e palavras-chave, seguindo boas práticas de SEO de cada marketplace." />
+<style>
+  :root{
+    --bg-0:#0b0e14;
+    --bg-1:#121722;
+    --panel:#161c29;
+    --panel-2:#1c2334;
+    --text:#e8ecf4;
+    --muted:#8b93a7;
+    --accent:#5eead4;
+    --accent-2:#a78bfa;
+    --danger:#f87171;
+    --warn:#fbbf24;
+    --ok:#4ade80;
+    --border:rgba(255,255,255,.08);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg-0:#eef1f6;
+      --bg-1:#e4e9f2;
+      --panel:#ffffff;
+      --panel-2:#f3f5f9;
+      --text:#131722;
+      --muted:#5b6478;
+      --accent:#0d9488;
+      --accent-2:#7c3aed;
+      --danger:#dc2626;
+      --warn:#b45309;
+      --ok:#16a34a;
+      --border:rgba(0,0,0,.08);
+    }
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, var(--bg-1), transparent),
+      radial-gradient(1200px 600px at 100% 110%, var(--bg-1), transparent),
+      var(--bg-0);
+    color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:32px 16px 60px;
+  }
+  .wrap{ width:min(760px, 100%); }
+  h1{
+    font-size:clamp(22px,4vw,30px);
+    margin:0 0 4px;
+  }
+  h1 span{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .lead{ color:var(--muted); font-size:14px; margin:0 0 24px; max-width:60ch; }
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:22px;
+    margin-bottom:18px;
+    box-shadow:0 20px 40px -30px rgba(0,0,0,.5);
+  }
+  .field{ margin-bottom:16px; }
+  .field:last-child{ margin-bottom:0; }
+  label{
+    display:block;
+    font-size:12px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  input[type=text], select{
+    width:100%;
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--panel-2);
+    color:var(--text);
+    font-size:14px;
+    font-family:inherit;
+  }
+  input[type=text]:focus, select:focus{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+  }
+  .hint{ font-size:12px; color:var(--muted); margin-top:4px; }
+  .row{ display:flex; gap:14px; flex-wrap:wrap; }
+  .row .field{ flex:1; min-width:180px; }
+
+  .check{
+    display:flex; align-items:center; gap:8px;
+    font-size:13px; color:var(--text);
+  }
+  .check input{ width:16px; height:16px; }
+  .emoji-inputs{ display:flex; gap:8px; margin-top:8px; }
+  .emoji-inputs input{ width:52px; text-align:center; }
+
+  .marketplace-tabs{ display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .tab-btn{
+    appearance:none; border:1px solid var(--border); background:var(--panel-2);
+    color:var(--text); padding:8px 16px; border-radius:999px; font-size:13px;
+    cursor:pointer; font-weight:600;
+  }
+  .tab-btn.active{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    color:#08131a; border-color:transparent;
+  }
+
+  .result{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px;
+    font-size:16px;
+    line-height:1.5;
+    word-break:break-word;
+    min-height:28px;
+  }
+  .result.empty{ color:var(--muted); font-style:italic; font-size:14px; }
+
+  .meta-row{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:10px; font-size:12px; color:var(--muted);
+  }
+  .char-count.ok{ color:var(--ok); }
+  .char-count.warn{ color:var(--warn); }
+  .char-count.danger{ color:var(--danger); }
+
+  .actions{ display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  button.primary{
+    appearance:none; border:none; cursor:pointer;
+    padding:10px 20px; border-radius:999px; font-size:14px; font-weight:600;
+    color:#08131a; background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  }
+  button.ghost{
+    appearance:none; cursor:pointer;
+    padding:10px 20px; border-radius:999px; font-size:14px; font-weight:600;
+    color:var(--text); background:transparent; border:1px solid var(--border);
+  }
+  button:active{ transform:scale(.97); }
+
+  .tips{ list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+  .tips li{ font-size:13px; color:var(--muted); display:flex; gap:8px; }
+  .tips li::before{ content:"→"; color:var(--accent); flex-shrink:0; }
+  .tips li b{ color:var(--text); }
+
+  footer{ text-align:center; color:var(--muted); font-size:12px; margin-top:8px; }
+  footer a{ color:var(--accent); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>🏷️ <span>Gerador de Título SEO</span></h1>
+  <p class="lead">Monta um título de anúncio otimizado a partir do produto e das palavras-chave, respeitando o limite e as convenções de cada marketplace. Roda 100% no navegador — nada é enviado pra nenhum servidor.</p>
+
+  <div class="card">
+    <div class="field">
+      <label for="produto">Produto principal</label>
+      <input type="text" id="produto" placeholder="Ex: Garrafa Térmica Inox" />
+    </div>
+
+    <div class="field">
+      <label for="atributos">Atributos / palavras-chave (separe por vírgula)</label>
+      <input type="text" id="atributos" placeholder="Ex: 1 litro, tampa rosca, mantém temperatura, à prova de vazamento" />
+      <p class="hint">As vírgulas viram espaço no resultado — marketplaces penalizam pontuação em título.</p>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="uso">Uso / categoria (opcional)</label>
+        <input type="text" id="uso" placeholder="Ex: academia, trilha, escritório" />
+      </div>
+      <div class="field">
+        <label class="check" for="marca-off" style="margin-top:24px;">
+          <input type="checkbox" id="marca-off" checked />
+          Não incluir marca no título
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="check" for="usar-emoji">
+        <input type="checkbox" id="usar-emoji" />
+        Adicionar emojis (máx. 2)
+      </label>
+      <div class="emoji-inputs" id="emoji-inputs" style="display:none;">
+        <input type="text" id="emoji1" maxlength="2" placeholder="🔥" />
+        <input type="text" id="emoji2" maxlength="2" placeholder="✅" />
+      </div>
+    </div>
+  </div>
+
+  <div class="marketplace-tabs" id="tabs">
+    <button class="tab-btn active" data-mk="ml">Mercado Livre</button>
+    <button class="tab-btn" data-mk="amazon">Amazon</button>
+    <button class="tab-btn" data-mk="shopee">Shopee</button>
+  </div>
+
+  <div class="card">
+    <label>Título gerado</label>
+    <div class="result empty" id="result">Preencha o produto acima pra ver o título aqui.</div>
+    <div class="meta-row">
+      <span id="char-count" class="char-count">0 / 0 caracteres</span>
+      <span id="limit-label"></span>
+    </div>
+    <div class="actions">
+      <button class="primary" id="copy-btn">Copiar título</button>
+      <button class="ghost" id="clear-btn">Limpar campos</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <label style="margin-bottom:10px;">Boas práticas aplicadas</label>
+    <ul class="tips" id="tips-list"></ul>
+  </div>
+
+  <footer>Feito com HTML, CSS e JS puro — sem dependências. <a href="../../">← voltar ao showcase</a></footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const CONFIG = {
+    ml: {
+      label: "Mercado Livre",
+      limit: 60,
+      order: (produto, attrs, uso) => [produto, ...attrs, uso].filter(Boolean),
+      caseStyle: "keep",
+      tips: [
+        "Mercado Livre pondera as primeiras palavras do título na busca — produto principal sempre primeiro.",
+        "Limite prático de <b>60 caracteres</b>: títulos maiores são cortados na listagem.",
+        "Evitar letras maiúsculas em excesso e pontuação (vírgula, ponto de exclamação) — penaliza relevância."
+      ]
+    },
+    amazon: {
+      label: "Amazon",
+      limit: 200,
+      order: (produto, attrs, uso) => [produto, ...attrs, uso].filter(Boolean),
+      caseStyle: "title",
+      tips: [
+        "Amazon permite até <b>200 caracteres</b>, mas o que aparece no card de busca é só o começo — priorize os termos fortes nos primeiros 80.",
+        "Convenção de Title Case (Primeira Letra Maiúscula) é o padrão aceito pela política de listagem da Amazon.",
+        "Não usar caracteres promocionais (ex: \"melhor preço\", \"frete grátis\") no título — viola política e pode suspender o anúncio."
+      ]
+    },
+    shopee: {
+      label: "Shopee",
+      limit: 120,
+      order: (produto, attrs, uso) => [produto, ...attrs, uso].filter(Boolean),
+      caseStyle: "keep",
+      tips: [
+        "Shopee tolera até <b>120 caracteres</b> e aceita emoji com moderação — mas exagerar reduz a taxa de clique.",
+        "Repetir a palavra-chave principal perto do início ajuda no algoritmo de busca interno.",
+        "Evitar termos de outras categorias só para \"pescar\" tráfego — a Shopee penaliza título fora do escopo do produto."
+      ]
+    }
+  };
+
+  let currentMk = 'ml';
+
+  const $ = (id) => document.getElementById(id);
+  const produtoEl = $('produto');
+  const atributosEl = $('atributos');
+  const usoEl = $('uso');
+  const marcaOffEl = $('marca-off');
+  const usarEmojiEl = $('usar-emoji');
+  const emojiInputs = $('emoji-inputs');
+  const emoji1El = $('emoji1');
+  const emoji2El = $('emoji2');
+  const resultEl = $('result');
+  const charCountEl = $('char-count');
+  const limitLabelEl = $('limit-label');
+  const tipsListEl = $('tips-list');
+
+  function toTitleCase(str){
+    return str.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  }
+
+  function cleanKeywords(raw){
+    return raw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
+  function buildTitle(){
+    const cfg = CONFIG[currentMk];
+    const produto = produtoEl.value.trim();
+    const attrs = cleanKeywords(atributosEl.value);
+    const uso = usoEl.value.trim();
+
+    if(!produto){
+      resultEl.textContent = 'Preencha o produto acima pra ver o título aqui.';
+      resultEl.classList.add('empty');
+      charCountEl.textContent = '0 / ' + cfg.limit + ' caracteres';
+      charCountEl.className = 'char-count';
+      return;
+    }
+
+    let parts = cfg.order(produto, attrs, uso);
+    let title = parts.join(' ').replace(/\s+/g, ' ').trim();
+
+    if(cfg.caseStyle === 'title'){
+      title = toTitleCase(title);
+    }
+
+    if(usarEmojiEl.checked){
+      const e1 = emoji1El.value.trim();
+      const e2 = emoji2El.value.trim();
+      const emojis = [e1, e2].filter(Boolean).slice(0, 2);
+      if(emojis.length){
+        title = [title, ...emojis].join(' ');
+      }
+    }
+
+    resultEl.textContent = title;
+    resultEl.classList.remove('empty');
+
+    const len = title.length;
+    charCountEl.textContent = len + ' / ' + cfg.limit + ' caracteres';
+    charCountEl.className = 'char-count ' + (
+      len > cfg.limit ? 'danger' : len > cfg.limit * 0.85 ? 'warn' : 'ok'
+    );
+  }
+
+  function renderTips(){
+    const cfg = CONFIG[currentMk];
+    limitLabelEl.textContent = cfg.label + ' · limite recomendado ' + cfg.limit + ' caracteres';
+    tipsListEl.innerHTML = cfg.tips.map(t => `<li>${t}</li>`).join('');
+  }
+
+  document.getElementById('tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tab-btn');
+    if(!btn) return;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMk = btn.dataset.mk;
+    renderTips();
+    buildTitle();
+  });
+
+  usarEmojiEl.addEventListener('change', () => {
+    emojiInputs.style.display = usarEmojiEl.checked ? 'flex' : 'none';
+    buildTitle();
+  });
+
+  [produtoEl, atributosEl, usoEl, marcaOffEl, emoji1El, emoji2El].forEach(el => {
+    el.addEventListener('input', buildTitle);
+  });
+
+  $('copy-btn').addEventListener('click', async () => {
+    const text = resultEl.textContent;
+    if(!text || resultEl.classList.contains('empty')) return;
+    try{
+      await navigator.clipboard.writeText(text);
+      const btn = $('copy-btn');
+      const original = btn.textContent;
+      btn.textContent = 'Copiado!';
+      setTimeout(() => { btn.textContent = original; }, 1400);
+    }catch(e){
+      alert('Não foi possível copiar automaticamente. Selecione o texto manualmente.');
+    }
+  });
+
+  $('clear-btn').addEventListener('click', () => {
+    produtoEl.value = '';
+    atributosEl.value = '';
+    usoEl.value = '';
+    emoji1El.value = '';
+    emoji2El.value = '';
+    usarEmojiEl.checked = false;
+    emojiInputs.style.display = 'none';
+    buildTitle();
+  });
+
+  renderTips();
+  buildTitle();
+})();
+</script>
+</body>
+</html>
