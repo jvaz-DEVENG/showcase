@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Fusion Rush</title>
+<meta name="description" content="Solte bolhas no pote, funda as iguais e monte combos antes que o tempo acabe ou o pote transborde. Desafio diário: a mesma sequência de bolhas pra todo mundo no mesmo dia." />
+<style>
+  :root{
+    --bg-0:#0b0e14;
+    --bg-1:#121722;
+    --panel:#161c29;
+    --text:#e8ecf4;
+    --muted:#8b93a7;
+    --accent:#5eead4;
+    --accent-2:#a78bfa;
+    --danger:#f87171;
+    --ring:rgba(94,234,212,.35);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg-0:#eef1f6;
+      --bg-1:#e4e9f2;
+      --panel:#ffffff;
+      --text:#131722;
+      --muted:#5b6478;
+      --accent:#0d9488;
+      --accent-2:#7c3aed;
+      --danger:#dc2626;
+      --ring:rgba(13,148,136,.25);
+    }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, var(--bg-1), transparent),
+      radial-gradient(1200px 600px at 100% 110%, var(--bg-1), transparent),
+      var(--bg-0);
+    color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    padding:20px;
+    overflow-x:hidden;
+  }
+  h1{ margin:0; font-size:clamp(22px,4vw,32px); letter-spacing:.5px; }
+  h1 span{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .subtitle{ margin:2px 0 0; color:var(--muted); font-size:14px; text-align:center; max-width:52ch; }
+  .day-tag{
+    font-size:12px; color:var(--muted); background:var(--panel);
+    padding:4px 12px; border-radius:999px;
+  }
+  .day-tag b{ color:var(--accent-2); }
+
+  .hud{
+    width:min(360px,92vw);
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .stat{
+    flex:1;
+    background:var(--panel);
+    border-radius:14px;
+    padding:8px 10px;
+    text-align:center;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 20px -12px rgba(0,0,0,.5);
+  }
+  .stat b{ display:block; font-size:18px; }
+  .stat span{ display:block; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  #combo-stat b{ color:var(--accent-2); }
+  #score-stat b{ color:var(--accent); }
+  #time-stat.low b{ color:var(--danger); }
+
+  .stage{ position:relative; }
+  .arena{
+    position:relative;
+    width:340px;
+    max-width:88vw;
+    height:460px;
+    background:var(--panel);
+    border-radius:20px 20px 26px 26px;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 40px -20px rgba(0,0,0,.6);
+    touch-action:none;
+    user-select:none;
+    display:block;
+  }
+
+  .overlay{
+    position:absolute; inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    background:rgba(10,12,18,.6);
+    backdrop-filter:blur(6px);
+    text-align:center;
+    padding:20px;
+    border-radius:20px;
+  }
+  @media (prefers-color-scheme: light){
+    .overlay{ background:rgba(240,242,247,.75); }
+  }
+  .overlay h2{ margin:0; font-size:22px; }
+  .overlay p{ margin:0; color:var(--muted); font-size:13px; max-width:280px; }
+  .big-score{ font-size:40px; font-weight:700; color:var(--accent); }
+  .best-line{ font-size:13px; color:var(--muted); }
+  .best-line b{ color:var(--accent-2); }
+  .share-box{
+    font-family: ui-monospace, monospace;
+    font-size:13px;
+    background:var(--bg-1);
+    border-radius:10px;
+    padding:10px 14px;
+    white-space:pre;
+    color:var(--text);
+  }
+
+  button{
+    appearance:none; border:none; cursor:pointer;
+    padding:11px 24px; border-radius:999px; font-size:14px; font-weight:600;
+    color:#08131a;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    box-shadow:0 10px 24px -10px var(--ring);
+    transition:transform .12s ease;
+  }
+  button.ghost{
+    color:var(--text); background:transparent; border:1px solid rgba(128,140,168,.3);
+  }
+  button:active{ transform:scale(.96); }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+
+  footer{ color:var(--muted); font-size:12px; text-align:center; }
+  footer a{ color:var(--accent); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+
+  <h1>🫧 <span>Fusion Rush</span></h1>
+  <p class="subtitle">Solte as bolhas, funda as iguais e monte combo. 60 segundos — ou até o pote transbordar.</p>
+  <div class="day-tag">Desafio do dia <b id="day-num">#1</b> — mesma sequência de bolhas pra todo mundo hoje</div>
+
+  <div class="hud">
+    <div class="stat" id="score-stat"><b id="score-val">0</b><span>Pontos</span></div>
+    <div class="stat" id="combo-stat"><b id="combo-val">x1</b><span>Combo</span></div>
+    <div class="stat" id="time-stat"><b id="time-val">60</b><span>Segundos</span></div>
+  </div>
+
+  <div class="stage">
+    <canvas class="arena" id="arena" width="340" height="460"></canvas>
+    <div class="overlay" id="overlay">
+      <h2>Funda as bolhas iguais</h2>
+      <p>Mova o dedo/mouse pra escolher a coluna e solte. Bolhas do mesmo nível se fundem numa maior. Se empilhar até a linha do topo, o jogo acaba.</p>
+      <button id="start-btn">Começar</button>
+    </div>
+  </div>
+
+  <footer>Feito com HTML, CSS e JS puro — física própria, sem dependências. <a href="../../">← voltar ao showcase</a></footer>
+
+<script>
+(function(){
+  "use strict";
+
+  const canvas = document.getElementById('arena');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const scoreVal = document.getElementById('score-val');
+  const comboVal = document.getElementById('combo-val');
+  const timeVal = document.getElementById('time-val');
+  const timeStat = document.getElementById('time-stat');
+  const dayNumEl = document.getElementById('day-num');
+
+  const W = canvas.width;
+  const H = canvas.height;
+  const DANGER_Y = 78;
+  const GRAVITY = 1500;
+  const ROUND_SECONDS = 60;
+  const HOVER_Y = 34;
+  const DROP_COOLDOWN = 380;
+  const COMBO_WINDOW = 1300;
+  const BEST_KEY = 'fusionRushBest';
+
+  const TIERS = [
+    { r:14, color:'#f87171', pts:2 },
+    { r:19, color:'#fb923c', pts:4 },
+    { r:25, color:'#fbbf24', pts:7 },
+    { r:32, color:'#a3e635', pts:11 },
+    { r:41, color:'#4ade80', pts:16 },
+    { r:52, color:'#2dd4bf', pts:23 },
+    { r:66, color:'#38bdf8', pts:32 },
+    { r:83, color:'#818cf8', pts:44 }
+  ];
+  const SPAWN_POOL = [0,0,0,0,1,1,1,2,2,3];
+  const SQUARE_EMOJI = ['🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜'];
+
+  // ---------- seeded RNG (mulberry32) fed by today's date ----------
+  function hashStr(s){
+    let h = 1779033703 ^ s.length;
+    for(let i=0;i<s.length;i++){
+      h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return () => {
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      return (h ^= h >>> 16) >>> 0;
+    };
+  }
+  function mulberry32(seed){
+    return function(){
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const now = new Date();
+  const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+  const seedFn = hashStr(todayStr);
+  const rng = mulberry32(seedFn());
+
+  const epoch = new Date(2026, 0, 1);
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayNumber = Math.max(1, Math.round((todayMidnight - epoch) / 86400000) + 1);
+  dayNumEl.textContent = '#' + dayNumber;
+
+  const spawnQueue = [];
+  function ensureQueue(minLen){
+    while(spawnQueue.length < minLen){
+      spawnQueue.push(SPAWN_POOL[Math.floor(rng() * SPAWN_POOL.length)]);
+    }
+  }
+  ensureQueue(260);
+  let queuePos = 0;
+  function nextTier(){
+    ensureQueue(queuePos + 5);
+    return spawnQueue[queuePos++];
+  }
+
+  // ---------- game state ----------
+  let balls = [];
+  let idSeq = 1;
+  let pending = null; // { x, tier }
+  let score = 0, combo = 0, multiplier = 1, lastMergeTime = 0;
+  let timeLeft = ROUND_SECONDS;
+  let running = false;
+  let lastDropAt = 0;
+  let dangerTimer = 0;
+  let highestTier = 0;
+  let particles = [];
+  let popups = [];
+  let rafId = null;
+  let lastFrame = 0;
+  let previewX = W / 2;
+
+  function getBest(){ return Number(localStorage.getItem(BEST_KEY) || 0); }
+  function setBest(v){ localStorage.setItem(BEST_KEY, String(v)); }
+
+  function updateHud(){
+    scoreVal.textContent = score;
+    comboVal.textContent = 'x' + multiplier;
+    timeVal.textContent = Math.max(0, Math.ceil(timeLeft));
+    timeStat.classList.toggle('low', timeLeft <= 10);
+  }
+
+  function spawnPending(){
+    const t = nextTier();
+    pending = { tier: t, x: previewX };
+  }
+
+  function clampPreviewX(x, r){
+    return Math.min(W - r, Math.max(r, x));
+  }
+
+  function tryDrop(){
+    if(!running || !pending) return;
+    const t = performance.now();
+    if(t - lastDropAt < DROP_COOLDOWN) return;
+    lastDropAt = t;
+
+    const tierIdx = pending.tier;
+    const r = TIERS[tierIdx].r;
+    balls.push({
+      id: idSeq++,
+      x: clampPreviewX(pending.x, r),
+      y: HOVER_Y,
+      vx: 0, vy: 40,
+      r, tier: tierIdx
+    });
+    spawnPending();
+  }
+
+  function addScore(tierIdx, bonusMult){
+    const nowT = performance.now();
+    if(nowT - lastMergeTime <= COMBO_WINDOW){
+      combo += 1;
+    } else {
+      combo = 1;
+    }
+    lastMergeTime = nowT;
+    multiplier = Math.min(6, combo);
+    const gained = Math.round(TIERS[tierIdx].pts * multiplier * (bonusMult || 1));
+    score += gained;
+    updateHud();
+    return gained;
+  }
+
+  function spawnBurst(x, y, color){
+    for(let i=0;i<10;i++){
+      const angle = (Math.PI * 2 * i) / 10 + rng() * 0.5;
+      const speed = 60 + rng() * 90;
+      particles.push({
+        x, y, color,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1, maxLife: 0.45
+      });
+    }
+  }
+
+  function spawnPopup(x, y, text){
+    popups.push({ x, y, text, life: 1, maxLife: 0.7 });
+  }
+
+  function resolvePhysics(dt){
+    // integrate
+    for(const b of balls){
+      b.vy += GRAVITY * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+
+      if(b.x - b.r < 0){ b.x = b.r; b.vx = Math.abs(b.vx) * 0.2; }
+      if(b.x + b.r > W){ b.x = W - b.r; b.vx = -Math.abs(b.vx) * 0.2; }
+      if(b.y + b.r > H){ b.y = H - b.r; b.vy = -Math.abs(b.vy) * 0.22; b.vx *= 0.85; }
+      b.vx *= 0.995;
+    }
+
+    // merge detection: run first, against the raw post-integration positions,
+    // so same-tier overlaps are caught before any push-apart pass hides them
+    const consumed = new Set();
+    const merges = [];
+    for(let i=0;i<balls.length;i++){
+      const a = balls[i];
+      if(consumed.has(a.id)) continue;
+      for(let j=i+1;j<balls.length;j++){
+        const b = balls[j];
+        if(consumed.has(b.id) || a.tier !== b.tier) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
+        if(dist < a.r + b.r){
+          consumed.add(a.id); consumed.add(b.id);
+          merges.push({ a, b });
+        }
+      }
+    }
+
+    // collision passes: push apart any remaining (different-tier) overlaps
+    const PASSES = 3;
+    for(let pass=0; pass<PASSES; pass++){
+      for(let i=0;i<balls.length;i++){
+        const a = balls[i];
+        if(consumed.has(a.id)) continue;
+        for(let j=i+1;j<balls.length;j++){
+          const b = balls[j];
+          if(consumed.has(b.id)) continue;
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
+          const minDist = a.r + b.r;
+          if(dist < minDist){
+            const overlap = (minDist - dist) / 2;
+            const nx = dx / dist, ny = dy / dist;
+            a.x -= nx * overlap; a.y -= ny * overlap;
+            b.x += nx * overlap; b.y += ny * overlap;
+            const relVx = b.vx - a.vx, relVy = b.vy - a.vy;
+            const relDot = relVx * nx + relVy * ny;
+            if(relDot < 0){
+              const impulse = relDot * 0.35;
+              a.vx += impulse * nx; a.vy += impulse * ny;
+              b.vx -= impulse * nx; b.vy -= impulse * ny;
+            }
+          }
+        }
+      }
+    }
+
+    if(merges.length){
+      balls = balls.filter(b => !consumed.has(b.id));
+      for(const { a, b } of merges){
+        const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+        const tierIdx = a.tier;
+        const color = TIERS[tierIdx].color;
+        spawnBurst(midX, midY, color);
+
+        if(tierIdx >= TIERS.length - 1){
+          const gained = addScore(tierIdx, 3);
+          spawnPopup(midX, midY, '+' + gained);
+          highestTier = Math.max(highestTier, tierIdx);
+          continue;
+        }
+
+        const newTierIdx = tierIdx + 1;
+        const newR = TIERS[newTierIdx].r;
+        balls.push({
+          id: idSeq++,
+          x: clampPreviewX(midX, newR),
+          y: midY,
+          vx: (a.vx + b.vx) * 0.2,
+          vy: -90,
+          r: newR, tier: newTierIdx
+        });
+        const gained = addScore(tierIdx, 1);
+        spawnPopup(midX, midY, '+' + gained);
+        highestTier = Math.max(highestTier, newTierIdx);
+      }
+    }
+
+    // danger check
+    let danger = false;
+    for(const b of balls){
+      const speed = Math.abs(b.vx) + Math.abs(b.vy);
+      if(b.y - b.r < DANGER_Y && speed < 25){ danger = true; break; }
+    }
+    dangerTimer = danger ? dangerTimer + dt * 1000 : 0;
+    if(dangerTimer > 1000){
+      endGame(true);
+    }
+
+    // particles & popups
+    particles.forEach(p => {
+      p.life -= dt / p.maxLife;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vy += GRAVITY * 0.3 * dt;
+    });
+    particles = particles.filter(p => p.life > 0);
+
+    popups.forEach(p => {
+      p.life -= dt / p.maxLife;
+      p.y -= 40 * dt;
+    });
+    popups = popups.filter(p => p.life > 0);
+  }
+
+  function drawBallGlyph(x, y, r, color){
+    const grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.1, x, y, r);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.25, color);
+    grad.addColorStop(1, color);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255,255,255,.25)';
+    ctx.stroke();
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+
+    // background grid
+    ctx.save();
+    ctx.strokeStyle = 'rgba(128,140,168,.08)';
+    ctx.lineWidth = 1;
+    for(let gx=0; gx<=W; gx+=28){
+      ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke();
+    }
+    for(let gy=0; gy<=H; gy+=28){
+      ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke();
+    }
+    ctx.restore();
+
+    // danger line
+    ctx.save();
+    ctx.setLineDash([6,6]);
+    ctx.strokeStyle = dangerTimer > 300 ? 'rgba(248,113,113,.8)' : 'rgba(248,113,113,.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, DANGER_Y);
+    ctx.lineTo(W, DANGER_Y);
+    ctx.stroke();
+    ctx.restore();
+
+    for(const b of balls){
+      drawBallGlyph(b.x, b.y, b.r, TIERS[b.tier].color);
+    }
+
+    for(const p of particles){
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3.5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    for(const p of popups){
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = '#5eead4';
+      ctx.font = '700 15px -apple-system, Segoe UI, Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.text, p.x, p.y);
+      ctx.globalAlpha = 1;
+    }
+
+    if(pending && running){
+      ctx.save();
+      ctx.setLineDash([4,6]);
+      ctx.strokeStyle = 'rgba(167,139,250,.35)';
+      ctx.beginPath();
+      ctx.moveTo(pending.x, HOVER_Y + TIERS[pending.tier].r);
+      ctx.lineTo(pending.x, H);
+      ctx.stroke();
+      ctx.restore();
+      drawBallGlyph(pending.x, HOVER_Y, TIERS[pending.tier].r, TIERS[pending.tier].color);
+    }
+  }
+
+  function loop(ts){
+    if(!running){ return; }
+    if(!lastFrame) lastFrame = ts;
+    let dt = (ts - lastFrame) / 1000;
+    lastFrame = ts;
+    dt = Math.min(dt, 0.032);
+
+    timeLeft -= dt;
+    if(timeLeft <= 0){
+      timeLeft = 0;
+      updateHud();
+      endGame(false);
+      return;
+    }
+
+    resolvePhysics(dt);
+    render();
+    updateHud();
+
+    if(running){
+      rafId = requestAnimationFrame(loop);
+    }
+  }
+
+  function pointerXFromEvent(ev){
+    const rect = canvas.getBoundingClientRect();
+    const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+    return ((clientX - rect.left) / rect.width) * W;
+  }
+
+  canvas.addEventListener('pointermove', (ev) => {
+    if(!running || !pending) return;
+    previewX = clampPreviewX(pointerXFromEvent(ev), TIERS[pending.tier].r);
+    pending.x = previewX;
+  });
+  canvas.addEventListener('pointerdown', (ev) => {
+    if(!running) return;
+    if(pending){
+      previewX = clampPreviewX(pointerXFromEvent(ev), TIERS[pending.tier].r);
+      pending.x = previewX;
+    }
+    tryDrop();
+  });
+
+  let moveDir = 0;
+  document.addEventListener('keydown', (e) => {
+    if(e.code === 'ArrowLeft') moveDir = -1;
+    if(e.code === 'ArrowRight') moveDir = 1;
+    if((e.code === 'Space' || e.code === 'Enter')){
+      if(running) tryDrop();
+      else {
+        const btn = document.getElementById('start-btn') || document.getElementById('restart-btn');
+        if(btn) btn.click();
+      }
+    }
+  });
+  document.addEventListener('keyup', (e) => {
+    if(e.code === 'ArrowLeft' && moveDir === -1) moveDir = 0;
+    if(e.code === 'ArrowRight' && moveDir === 1) moveDir = 0;
+  });
+  setInterval(() => {
+    if(running && pending && moveDir !== 0){
+      previewX = clampPreviewX(previewX + moveDir * 9, TIERS[pending.tier].r);
+      pending.x = previewX;
+    }
+  }, 16);
+
+  function buildShareText(finalScore){
+    const filled = Math.min(SQUARE_EMOJI.length, highestTier + 1);
+    let squares = '';
+    for(let i=0;i<SQUARE_EMOJI.length;i++){
+      squares += i < filled ? SQUARE_EMOJI[i] : '⬜';
+    }
+    return `Fusion Rush #${dayNumber} — ${finalScore} pts\n${squares}`;
+  }
+
+  function startGame(){
+    balls = [];
+    particles = [];
+    popups = [];
+    score = 0; combo = 0; multiplier = 1; lastMergeTime = 0;
+    timeLeft = ROUND_SECONDS;
+    dangerTimer = 0;
+    highestTier = 0;
+    lastFrame = 0;
+    previewX = W / 2;
+    running = true;
+    overlay.remove();
+    spawnPending();
+    updateHud();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function endGame(overflow){
+    running = false;
+    cancelAnimationFrame(rafId);
+
+    const finalScore = score;
+    const best = getBest();
+    const isNewBest = finalScore > best;
+    if(isNewBest) setBest(finalScore);
+
+    const shareText = buildShareText(finalScore);
+
+    const end = document.createElement('div');
+    end.className = 'overlay';
+    end.innerHTML = `
+      <h2>${overflow ? '🫧 O pote transbordou!' : '⏱️ Tempo esgotado'}</h2>
+      <div class="big-score">${finalScore}</div>
+      <p class="best-line">Recorde: <b>${isNewBest ? finalScore : best}</b> pontos</p>
+      <div class="share-box" id="share-box">${shareText}</div>
+      <div class="btn-row">
+        <button id="restart-btn">Jogar de novo</button>
+        <button class="ghost" id="share-btn">Copiar resultado</button>
+      </div>
+    `;
+    canvas.parentElement.appendChild(end);
+
+    document.getElementById('restart-btn').addEventListener('click', () => {
+      end.remove();
+      startGame();
+    });
+    document.getElementById('share-btn').addEventListener('click', async () => {
+      try{
+        await navigator.clipboard.writeText(shareText);
+        const btn = document.getElementById('share-btn');
+        const original = btn.textContent;
+        btn.textContent = 'Copiado!';
+        setTimeout(() => { btn.textContent = original; }, 1400);
+      }catch(e){ /* clipboard optional */ }
+    });
+  }
+
+  document.getElementById('start-btn').addEventListener('click', startGame);
+  render();
+})();
+</script>
+</body>
+</html>
