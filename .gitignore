@@ -3,3 +3,7 @@ Thumbs.db
 *.log
 .vscode/
 node_modules/
+_shots/
+.claude/skills/run-github-showcase/_smoke_shots/
+__pycache__/
+*.pyc
