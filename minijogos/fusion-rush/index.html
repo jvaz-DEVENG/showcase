@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Fusion Rush</title>
-<meta name="description" content="Solte bolhas no pote e funda as iguais até ele transbordar. Um gatinho aparece de vez em quando pra brincar com as bolhas — e às vezes rouba uma, te dando uma bola de força. Desafio diário: a mesma sequência de bolhas (e do gato) pra todo mundo no mesmo dia." />
+<meta name="description" content="Solte bolhas no pote e funda as iguais até ele transbordar. As patinhas de um gato ficam tentando pegar bolhas pelas laterais — se ele conseguir, você ganha uma bola de força; se errar 5 vezes seguidas, ele se estressa e estoura sua maior bolha. Desafio diário: a mesma sequência de bolhas (e do gato) pra todo mundo no mesmo dia." />
 <style>
   :root{
     --bg-0:#0b0e14;
@@ -147,7 +147,7 @@
 <body>
 
   <h1>🫧 <span>Fusion Rush</span></h1>
-  <p class="subtitle">Solte as bolhas, funda as iguais e monte combo. Sem cronômetro — só acaba se o pote transbordar. De vez em quando um gatinho aparece pra brincar.</p>
+  <p class="subtitle">Solte as bolhas, funda as iguais e monte combo. Sem cronômetro — só acaba se o pote transbordar. Fique de olho nas laterais: tem um gato tentando roubar bolhas.</p>
   <div class="day-tag">Desafio do dia <b id="day-num">#1</b> — mesma sequência de bolhas (e do gato) pra todo mundo hoje</div>
 
   <div class="hud">
@@ -160,7 +160,7 @@
     <canvas class="arena" id="arena" width="340" height="460"></canvas>
     <div class="overlay" id="overlay">
       <h2>Funda as bolhas iguais</h2>
-      <p>Mova o dedo/mouse pra escolher a coluna e solte. Bolhas do mesmo nível se fundem numa maior. Se empilhar até a linha do topo, o jogo acaba. De vez em quando um gato aparece: ele pode dar uma patada numa bolha ou roubar uma — e aí você ganha uma bola de força capaz de sacudir a pilha inteira.</p>
+      <p>Mova o dedo/mouse pra escolher a coluna e solte. Bolhas do mesmo nível se fundem numa maior. Se empilhar até a linha do topo, o jogo acaba. Um gatinho fica tentando pegar bolhas pelas laterais — se ele conseguir, você ganha uma bola de força que sacode a pilha; se ele errar 5 vezes seguidas, ele se estressa, mia e estoura sua maior bolha.</p>
       <button id="start-btn">Começar</button>
     </div>
   </div>
@@ -190,7 +190,9 @@
   const POWER_TIER = 3;
   const SHOCKWAVE_RADIUS = 110;
   const SHOCKWAVE_STRENGTH = 260;
-  const CAT_ENTER = 0.45, CAT_ACT = 0.35, CAT_EXIT = 0.45;
+  const PAW_REACH_DUR = 0.28, PAW_HOLD_DUR = 0.2, PAW_RETRACT_DUR = 0.28;
+  const PAW_MAX_REACH = 210;
+  const FAIL_STREAK_LIMIT = 5;
 
   const TIERS = [
     { r:14, color:'#f87171', pts:2 },
@@ -268,13 +270,17 @@
   let previewX = W / 2;
   let elapsed = 0;
 
-  // ---------- cat state ----------
-  let catState = 'hidden'; // hidden | enter | act | exit
-  let catX = 0, catY = 50, catStartX = 0, catTargetX = 0;
-  let catPhaseT = 0, catAction = 'swat', catTargetBallId = null, catActed = false;
-  let catNextAt = 0;
+  // ---------- cat state: paws reach in from the sides ----------
+  let pawState = 'idle'; // idle | reach | hold | retract
+  let pawSide = -1; // -1 left, 1 right
+  let pawAnchorX = 0, pawAnchorY = 60;
+  let pawReach = 0, pawMaxReach = 0, pawPhaseT = 0, pawActed = false;
+  let pawTargetBallId = null;
+  let pawNextAt = 0;
+  let catMood = 'normal'; // normal | angry (while venting a stress-pop)
   let powerBallPending = false;
   let catSteals = 0;
+  let failStreak = 0;
 
   function getBest(){ return Number(localStorage.getItem(BEST_KEY) || 0); }
   function setBest(v){ localStorage.setItem(BEST_KEY, String(v)); }
@@ -498,66 +504,113 @@
     popups = popups.filter(p => p.life > 0);
   }
 
-  function updateCat(dt){
-    if(catState === 'hidden'){
-      if(elapsed >= catNextAt && balls.length > 0){
-        const side = rng() < 0.5 ? -1 : 1;
-        catStartX = side < 0 ? -30 : W + 30;
-        catX = catStartX;
-        catY = 50;
+  function grabChance(tierIdx){
+    if(tierIdx <= 1) return 0.55;
+    if(tierIdx <= 3) return 0.4;
+    if(tierIdx <= 5) return 0.25;
+    return 0.15;
+  }
 
-        let top = balls[0];
-        for(const b of balls){ if(b.y < top.y) top = b; }
-        catTargetBallId = top.id;
-        catTargetX = clampPreviewX(top.x, 20);
-        catAction = (balls.length >= 3 && rng() < 0.35) ? 'steal' : 'swat';
-        catPhaseT = 0;
-        catActed = false;
-        catState = 'enter';
+  function pickPawTarget(side){
+    let best = null;
+    for(const b of balls){
+      if(!best) { best = b; continue; }
+      if(side < 0 ? b.x < best.x : b.x > best.x) best = b;
+    }
+    return best;
+  }
+
+  function updateCat(dt){
+    if(pawState === 'idle'){
+      if(elapsed >= pawNextAt && balls.length > 0){
+        pawSide = rng() < 0.5 ? -1 : 1;
+        const target = pickPawTarget(pawSide);
+        pawTargetBallId = target.id;
+        pawAnchorX = pawSide < 0 ? 0 : W;
+        pawAnchorY = Math.min(H - 30, Math.max(40, target.y));
+        pawMaxReach = Math.min(PAW_MAX_REACH, Math.max(50, Math.abs(target.x - pawAnchorX) + target.r));
+        pawPhaseT = 0;
+        pawActed = false;
+        pawReach = 0;
+        catMood = 'normal';
+        pawState = 'reach';
       }
       return;
     }
 
-    if(catState === 'enter'){
-      catPhaseT += dt / CAT_ENTER;
-      const t = Math.min(1, catPhaseT);
-      catX = catStartX + (catTargetX - catStartX) * easeOutCubic(t);
-      if(catPhaseT >= 1){ catState = 'act'; catPhaseT = 0; }
+    if(pawState === 'reach'){
+      pawPhaseT += dt / PAW_REACH_DUR;
+      const t = Math.min(1, pawPhaseT);
+      pawReach = pawMaxReach * easeOutCubic(t);
+      if(pawPhaseT >= 1){ pawState = 'hold'; pawPhaseT = 0; }
       return;
     }
 
-    if(catState === 'act'){
-      if(!catActed){
-        catActed = true;
-        const target = balls.find(b => b.id === catTargetBallId);
-        if(target){
-          if(catAction === 'steal'){
-            balls = balls.filter(b => b.id !== target.id);
-            spawnBurst(target.x, target.y, TIERS[target.tier].color);
-            spawnPopup(target.x, target.y - target.r - 8, '🐾 roubou!');
-            powerBallPending = true;
-            catSteals += 1;
-          } else {
-            target.vx += (rng() - 0.5) * 500;
-            target.vy -= 160 + rng() * 80;
-            spawnPopup(target.x, target.y - target.r - 8, '🐾');
+    if(pawState === 'hold'){
+      if(!pawActed){
+        pawActed = true;
+        const target = balls.find(b => b.id === pawTargetBallId);
+        const tipX = pawAnchorX + pawSide * pawReach;
+        if(target && rng() < grabChance(target.tier)){
+          balls = balls.filter(b => b.id !== target.id);
+          spawnBurst(target.x, target.y, TIERS[target.tier].color);
+          spawnPopup(target.x, target.y - target.r - 8, '🐾 pegou!');
+          powerBallPending = true;
+          catSteals += 1;
+          failStreak = 0;
+        } else {
+          if(target){
+            target.vx += pawSide * (140 + rng() * 100);
+            target.vy -= 60 + rng() * 40;
+          }
+          spawnPopup(tipX, pawAnchorY - 14, '💨');
+          failStreak += 1;
+          if(failStreak >= FAIL_STREAK_LIMIT){
+            let biggest = null;
+            for(const b of balls){ if(!biggest || b.tier > biggest.tier) biggest = b; }
+            if(biggest){
+              balls = balls.filter(b => b.id !== biggest.id);
+              spawnBurst(biggest.x, biggest.y, '#f87171');
+              spawnPopup(biggest.x, biggest.y - biggest.r - 10, '😾 MIAU!');
+              catMood = 'angry';
+            }
+            failStreak = 0;
           }
         }
       }
-      catPhaseT += dt / CAT_ACT;
-      if(catPhaseT >= 1){ catState = 'exit'; catPhaseT = 0; }
+      pawPhaseT += dt / PAW_HOLD_DUR;
+      if(pawPhaseT >= 1){ pawState = 'retract'; pawPhaseT = 0; }
       return;
     }
 
-    if(catState === 'exit'){
-      catPhaseT += dt / CAT_EXIT;
-      const t = Math.min(1, catPhaseT);
-      catX = catTargetX + (catStartX - catTargetX) * easeOutCubic(t);
-      if(catPhaseT >= 1){
-        catState = 'hidden';
-        catNextAt = elapsed + 10 + rng() * 14;
+    if(pawState === 'retract'){
+      pawPhaseT += dt / PAW_RETRACT_DUR;
+      const t = Math.min(1, pawPhaseT);
+      pawReach = pawMaxReach * (1 - easeOutCubic(t));
+      if(pawPhaseT >= 1){
+        pawState = 'idle';
+        pawReach = 0;
+        pawNextAt = elapsed + 2.5 + rng() * 3.5;
       }
     }
+  }
+
+  function drawPaw(anchorX, anchorY, side, reach, furColor){
+    ctx.save();
+    ctx.translate(anchorX, anchorY);
+    ctx.translate(side * reach, 0);
+    ctx.fillStyle = furColor;
+    ctx.strokeStyle = 'rgba(0,0,0,.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 15, 11, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    for(let i = -1; i <= 1; i++){
+      ctx.beginPath();
+      ctx.ellipse(i * 9, -11, 5, 6, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawBallGlyph(x, y, r, color){
@@ -616,13 +669,15 @@
       if(b.power && !b.landed) drawPowerAura(b.x, b.y, b.r);
     }
 
-    if(catState !== 'hidden'){
+    if(pawState !== 'idle'){
+      const peekX = pawAnchorX + pawSide * 16;
       ctx.save();
-      ctx.font = '32px serif';
+      ctx.font = '26px serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🐱', catX, catY);
+      ctx.fillText(catMood === 'angry' ? '😾' : '🐱', peekX, pawAnchorY - 26);
       ctx.restore();
+      drawPaw(pawAnchorX, pawAnchorY, pawSide, pawReach, '#d4b896');
     }
 
     for(const p of particles){
@@ -737,11 +792,14 @@
     lastFrame = 0;
     previewX = W / 2;
     elapsed = 0;
-    catState = 'hidden';
-    catPhaseT = 0;
-    catNextAt = 6 + rng() * 6;
+    pawState = 'idle';
+    pawReach = 0;
+    pawPhaseT = 0;
+    pawNextAt = 3 + rng() * 3;
+    catMood = 'normal';
     powerBallPending = false;
     catSteals = 0;
+    failStreak = 0;
     running = true;
     overlay.remove();
     spawnPending();
