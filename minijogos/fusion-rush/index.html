@@ -382,20 +382,29 @@
       if(b.x + b.r > W){ b.x = W - b.r; b.vx = -Math.abs(b.vx) * 0.2; }
       if(b.y + b.r > H){
         b.y = H - b.r; b.vy = -Math.abs(b.vy) * 0.22; b.vx *= 0.85;
-        if(b.power && !b.landed) triggerShockwave(b);
+        if(!b.landed){
+          if(b.power) triggerShockwave(b);
+          b.landed = true;
+        }
       }
       b.vx *= 0.995;
     }
 
-    // power ball landing on another ball: trigger its shockwave once, before
-    // merge detection runs, so the disturbance is visible in this same frame
+    // any ball landing on another ball settles (marks it no longer "falling",
+    // so the cat's paw stops treating it as a valid target); power balls
+    // additionally trigger their shockwave here, before merge detection runs,
+    // so the disturbance is visible in this same frame
     for(const b of balls){
-      if(!b.power || b.landed) continue;
+      if(b.landed) continue;
       for(const o of balls){
         if(o.id === b.id) continue;
         const dx = o.x - b.x, dy = o.y - b.y;
         const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
-        if(dist < b.r + o.r){ triggerShockwave(b); break; }
+        if(dist < b.r + o.r){
+          b.landed = true;
+          if(b.power) triggerShockwave(b);
+          break;
+        }
       }
     }
 
@@ -511,31 +520,44 @@
     return 0.15;
   }
 
-  function pickPawTarget(side){
+  function pickFallingTarget(){
+    // only balls still in the air count — once something settles into the
+    // pile (touches the floor or another ball) the paw won't go for it
     let best = null;
     for(const b of balls){
-      if(!best) { best = b; continue; }
-      if(side < 0 ? b.x < best.x : b.x > best.x) best = b;
+      if(b.landed) continue;
+      if(!best || b.y < best.y) best = b;
     }
     return best;
   }
 
   function updateCat(dt){
     if(pawState === 'idle'){
-      if(elapsed >= pawNextAt && balls.length > 0){
-        pawSide = rng() < 0.5 ? -1 : 1;
-        const target = pickPawTarget(pawSide);
-        pawTargetBallId = target.id;
-        pawAnchorX = pawSide < 0 ? 0 : W;
-        pawAnchorY = Math.min(H - 30, Math.max(40, target.y));
-        pawMaxReach = Math.min(PAW_MAX_REACH, Math.max(50, Math.abs(target.x - pawAnchorX) + target.r));
-        pawPhaseT = 0;
-        pawActed = false;
-        pawReach = 0;
-        catMood = 'normal';
-        pawState = 'reach';
+      if(elapsed >= pawNextAt){
+        const target = pickFallingTarget();
+        if(target){
+          pawSide = target.x < W / 2 ? -1 : 1;
+          pawTargetBallId = target.id;
+          pawAnchorX = pawSide < 0 ? 0 : W;
+          pawAnchorY = Math.min(H - 30, Math.max(40, target.y));
+          pawMaxReach = Math.min(PAW_MAX_REACH, Math.max(50, Math.abs(target.x - pawAnchorX) + target.r));
+          pawPhaseT = 0;
+          pawActed = false;
+          pawReach = 0;
+          catMood = 'normal';
+          pawState = 'reach';
+        }
       }
       return;
+    }
+
+    // track the falling target's height while the paw is out, so the swipe
+    // still lines up even as the ball keeps dropping
+    if(pawState === 'reach' || pawState === 'hold'){
+      const tracked = balls.find(b => b.id === pawTargetBallId);
+      if(tracked && !tracked.landed){
+        pawAnchorY = Math.min(H - 30, Math.max(40, tracked.y));
+      }
     }
 
     if(pawState === 'reach'){
@@ -550,8 +572,9 @@
       if(!pawActed){
         pawActed = true;
         const target = balls.find(b => b.id === pawTargetBallId);
+        const stillFalling = target && !target.landed;
         const tipX = pawAnchorX + pawSide * pawReach;
-        if(target && rng() < grabChance(target.tier)){
+        if(stillFalling && rng() < grabChance(target.tier)){
           balls = balls.filter(b => b.id !== target.id);
           spawnBurst(target.x, target.y, TIERS[target.tier].color);
           spawnPopup(target.x, target.y - target.r - 8, '🐾 pegou!');
