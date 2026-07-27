@@ -573,7 +573,7 @@
         pawActed = true;
         const target = balls.find(b => b.id === pawTargetBallId);
         const stillFalling = target && !target.landed;
-        const tipX = pawAnchorX + pawSide * pawReach;
+        const tipX = pawAnchorX - pawSide * pawReach;
         if(stillFalling && rng() < grabChance(target.tier)){
           balls = balls.filter(b => b.id !== target.id);
           spawnBurst(target.x, target.y, TIERS[target.tier].color);
@@ -583,7 +583,7 @@
           failStreak = 0;
         } else {
           if(target){
-            target.vx += pawSide * (140 + rng() * 100);
+            target.vx += -pawSide * (140 + rng() * 100);
             target.vy -= 60 + rng() * 40;
           }
           spawnPopup(tipX, pawAnchorY - 14, '💨');
@@ -621,7 +621,8 @@
   function drawPaw(anchorX, anchorY, side, reach, furColor){
     ctx.save();
     ctx.translate(anchorX, anchorY);
-    ctx.translate(side * reach, 0);
+    // side is which wall the paw comes FROM, so it must reach the opposite way
+    ctx.translate(-side * reach, 0);
     ctx.fillStyle = furColor;
     ctx.strokeStyle = 'rgba(0,0,0,.15)';
     ctx.lineWidth = 1;
