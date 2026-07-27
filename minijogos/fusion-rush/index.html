@@ -618,13 +618,21 @@
     }
   }
 
-  function drawPaw(anchorX, anchorY, side, reach, furColor){
+  const CAT_FUR = { light: '#ffe8d1', base: '#e8a06a', shade: '#c97f4a', ink: '#3a2416' };
+
+  function drawPaw(anchorX, anchorY, side, reach, mood){
     ctx.save();
     ctx.translate(anchorX, anchorY);
     // side is which wall the paw comes FROM, so it must reach the opposite way
     ctx.translate(-side * reach, 0);
-    ctx.fillStyle = furColor;
-    ctx.strokeStyle = 'rgba(0,0,0,.15)';
+
+    const grad = ctx.createRadialGradient(-5, -6, 2, 0, 0, 18);
+    grad.addColorStop(0, CAT_FUR.light);
+    grad.addColorStop(0.45, mood === 'angry' ? '#e0855a' : CAT_FUR.base);
+    grad.addColorStop(1, CAT_FUR.shade);
+
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = 'rgba(58,36,22,.35)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.ellipse(0, 0, 15, 11, 0, 0, Math.PI * 2);
@@ -634,6 +642,91 @@
       ctx.ellipse(i * 9, -11, 5, 6, 0, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
     }
+
+    // pink paw pads for a bit of charm
+    ctx.fillStyle = 'rgba(216,110,122,.55)';
+    ctx.beginPath(); ctx.ellipse(0, 2, 4.2, 3.2, 0, 0, Math.PI * 2); ctx.fill();
+    for(let i = -1; i <= 1; i++){
+      ctx.beginPath(); ctx.ellipse(i * 8, -9, 1.8, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawCatHead(x, y, side, mood){
+    const angry = mood === 'angry';
+    ctx.save();
+    ctx.translate(x, y);
+    if(side > 0) ctx.scale(-1, 1); // face the reach direction
+
+    // ears
+    ctx.fillStyle = CAT_FUR.shade;
+    ctx.beginPath(); ctx.moveTo(-15, -13); ctx.lineTo(-23, -32); ctx.lineTo(-3, -21); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(8, -19); ctx.lineTo(15, -35); ctx.lineTo(20, -15); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f8c9a0';
+    ctx.beginPath(); ctx.moveTo(-14, -16); ctx.lineTo(-19, -28); ctx.lineTo(-8, -20); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(9, -20); ctx.lineTo(13, -30); ctx.lineTo(17, -17); ctx.closePath(); ctx.fill();
+
+    // head
+    const faceR = 20;
+    const grad = ctx.createRadialGradient(-faceR * 0.3, -faceR * 0.3, faceR * 0.1, 0, 0, faceR);
+    grad.addColorStop(0, CAT_FUR.light);
+    grad.addColorStop(0.35, CAT_FUR.base);
+    grad.addColorStop(1, CAT_FUR.shade);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, faceR, faceR * 0.9, 0, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(58,36,22,.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // whiskers (behind the eyes/nose, drawn first so they tuck under the face edge)
+    ctx.strokeStyle = 'rgba(255,255,255,.75)';
+    ctx.lineWidth = 1;
+    for(const dy of [-3, 2, 7]){
+      ctx.beginPath(); ctx.moveTo(-4, 6 + dy * 0.3); ctx.lineTo(-faceR - 10, dy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(4, 6 + dy * 0.3); ctx.lineTo(faceR + 10, dy); ctx.stroke();
+    }
+
+    // eyes
+    const eyeY = -2, eyeDX = 8;
+    if(angry){
+      ctx.strokeStyle = CAT_FUR.ink;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-eyeDX - 5, eyeY - 4); ctx.lineTo(-eyeDX + 3, eyeY + 2); ctx.lineTo(-eyeDX + 7, eyeY - 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(eyeDX - 7, eyeY - 2); ctx.lineTo(eyeDX - 3, eyeY + 2); ctx.lineTo(eyeDX + 5, eyeY - 4); ctx.stroke();
+    } else {
+      ctx.fillStyle = CAT_FUR.ink;
+      ctx.beginPath(); ctx.ellipse(-eyeDX, eyeY, 3, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(eyeDX, eyeY, 3, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(-eyeDX + 1, eyeY - 1.5, 1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(eyeDX + 1, eyeY - 1.5, 1, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // nose
+    ctx.fillStyle = '#a85a3f';
+    ctx.beginPath();
+    ctx.moveTo(-3, 6); ctx.lineTo(3, 6); ctx.lineTo(0, 10);
+    ctx.closePath(); ctx.fill();
+
+    // mouth
+    if(angry){
+      ctx.fillStyle = '#7a3b2e';
+      ctx.beginPath();
+      ctx.ellipse(0, 15, 6, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = CAT_FUR.ink;
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, 10); ctx.quadraticCurveTo(-5, 15, -9, 12);
+      ctx.moveTo(0, 10); ctx.quadraticCurveTo(5, 15, 9, 12);
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 
@@ -694,14 +787,11 @@
     }
 
     if(pawState !== 'idle'){
-      const peekX = pawAnchorX + pawSide * 16;
-      ctx.save();
-      ctx.font = '26px serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(catMood === 'angry' ? '😾' : '🐱', peekX, pawAnchorY - 26);
-      ctx.restore();
-      drawPaw(pawAnchorX, pawAnchorY, pawSide, pawReach, '#d4b896');
+      // pull the head inward from the wall (opposite of pawSide) so it
+      // actually reads as peeking in, not mostly clipped off-canvas
+      const peekX = pawAnchorX - pawSide * 14;
+      drawCatHead(peekX, pawAnchorY - 24, pawSide, catMood);
+      drawPaw(pawAnchorX, pawAnchorY, pawSide, pawReach, catMood);
     }
 
     for(const p of particles){
