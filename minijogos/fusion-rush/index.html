@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Fusion Rush</title>
-<meta name="description" content="Solte bolhas no pote, funda as iguais e monte combos antes que o tempo acabe ou o pote transborde. Desafio diário: a mesma sequência de bolhas pra todo mundo no mesmo dia." />
+<meta name="description" content="Solte bolhas no pote e funda as iguais até ele transbordar. Um gatinho aparece de vez em quando pra brincar com as bolhas — e às vezes rouba uma, te dando uma bola de força. Desafio diário: a mesma sequência de bolhas (e do gato) pra todo mundo no mesmo dia." />
 <style>
   :root{
     --bg-0:#0b0e14;
@@ -79,7 +79,6 @@
   .stat span{ display:block; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
   #combo-stat b{ color:var(--accent-2); }
   #score-stat b{ color:var(--accent); }
-  #time-stat.low b{ color:var(--danger); }
 
   .stage{ position:relative; }
   .arena{
@@ -148,20 +147,20 @@
 <body>
 
   <h1>🫧 <span>Fusion Rush</span></h1>
-  <p class="subtitle">Solte as bolhas, funda as iguais e monte combo. 60 segundos — ou até o pote transbordar.</p>
-  <div class="day-tag">Desafio do dia <b id="day-num">#1</b> — mesma sequência de bolhas pra todo mundo hoje</div>
+  <p class="subtitle">Solte as bolhas, funda as iguais e monte combo. Sem cronômetro — só acaba se o pote transbordar. De vez em quando um gatinho aparece pra brincar.</p>
+  <div class="day-tag">Desafio do dia <b id="day-num">#1</b> — mesma sequência de bolhas (e do gato) pra todo mundo hoje</div>
 
   <div class="hud">
     <div class="stat" id="score-stat"><b id="score-val">0</b><span>Pontos</span></div>
     <div class="stat" id="combo-stat"><b id="combo-val">x1</b><span>Combo</span></div>
-    <div class="stat" id="time-stat"><b id="time-val">60</b><span>Segundos</span></div>
+    <div class="stat" id="level-stat"><b id="level-val">T1</b><span>Maior nível</span></div>
   </div>
 
   <div class="stage">
     <canvas class="arena" id="arena" width="340" height="460"></canvas>
     <div class="overlay" id="overlay">
       <h2>Funda as bolhas iguais</h2>
-      <p>Mova o dedo/mouse pra escolher a coluna e solte. Bolhas do mesmo nível se fundem numa maior. Se empilhar até a linha do topo, o jogo acaba.</p>
+      <p>Mova o dedo/mouse pra escolher a coluna e solte. Bolhas do mesmo nível se fundem numa maior. Se empilhar até a linha do topo, o jogo acaba. De vez em quando um gato aparece: ele pode dar uma patada numa bolha ou roubar uma — e aí você ganha uma bola de força capaz de sacudir a pilha inteira.</p>
       <button id="start-btn">Começar</button>
     </div>
   </div>
@@ -177,19 +176,21 @@
   const overlay = document.getElementById('overlay');
   const scoreVal = document.getElementById('score-val');
   const comboVal = document.getElementById('combo-val');
-  const timeVal = document.getElementById('time-val');
-  const timeStat = document.getElementById('time-stat');
+  const levelVal = document.getElementById('level-val');
   const dayNumEl = document.getElementById('day-num');
 
   const W = canvas.width;
   const H = canvas.height;
   const DANGER_Y = 78;
   const GRAVITY = 1500;
-  const ROUND_SECONDS = 60;
   const HOVER_Y = 34;
   const DROP_COOLDOWN = 380;
   const COMBO_WINDOW = 1300;
   const BEST_KEY = 'fusionRushBest';
+  const POWER_TIER = 3;
+  const SHOCKWAVE_RADIUS = 110;
+  const SHOCKWAVE_STRENGTH = 260;
+  const CAT_ENTER = 0.45, CAT_ACT = 0.35, CAT_EXIT = 0.45;
 
   const TIERS = [
     { r:14, color:'#f87171', pts:2 },
@@ -203,6 +204,8 @@
   ];
   const SPAWN_POOL = [0,0,0,0,1,1,1,2,2,3];
   const SQUARE_EMOJI = ['🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜'];
+
+  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
 
   // ---------- seeded RNG (mulberry32) fed by today's date ----------
   function hashStr(s){
@@ -252,9 +255,8 @@
   // ---------- game state ----------
   let balls = [];
   let idSeq = 1;
-  let pending = null; // { x, tier }
+  let pending = null; // { x, tier, power }
   let score = 0, combo = 0, multiplier = 1, lastMergeTime = 0;
-  let timeLeft = ROUND_SECONDS;
   let running = false;
   let lastDropAt = 0;
   let dangerTimer = 0;
@@ -264,6 +266,15 @@
   let rafId = null;
   let lastFrame = 0;
   let previewX = W / 2;
+  let elapsed = 0;
+
+  // ---------- cat state ----------
+  let catState = 'hidden'; // hidden | enter | act | exit
+  let catX = 0, catY = 50, catStartX = 0, catTargetX = 0;
+  let catPhaseT = 0, catAction = 'swat', catTargetBallId = null, catActed = false;
+  let catNextAt = 0;
+  let powerBallPending = false;
+  let catSteals = 0;
 
   function getBest(){ return Number(localStorage.getItem(BEST_KEY) || 0); }
   function setBest(v){ localStorage.setItem(BEST_KEY, String(v)); }
@@ -271,13 +282,14 @@
   function updateHud(){
     scoreVal.textContent = score;
     comboVal.textContent = 'x' + multiplier;
-    timeVal.textContent = Math.max(0, Math.ceil(timeLeft));
-    timeStat.classList.toggle('low', timeLeft <= 10);
+    levelVal.textContent = 'T' + (highestTier + 1);
   }
 
   function spawnPending(){
     const t = nextTier();
-    pending = { tier: t, x: previewX };
+    const isPower = powerBallPending;
+    if(isPower) powerBallPending = false;
+    pending = { tier: isPower ? POWER_TIER : t, x: previewX, power: isPower };
   }
 
   function clampPreviewX(x, r){
@@ -297,7 +309,9 @@
       x: clampPreviewX(pending.x, r),
       y: HOVER_Y,
       vx: 0, vy: 40,
-      r, tier: tierIdx
+      r, tier: tierIdx,
+      power: !!pending.power,
+      landed: false
     });
     spawnPending();
   }
@@ -334,6 +348,23 @@
     popups.push({ x, y, text, life: 1, maxLife: 0.7 });
   }
 
+  function triggerShockwave(ball){
+    for(const b of balls){
+      if(b.id === ball.id) continue;
+      const dx = b.x - ball.x, dy = b.y - ball.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
+      if(dist < SHOCKWAVE_RADIUS){
+        const falloff = 1 - dist / SHOCKWAVE_RADIUS;
+        const nx = dx / dist, ny = dy / dist;
+        b.vx += nx * SHOCKWAVE_STRENGTH * falloff;
+        b.vy += ny * SHOCKWAVE_STRENGTH * falloff - 60 * falloff;
+      }
+    }
+    spawnBurst(ball.x, ball.y, '#fbbf24');
+    spawnPopup(ball.x, ball.y - ball.r - 8, '💥');
+    ball.landed = true;
+  }
+
   function resolvePhysics(dt){
     // integrate
     for(const b of balls){
@@ -343,8 +374,23 @@
 
       if(b.x - b.r < 0){ b.x = b.r; b.vx = Math.abs(b.vx) * 0.2; }
       if(b.x + b.r > W){ b.x = W - b.r; b.vx = -Math.abs(b.vx) * 0.2; }
-      if(b.y + b.r > H){ b.y = H - b.r; b.vy = -Math.abs(b.vy) * 0.22; b.vx *= 0.85; }
+      if(b.y + b.r > H){
+        b.y = H - b.r; b.vy = -Math.abs(b.vy) * 0.22; b.vx *= 0.85;
+        if(b.power && !b.landed) triggerShockwave(b);
+      }
       b.vx *= 0.995;
+    }
+
+    // power ball landing on another ball: trigger its shockwave once, before
+    // merge detection runs, so the disturbance is visible in this same frame
+    for(const b of balls){
+      if(!b.power || b.landed) continue;
+      for(const o of balls){
+        if(o.id === b.id) continue;
+        const dx = o.x - b.x, dy = o.y - b.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
+        if(dist < b.r + o.r){ triggerShockwave(b); break; }
+      }
     }
 
     // merge detection: run first, against the raw post-integration positions,
@@ -434,7 +480,7 @@
     }
     dangerTimer = danger ? dangerTimer + dt * 1000 : 0;
     if(dangerTimer > 1000){
-      endGame(true);
+      endGame();
     }
 
     // particles & popups
@@ -452,6 +498,68 @@
     popups = popups.filter(p => p.life > 0);
   }
 
+  function updateCat(dt){
+    if(catState === 'hidden'){
+      if(elapsed >= catNextAt && balls.length > 0){
+        const side = rng() < 0.5 ? -1 : 1;
+        catStartX = side < 0 ? -30 : W + 30;
+        catX = catStartX;
+        catY = 50;
+
+        let top = balls[0];
+        for(const b of balls){ if(b.y < top.y) top = b; }
+        catTargetBallId = top.id;
+        catTargetX = clampPreviewX(top.x, 20);
+        catAction = (balls.length >= 3 && rng() < 0.35) ? 'steal' : 'swat';
+        catPhaseT = 0;
+        catActed = false;
+        catState = 'enter';
+      }
+      return;
+    }
+
+    if(catState === 'enter'){
+      catPhaseT += dt / CAT_ENTER;
+      const t = Math.min(1, catPhaseT);
+      catX = catStartX + (catTargetX - catStartX) * easeOutCubic(t);
+      if(catPhaseT >= 1){ catState = 'act'; catPhaseT = 0; }
+      return;
+    }
+
+    if(catState === 'act'){
+      if(!catActed){
+        catActed = true;
+        const target = balls.find(b => b.id === catTargetBallId);
+        if(target){
+          if(catAction === 'steal'){
+            balls = balls.filter(b => b.id !== target.id);
+            spawnBurst(target.x, target.y, TIERS[target.tier].color);
+            spawnPopup(target.x, target.y - target.r - 8, '🐾 roubou!');
+            powerBallPending = true;
+            catSteals += 1;
+          } else {
+            target.vx += (rng() - 0.5) * 500;
+            target.vy -= 160 + rng() * 80;
+            spawnPopup(target.x, target.y - target.r - 8, '🐾');
+          }
+        }
+      }
+      catPhaseT += dt / CAT_ACT;
+      if(catPhaseT >= 1){ catState = 'exit'; catPhaseT = 0; }
+      return;
+    }
+
+    if(catState === 'exit'){
+      catPhaseT += dt / CAT_EXIT;
+      const t = Math.min(1, catPhaseT);
+      catX = catTargetX + (catStartX - catTargetX) * easeOutCubic(t);
+      if(catPhaseT >= 1){
+        catState = 'hidden';
+        catNextAt = elapsed + 10 + rng() * 14;
+      }
+    }
+  }
+
   function drawBallGlyph(x, y, r, color){
     const grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.1, x, y, r);
     grad.addColorStop(0, '#ffffff');
@@ -464,6 +572,17 @@
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = 'rgba(255,255,255,.25)';
     ctx.stroke();
+  }
+
+  function drawPowerAura(x, y, r){
+    const pulse = 0.5 + 0.5 * Math.sin(elapsed * 8);
+    ctx.save();
+    ctx.strokeStyle = `rgba(251,146,60,${0.4 + 0.4 * pulse})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function render(){
@@ -494,6 +613,16 @@
 
     for(const b of balls){
       drawBallGlyph(b.x, b.y, b.r, TIERS[b.tier].color);
+      if(b.power && !b.landed) drawPowerAura(b.x, b.y, b.r);
+    }
+
+    if(catState !== 'hidden'){
+      ctx.save();
+      ctx.font = '32px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🐱', catX, catY);
+      ctx.restore();
     }
 
     for(const p of particles){
@@ -524,6 +653,7 @@
       ctx.stroke();
       ctx.restore();
       drawBallGlyph(pending.x, HOVER_Y, TIERS[pending.tier].r, TIERS[pending.tier].color);
+      if(pending.power) drawPowerAura(pending.x, HOVER_Y, TIERS[pending.tier].r);
     }
   }
 
@@ -533,16 +663,10 @@
     let dt = (ts - lastFrame) / 1000;
     lastFrame = ts;
     dt = Math.min(dt, 0.032);
-
-    timeLeft -= dt;
-    if(timeLeft <= 0){
-      timeLeft = 0;
-      updateHud();
-      endGame(false);
-      return;
-    }
+    elapsed += dt;
 
     resolvePhysics(dt);
+    updateCat(dt);
     render();
     updateHud();
 
@@ -608,11 +732,16 @@
     particles = [];
     popups = [];
     score = 0; combo = 0; multiplier = 1; lastMergeTime = 0;
-    timeLeft = ROUND_SECONDS;
     dangerTimer = 0;
     highestTier = 0;
     lastFrame = 0;
     previewX = W / 2;
+    elapsed = 0;
+    catState = 'hidden';
+    catPhaseT = 0;
+    catNextAt = 6 + rng() * 6;
+    powerBallPending = false;
+    catSteals = 0;
     running = true;
     overlay.remove();
     spawnPending();
@@ -620,7 +749,7 @@
     rafId = requestAnimationFrame(loop);
   }
 
-  function endGame(overflow){
+  function endGame(){
     running = false;
     cancelAnimationFrame(rafId);
 
@@ -634,9 +763,10 @@
     const end = document.createElement('div');
     end.className = 'overlay';
     end.innerHTML = `
-      <h2>${overflow ? '🫧 O pote transbordou!' : '⏱️ Tempo esgotado'}</h2>
+      <h2>🫧 O pote transbordou!</h2>
       <div class="big-score">${finalScore}</div>
       <p class="best-line">Recorde: <b>${isNewBest ? finalScore : best}</b> pontos</p>
+      <p class="best-line">🐱 o gato roubou <b>${catSteals}</b> bolha${catSteals === 1 ? '' : 's'}</p>
       <div class="share-box" id="share-box">${shareText}</div>
       <div class="btn-row">
         <button id="restart-btn">Jogar de novo</button>

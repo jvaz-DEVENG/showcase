@@ -9,7 +9,7 @@ Cada projeto vive na sua própria pasta e é 100% autocontido (`index.html` úni
 | Projeto | Descrição | Jogar |
 |---|---|---|
 | [Reflex Rush](minijogos/reflex-rush/) | Jogo de reflexo: acerte alvos que somem rápido, monte combos, 30 segundos por rodada, recorde salvo localmente. | [Demo ao vivo](#) |
-| [Fusion Rush](minijogos/fusion-rush/) | Física de merge (bolhas iguais se fundem numa maior) com combo por velocidade e desafio diário — mesma sequência de bolhas pra todo mundo no mesmo dia, com resultado compartilhável estilo Wordle. | [Demo ao vivo](#) |
+| [Fusion Rush](minijogos/fusion-rush/) | Física de merge (bolhas iguais se fundem numa maior) com combo por velocidade, modo sem cronômetro (só acaba se o pote transbordar) e um gatinho que aparece de vez em quando pra dar patadas — e às vezes rouba uma bolha, te dando uma bola de força que sacode a pilha. Desafio diário compartilhável estilo Wordle. | [Demo ao vivo](#) |
 
 ## 🛠️ Ferramentas
 
