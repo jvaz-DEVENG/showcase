@@ -1,17 +1,17 @@
-# 🚀 Showcase
+# Showcase
 
 Um repositório único com minijogos e ferramentas práticas — cada um roda direto no navegador, sem instalação, sem dependências e sem servidor. Feito pra ser jogado/testado com um clique via GitHub Pages.
 
 Cada projeto vive na sua própria pasta e é 100% autocontido (`index.html` único com CSS e JS embutidos).
 
-## 🎮 Minijogos
+## Minijogos
 
 | Projeto | Descrição | Jogar |
 |---|---|---|
 | [Reflex Rush](minijogos/reflex-rush/) | Jogo de reflexo: acerte alvos que somem rápido, monte combos, 30 segundos por rodada, recorde salvo localmente. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/minijogos/reflex-rush/) |
 | [Fusion Rush](minijogos/fusion-rush/) | Física de merge (bolhas iguais se fundem numa maior) com combo por velocidade, modo sem cronômetro (só acaba se o pote transbordar) e um gato ativo tentando roubar bolhas pelas laterais — acerta e você ganha uma bola de força que sacode a pilha, erra 5 vezes seguidas e ele se estressa e estoura sua maior bolha. Desafio diário compartilhável estilo Wordle. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/minijogos/fusion-rush/) |
 
-## 🛠️ Ferramentas
+## Ferramentas
 
 | Projeto | Descrição | Usar |
 |---|---|---|
@@ -22,6 +22,8 @@ Cada projeto vive na sua própria pasta e é 100% autocontido (`index.html` úni
 ## Identidade
 
 Cada projeto assina o próprio rodapé com número de versão (semver) e link para [@jvaz-DEVENG](https://github.com/jvaz-DEVENG) — assim qualquer um que abrir um link isolado (sem passar pelo README) já reconhece de onde veio. Ao evoluir um projeto, suba a versão no rodapé (`vMAJOR.MINOR.PATCH`): PATCH para correção, MINOR para funcionalidade nova, MAJOR para mudança que quebra compatibilidade com versões salvas (ex: formato do `.json` do Gerador de Relatório Fotográfico).
+
+Ícones de cabeçalho e favicon seguem um padrão único (linha fina, 24×24, cor sólida sobre fundo em gradiente/degradê) — sem emoji coloridos de plataforma, que renderizam diferente em cada sistema.
 
 ## Stack
 

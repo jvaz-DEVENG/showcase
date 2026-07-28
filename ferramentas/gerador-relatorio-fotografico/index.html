@@ -241,13 +241,13 @@
   </div>
 
   <div class="botoes">
-    <button class="acao primario" id="btnPdf">🖨️ Exportar PDF (imprimir)</button>
-    <button class="acao secundario" id="btnSalvar">💾 Salvar projeto (.json)</button>
-    <button class="acao secundario" id="btnAbrir">📂 Abrir projeto</button>
+    <button class="acao primario" id="btnPdf">Exportar PDF (imprimir)</button>
+    <button class="acao secundario" id="btnSalvar">Salvar projeto (.json)</button>
+    <button class="acao secundario" id="btnAbrir">Abrir projeto</button>
     <input type="file" id="abrirFile" accept=".json,application/json" hidden>
     <button class="acao perigo" id="btnLimpar">Limpar tudo</button>
   </div>
-  <p class="dica">✏️ Para mudar uma legenda, clique no título da foto (ex.: <code>FOTO 01</code>) na prévia e digite. Deixe em branco para voltar à legenda automática.</p>
+  <p class="dica">Para mudar uma legenda, clique no título da foto (ex.: <code>FOTO 01</code>) na prévia e digite. Deixe em branco para voltar à legenda automática.</p>
   <p class="dica">No diálogo de impressão escolha <b>Salvar como PDF</b>, papel <b>A4</b> e margens <b>Nenhuma</b>. Cada página sai com exatamente 6 fotos — a quebra é fixa e não desconfigura.</p>
   <div class="app-footer">Gerador de Relatório Fotográfico <span class="ver">v1.0.0</span> — 100% no navegador, sem servidor.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></div>
 </aside>
@@ -479,8 +479,8 @@
     $("mTexto").textContent = "Já existem fotos neste relatório. Você está adicionando "+qtd+" foto"+(qtd===1?"":"s")+". O que deseja fazer?";
     var b=$("mBtns"); b.innerHTML="";
     function botao(txt,cls,fn){ var x=document.createElement("button"); x.className="acao "+cls; x.textContent=txt; x.onclick=function(){ ov.style.display="none"; fn&&fn(); }; return x; }
-    b.appendChild(botao("➕ Incluir neste relatório","primario",onAdd));
-    b.appendChild(botao("🔄 Começar um novo (substituir)","secundario",onNew));
+    b.appendChild(botao("Incluir neste relatório","primario",onAdd));
+    b.appendChild(botao("Começar um novo (substituir)","secundario",onNew));
     b.appendChild(botao("Cancelar","perigo",null));
     ov.style.display="flex";
   }

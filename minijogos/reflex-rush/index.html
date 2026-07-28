@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Reflex Rush</title>
 <meta name="description" content="Jogo de reflexo em 30 segundos: acerte os alvos antes que somem e monte combos. Feito em HTML/CSS/JS puro." />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjI0IiB5Mj0iMjQiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzVlZWFkNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E3OGJmYSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgcng9IjYiIGZpbGw9InVybCgjZykiLz48cGF0aCBkPSJNMTMgMyA1IDE0aDZsLTEgNyA5LTExaC02bDEtN1oiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzA4MTMxYSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==">
 <style>
   :root{
     --bg-0:#0b0e14;
@@ -53,7 +54,11 @@
     margin:0;
     font-size:clamp(22px,4vw,32px);
     letter-spacing:.5px;
+    display:flex;
+    align-items:center;
+    gap:10px;
   }
+  h1 img{ width:1em; height:1em; border-radius:22%; flex:none; }
   h1 span{
     background:linear-gradient(90deg,var(--accent),var(--accent-2));
     -webkit-background-clip:text;
@@ -196,7 +201,7 @@
 </head>
 <body>
 
-  <h1>⚡ <span>Reflex Rush</span></h1>
+  <h1><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjI0IiB5Mj0iMjQiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzVlZWFkNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E3OGJmYSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgcng9IjYiIGZpbGw9InVybCgjZykiLz48cGF0aCBkPSJNMTMgMyA1IDE0aDZsLTEgNyA5LTExaC02bDEtN1oiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzA4MTMxYSIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==" alt=""><span>Reflex Rush</span></h1>
   <p class="subtitle">Clique nos alvos antes que sumam. 30 segundos. Quanto mais rápido, maior o combo.</p>
 
   <div class="hud">
@@ -372,7 +377,7 @@
     const end = document.createElement('div');
     end.className = 'overlay';
     end.innerHTML = `
-      <h2>${isNewBest ? '🏆 Novo recorde!' : 'Tempo esgotado'}</h2>
+      <h2>${isNewBest ? 'Novo recorde!' : 'Tempo esgotado'}</h2>
       <div class="big-score">${score}</div>
       <p class="best-line">Recorde: <b>${isNewBest ? score : best}</b> pontos</p>
       <button id="restart-btn">Jogar de novo</button>

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Fusion Rush</title>
 <meta name="description" content="Solte bolhas no pote e funda as iguais até ele transbordar. As patinhas de um gato ficam tentando pegar bolhas pelas laterais — se ele conseguir, você ganha uma bola de força; se errar 5 vezes seguidas, ele se estressa e estoura sua maior bolha. Desafio diário: a mesma sequência de bolhas (e do gato) pra todo mundo no mesmo dia." />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjI0IiB5Mj0iMjQiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzVlZWFkNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E3OGJmYSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgcng9IjYiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI5IiBjeT0iMTQiIHI9IjQuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDgxMzFhIiBzdHJva2Utd2lkdGg9IjEuNiIvPjxjaXJjbGUgY3g9IjE1LjUiIGN5PSI4LjUiIHI9IjIuNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDgxMzFhIiBzdHJva2Utd2lkdGg9IjEuNiIvPjwvc3ZnPg==">
 <style>
   :root{
     --bg-0:#0b0e14;
@@ -49,7 +50,8 @@
     padding:20px;
     overflow-x:hidden;
   }
-  h1{ margin:0; font-size:clamp(22px,4vw,32px); letter-spacing:.5px; }
+  h1{ margin:0; font-size:clamp(22px,4vw,32px); letter-spacing:.5px; display:flex; align-items:center; gap:10px; }
+  h1 img{ width:1em; height:1em; border-radius:22%; flex:none; }
   h1 span{
     background:linear-gradient(90deg,var(--accent),var(--accent-2));
     -webkit-background-clip:text; background-clip:text; color:transparent;
@@ -147,7 +149,7 @@
 </head>
 <body>
 
-  <h1>🫧 <span>Fusion Rush</span></h1>
+  <h1><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjI0IiB5Mj0iMjQiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzVlZWFkNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2E3OGJmYSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgcng9IjYiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSI5IiBjeT0iMTQiIHI9IjQuMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDgxMzFhIiBzdHJva2Utd2lkdGg9IjEuNiIvPjxjaXJjbGUgY3g9IjE1LjUiIGN5PSI4LjUiIHI9IjIuNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDgxMzFhIiBzdHJva2Utd2lkdGg9IjEuNiIvPjwvc3ZnPg==" alt=""><span>Fusion Rush</span></h1>
   <p class="subtitle">Solte as bolhas, funda as iguais e monte combo. Sem cronômetro — só acaba se o pote transbordar. Fique de olho nas laterais: tem um gato tentando roubar bolhas.</p>
   <div class="day-tag">Desafio do dia <b id="day-num">#1</b> — mesma sequência de bolhas (e do gato) pra todo mundo hoje</div>
 
@@ -936,10 +938,10 @@
     const end = document.createElement('div');
     end.className = 'overlay';
     end.innerHTML = `
-      <h2>🫧 O pote transbordou!</h2>
+      <h2>O pote transbordou!</h2>
       <div class="big-score">${finalScore}</div>
       <p class="best-line">Recorde: <b>${isNewBest ? finalScore : best}</b> pontos</p>
-      <p class="best-line">🐱 o gato roubou <b>${catSteals}</b> bolha${catSteals === 1 ? '' : 's'}</p>
+      <p class="best-line">O gato roubou <b>${catSteals}</b> bolha${catSteals === 1 ? '' : 's'}</p>
       <div class="share-box" id="share-box">${shareText}</div>
       <div class="btn-row">
         <button id="restart-btn">Jogar de novo</button>
