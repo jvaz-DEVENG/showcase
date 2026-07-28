@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Mata Barata</title>
+<meta name="description" content="Whack-a-mole de baratas: esmague antes que fujam, monte combo, dourada vale mais. 30 segundos por rodada. Feito em HTML/CSS/JS puro." />
+<style>
+  :root{
+    --bg-0:#0b0e14;
+    --bg-1:#121722;
+    --panel:#161c29;
+    --hole:#0e1a12;
+    --hole-2:#050a06;
+    --text:#e8ecf4;
+    --muted:#8b93a7;
+    --accent:#5eead4;
+    --accent-2:#a78bfa;
+    --gold:#f1c40f;
+    --danger:#f87171;
+    --ring:rgba(94,234,212,.35);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg-0:#eef1f6;
+      --bg-1:#e4e9f2;
+      --panel:#ffffff;
+      --hole:#e4ded2;
+      --hole-2:#cdc4b0;
+      --text:#131722;
+      --muted:#5b6478;
+      --accent:#0d9488;
+      --accent-2:#7c3aed;
+      --gold:#b45309;
+      --danger:#dc2626;
+      --ring:rgba(13,148,136,.25);
+    }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, var(--bg-1), transparent),
+      radial-gradient(1200px 600px at 100% 110%, var(--bg-1), transparent),
+      var(--bg-0);
+    color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    padding:20px;
+    overflow-x:hidden;
+  }
+  h1{
+    margin:0;
+    font-size:clamp(22px,4vw,32px);
+    letter-spacing:.5px;
+  }
+  h1 span{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .subtitle{
+    margin:2px 0 0;
+    color:var(--muted);
+    font-size:14px;
+    text-align:center;
+  }
+  .hud{
+    width:min(420px,92vw);
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .stat{
+    flex:1;
+    background:var(--panel);
+    border-radius:14px;
+    padding:10px 14px;
+    text-align:center;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 20px -12px rgba(0,0,0,.5);
+  }
+  .stat b{
+    display:block;
+    font-size:20px;
+  }
+  .stat span{
+    display:block;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    margin-top:2px;
+  }
+  #combo-stat b{ color:var(--accent-2); }
+  #score-stat b{ color:var(--accent); }
+  #time-stat b{ color:var(--text); }
+  #time-stat.low b{ color:var(--danger); }
+
+  .stage{ position:relative; }
+  .board{
+    position:relative;
+    width:min(420px,92vw);
+    background:var(--panel);
+    border-radius:20px;
+    padding:16px;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 40px -20px rgba(0,0,0,.6);
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+  }
+  .hole{
+    aspect-ratio:1;
+    border-radius:16px;
+    background:radial-gradient(circle at 50% 62%, var(--hole), var(--hole-2) 72%);
+    box-shadow:inset 0 6px 16px rgba(0,0,0,.55);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    cursor:crosshair;
+    position:relative;
+    touch-action:none;
+  }
+  .hole.golden{ box-shadow:inset 0 6px 16px rgba(0,0,0,.55), 0 0 16px var(--gold); }
+  .bug{
+    font-size:2.4em;
+    transform:translateY(120%) scale(.5);
+    transition:transform .15s ease-out;
+    pointer-events:none;
+    filter:drop-shadow(0 4px 6px rgba(0,0,0,.4));
+  }
+  .hole.up .bug{ transform:translateY(0) scale(1); }
+  .hole.smashed .bug{ transform:scale(1.3) rotate(90deg); opacity:.35; transition:all .18s; }
+  .splat{
+    position:absolute;
+    font-size:1.8em;
+    animation:pop .4s ease-out forwards;
+    pointer-events:none;
+  }
+  @keyframes pop{
+    0%{ transform:scale(.3); opacity:1; }
+    100%{ transform:scale(1.7); opacity:0; }
+  }
+
+  .overlay{
+    position:absolute; inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    background:rgba(10,12,18,.6);
+    backdrop-filter:blur(6px);
+    text-align:center;
+    padding:20px;
+    border-radius:20px;
+  }
+  @media (prefers-color-scheme: light){
+    .overlay{ background:rgba(240,242,247,.75); }
+  }
+  .overlay h2{ margin:0; font-size:22px; }
+  .overlay p{ margin:0; color:var(--muted); font-size:13px; max-width:300px; }
+  .big-score{ font-size:40px; font-weight:700; color:var(--accent); }
+  .best-line{ font-size:13px; color:var(--muted); }
+  .best-line b{ color:var(--accent-2); }
+
+  button{
+    appearance:none;
+    border:none;
+    cursor:pointer;
+    padding:12px 26px;
+    border-radius:999px;
+    font-size:15px;
+    font-weight:600;
+    color:#08131a;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    box-shadow:0 10px 24px -10px var(--ring);
+    transition:transform .12s ease;
+  }
+  button:active{ transform:scale(.96); }
+
+  footer{
+    color:var(--muted);
+    font-size:12px;
+    text-align:center;
+  }
+  footer a{ color:var(--accent); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+  footer .ver{ color:var(--muted); font-weight:600; }
+</style>
+</head>
+<body>
+
+  <h1>🥿 <span>Mata Barata</span></h1>
+  <p class="subtitle">Esmague as baratas antes que fujam. 30 segundos. Dourada vale 5x mais.</p>
+
+  <div class="hud">
+    <div class="stat" id="score-stat"><b id="score-val">0</b><span>Pontos</span></div>
+    <div class="stat" id="combo-stat"><b id="combo-val">x1</b><span>Combo</span></div>
+    <div class="stat" id="time-stat"><b id="time-val">30</b><span>Segundos</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="board" id="board"></div>
+    <div class="overlay" id="overlay">
+      <h2>Pronto pra caçar?</h2>
+      <p>Baratas vão surgir nos buracos e fugir rápido. Esmague em sequência sem deixar nenhuma escapar pra subir o combo. A dourada (🪳 dourada) vale 5 pontos.</p>
+      <button id="start-btn">Começar</button>
+    </div>
+  </div>
+
+  <footer>Mata Barata <span class="ver">v1.0.0</span> — feito com HTML, CSS e JS puro, sem dependências.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></footer>
+
+<script>
+(function(){
+  "use strict";
+
+  const board = document.getElementById('board');
+  const overlay = document.getElementById('overlay');
+  const scoreVal = document.getElementById('score-val');
+  const comboVal = document.getElementById('combo-val');
+  const timeVal = document.getElementById('time-val');
+  const timeStat = document.getElementById('time-stat');
+
+  const NUM_HOLES = 9;
+  const ROUND_SECONDS = 30;
+  const COMBO_WINDOW = 1300;
+  const GOLDEN_CHANCE = 0.15;
+  const BEST_KEY = 'mataBarataBest';
+
+  let score = 0;
+  let combo = 0;
+  let multiplier = 1;
+  let lastHitTime = 0;
+  let hits = 0;
+  let timeLeft = ROUND_SECONDS;
+  let running = false;
+  let spawnTimeout = null;
+  let tickInterval = null;
+  let audioCtx = null;
+  const holes = [];
+
+  for(let i = 0; i < NUM_HOLES; i++){
+    const hole = document.createElement('div');
+    hole.className = 'hole';
+    hole.innerHTML = '<span class="bug">🪳</span>';
+    hole.addEventListener('pointerdown', (e) => { e.preventDefault(); whack(hole); });
+    board.appendChild(hole);
+    holes.push(hole);
+  }
+
+  function getBest(){ return Number(localStorage.getItem(BEST_KEY) || 0); }
+  function setBest(v){ localStorage.setItem(BEST_KEY, String(v)); }
+
+  function beep(freq){
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.11);
+    }catch(e){ /* audio is optional */ }
+  }
+
+  function updateHud(){
+    scoreVal.textContent = score;
+    comboVal.textContent = 'x' + multiplier;
+    timeVal.textContent = Math.max(0, Math.ceil(timeLeft));
+    timeStat.classList.toggle('low', timeLeft <= 10);
+  }
+
+  function missCombo(){
+    combo = 0;
+    multiplier = 1;
+    updateHud();
+  }
+
+  function whack(hole){
+    if(!running || !hole.classList.contains('up') || hole.classList.contains('smashed')) return;
+    clearTimeout(hole._timer);
+
+    const golden = hole.classList.contains('golden');
+    const now = performance.now();
+    combo = (now - lastHitTime <= COMBO_WINDOW) ? combo + 1 : 1;
+    lastHitTime = now;
+    multiplier = Math.min(5, Math.floor(combo / 5) + 1);
+    hits += 1;
+
+    const gained = (golden ? 5 : 1) * multiplier;
+    score += gained;
+    beep(golden ? 720 : 420 + multiplier * 60);
+    updateHud();
+
+    hole.classList.add('smashed');
+    const splat = document.createElement('span');
+    splat.className = 'splat';
+    splat.textContent = '💥';
+    hole.appendChild(splat);
+    setTimeout(() => splat.remove(), 400);
+    setTimeout(() => hide(hole), 200);
+  }
+
+  function hide(hole){
+    const wasUp = hole.classList.contains('up') && !hole.classList.contains('smashed');
+    hole.classList.remove('up', 'smashed', 'golden');
+    clearTimeout(hole._timer);
+    if(wasUp) missCombo(); // escaped unwhacked -> breaks the combo
+  }
+
+  function spawn(){
+    if(!running) return;
+    const free = holes.filter(h => !h.classList.contains('up'));
+    if(free.length){
+      const hole = free[Math.floor(Math.random() * free.length)];
+      if(Math.random() < GOLDEN_CHANCE) hole.classList.add('golden');
+      hole.classList.add('up');
+      const stay = Math.max(420, 1100 - hits * 12);
+      hole._timer = setTimeout(() => hide(hole), stay);
+    }
+    const next = Math.max(260, 700 - hits * 8);
+    spawnTimeout = setTimeout(spawn, next);
+  }
+
+  function startGame(){
+    score = 0; combo = 0; multiplier = 1; hits = 0; lastHitTime = 0;
+    timeLeft = ROUND_SECONDS;
+    running = true;
+    overlay.remove();
+    holes.forEach(hide);
+    updateHud();
+    spawn();
+
+    const start = performance.now();
+    tickInterval = setInterval(() => {
+      const elapsed = (performance.now() - start) / 1000;
+      timeLeft = Math.max(0, ROUND_SECONDS - elapsed);
+      updateHud();
+      if(timeLeft <= 0) endGame();
+    }, 100);
+  }
+
+  function endGame(){
+    running = false;
+    clearInterval(tickInterval);
+    clearTimeout(spawnTimeout);
+    holes.forEach(hide);
+
+    const best = getBest();
+    const isNewBest = score > best;
+    if(isNewBest) setBest(score);
+
+    const end = document.createElement('div');
+    end.className = 'overlay';
+    end.innerHTML = `
+      <h2>${isNewBest ? 'Novo recorde!' : 'Tempo esgotado'}</h2>
+      <div class="big-score">${score}</div>
+      <p class="best-line">Recorde: <b>${isNewBest ? score : best}</b> pontos</p>
+      <button id="restart-btn">Jogar de novo</button>
+    `;
+    board.parentElement.appendChild(end);
+    document.getElementById('restart-btn').addEventListener('click', () => {
+      end.remove();
+      startGame();
+    });
+  }
+
+  document.getElementById('start-btn').addEventListener('click', startGame);
+
+  document.addEventListener('keydown', (e) => {
+    if((e.code === 'Space' || e.code === 'Enter') && !running){
+      const btn = document.getElementById('start-btn') || document.getElementById('restart-btn');
+      if(btn) btn.click();
+    }
+  });
+})();
+</script>
+</body>
+</html>

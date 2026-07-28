@@ -1,6 +1,6 @@
 ---
 name: run-github-showcase
-description: Build, run, and drive the GITHUB-SHOWCASE minigames/tools (Reflex Rush, Fusion Rush, Gerador de Título SEO, Assinador de MTR, Gerador de Relatório Fotográfico). Use when asked to run, test, screenshot, or verify any project in this repo, smoke-test the whole showcase, or catch a fast/rare in-game event (e.g. an animation that only shows for <1s) on screen.
+description: Build, run, and drive the GITHUB-SHOWCASE minigames/tools (Reflex Rush, Mata Barata, Fusion Rush, Gerador de Título SEO, Assinador de MTR, Gerador de Relatório Fotográfico). Use when asked to run, test, screenshot, or verify any project in this repo, smoke-test the whole showcase, or catch a fast/rare in-game event (e.g. an animation that only shows for <1s) on screen.
 ---
 
 This repo is a collection of standalone `index.html` projects (HTML+CSS+JS,

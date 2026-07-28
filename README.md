@@ -10,6 +10,7 @@ Cada projeto vive na sua própria pasta e é 100% autocontido (`index.html` úni
 |---|---|---|
 | [Reflex Rush](minijogos/reflex-rush/) | Jogo de reflexo: acerte alvos que somem rápido, monte combos, 30 segundos por rodada, recorde salvo localmente. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/minijogos/reflex-rush/) |
 | [Fusion Rush](minijogos/fusion-rush/) | Física de merge (bolhas iguais se fundem numa maior) com combo por velocidade, modo sem cronômetro (só acaba se o pote transbordar) e um gato ativo tentando roubar bolhas pelas laterais — acerta e você ganha uma bola de força que sacode a pilha, erra 5 vezes seguidas e ele se estressa e estoura sua maior bolha. Desafio diário compartilhável estilo Wordle. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/minijogos/fusion-rush/) |
+| [Mata Barata](minijogos/mata-barata/) | Whack-a-mole: esmague as baratas antes que fujam, monte combo (reseta se uma escapar), dourada vale 5x mais. Dificuldade sobe conforme você acerta. 30 segundos por rodada. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/minijogos/mata-barata/) |
 
 ## Ferramentas
 

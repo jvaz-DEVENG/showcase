@@ -32,6 +32,22 @@ def smoke_reflex_rush():
     return errors
 
 
+def smoke_mata_barata():
+    pw, browser, page, errors = open_page("minijogos/mata-barata/index.html")
+    page.wait_for_selector("#start-btn")
+    page.click("#start-btn")
+    page.wait_for_timeout(1000)  # let at least one bug pop up
+    hole = page.locator(".hole.up").first
+    try:
+        hole.click(timeout=500, force=True)
+    except Exception:
+        pass
+    shot(page, OUT, "mata-barata")
+    browser.close()
+    pw.stop()
+    return errors
+
+
 def smoke_fusion_rush():
     pw, browser, page, errors = open_page("minijogos/fusion-rush/index.html")
     page.wait_for_selector("#start-btn")
@@ -90,6 +106,7 @@ def smoke_gerador_relatorio():
 
 CHECKS = {
     "reflex-rush": smoke_reflex_rush,
+    "mata-barata": smoke_mata_barata,
     "fusion-rush": smoke_fusion_rush,
     "gerador-titulo-seo": smoke_gerador_titulo,
     "assinador-mtr": smoke_assinador_mtr,
