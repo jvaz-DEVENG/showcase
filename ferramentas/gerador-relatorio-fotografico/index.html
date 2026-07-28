@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerador de Relatório Fotográfico</title>
+<meta name="description" content="Monta relatórios fotográficos em PDF com layout de 6 fotos por página A4, legendas editáveis, modo antes/depois e cabeçalho personalizável. 100% no navegador, sem servidor.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiByeD0iNSIgZmlsbD0iIzA1NkIyOCIvPjxwYXRoIGQ9Ik03IDlhMSAxIDAgMCAxIDEtMWgxLjJsLjctMS4zYTEgMSAwIDAgMSAuOS0uNWgyLjRhMSAxIDAgMCAxIC45LjVMMTQuOCA4SDE2YTEgMSAwIDAgMSAxIDF2Ni4yYTEgMSAwIDAgMS0xIDFIOGExIDEgMCAwIDEtMS0xVjlaIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMS4zIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyLjQiIHI9IjIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjEuMyIvPjwvc3ZnPg==">
+<style>
+  :root{
+    --verde-escuro:#056B28;
+    --verde:#1DA013;
+    --verde-claro:#72D216;
+    --tinta:#1f2a24;
+    --cinza:#5b6770;
+    --linha:#d8e0da;
+    --painel:#f4f7f4;
+    --fonte: "Lexend", "Segoe UI", Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--fonte);
+    color:var(--tinta);
+    background:#e9eee9;
+    display:flex;
+  }
+
+  /* ====== PAINEL DE CONTROLE (não impresso) ====== */
+  .painel{
+    width:340px; min-width:340px; height:100vh; overflow-y:auto;
+    background:#fff; border-right:1px solid var(--linha);
+    padding:0 0 24px;
+  }
+  .painel h1{
+    font-size:15px; margin:0; padding:16px 18px 14px; line-height:1.25;
+    color:var(--verde-escuro); border-bottom:3px solid var(--verde-claro);
+    display:flex; align-items:center; gap:10px;
+  }
+  .painel h1 small{display:block;font-weight:500;color:var(--cinza);font-size:11px;margin-top:2px}
+  .grupo{padding:14px 18px; border-bottom:1px solid var(--linha)}
+  .grupo > label.tit{
+    display:block; font-size:11px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; color:var(--cinza); margin-bottom:8px;
+  }
+  .campo{margin-bottom:10px}
+  .campo:last-child{margin-bottom:0}
+  .campo label{display:block; font-size:12px; color:var(--cinza); margin-bottom:3px}
+  input[type=text], select, textarea{
+    width:100%; font-family:var(--fonte); font-size:13px; color:var(--tinta);
+    padding:7px 9px; border:1px solid var(--linha); border-radius:6px; background:#fff;
+  }
+  input[type=text]:focus, select:focus, textarea:focus{
+    outline:none; border-color:var(--verde); box-shadow:0 0 0 3px rgba(29,160,19,.12);
+  }
+  .linha2{display:flex; gap:8px}
+  .linha2 > *{flex:1}
+  .check{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--tinta); cursor:pointer; margin-bottom:6px}
+  .check input{width:16px;height:16px;accent-color:var(--verde)}
+
+  .dropzone{
+    border:2px dashed var(--verde-claro); border-radius:10px; padding:18px 12px; text-align:center;
+    color:var(--cinza); font-size:13px; cursor:pointer; background:var(--painel); transition:.15s;
+  }
+  .dropzone.drag{background:#e8f6e4; border-color:var(--verde)}
+  .dropzone b{color:var(--verde-escuro)}
+  .dz-tag{font-size:11px;color:var(--cinza);margin:2px 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+
+  .miniatura-lista{margin-top:10px; display:flex; flex-direction:column; gap:6px}
+  .mini{
+    display:flex; align-items:center; gap:8px; padding:5px 6px; border:1px solid var(--linha);
+    border-radius:7px; background:#fff; font-size:12px; cursor:grab;
+  }
+  .mini.dragging{opacity:.4}
+  .mini img{width:44px;height:32px;object-fit:cover;border-radius:4px;flex:none;background:#eee}
+  .mini .nome{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--cinza)}
+  .mini button{border:none;background:none;color:#c0392b;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px}
+  .mini .ord{color:var(--verde-escuro);font-weight:700;min-width:20px;text-align:center}
+
+  .botoes{display:flex; flex-direction:column; gap:8px; padding:14px 18px}
+  button.acao{
+    font-family:var(--fonte); font-size:13.5px; font-weight:600; padding:11px 14px; border-radius:8px;
+    border:none; cursor:pointer; transition:.12s;
+  }
+  .primario{background:var(--verde-escuro); color:#fff}
+  .primario:hover{background:#045121}
+  .secundario{background:var(--painel); color:var(--tinta); border:1px solid var(--linha)}
+  .secundario:hover{background:#e8efe8}
+  .perigo{background:#fff; color:#c0392b; border:1px solid #f0c7c1}
+  .perigo:hover{background:#fdecea}
+  .dica{font-size:11.5px; color:var(--cinza); line-height:1.5; padding:0 18px}
+  .dica code{background:var(--painel); padding:1px 5px; border-radius:4px; font-size:11px}
+  .app-footer{
+    margin:16px 18px 0; padding-top:12px; border-top:1px solid var(--linha);
+    font-size:11px; color:var(--cinza); line-height:1.6;
+  }
+  .app-footer .ver{color:var(--cinza); font-weight:600}
+  .app-footer a{color:var(--verde-escuro); font-weight:600; text-decoration:none}
+  .app-footer a:hover{text-decoration:underline}
+
+  /* ====== ÁREA DE PRÉVIA ====== */
+  .prevwrap{flex:1; height:100vh; overflow:auto; padding:24px; background:#e9eee9}
+  .barra{display:flex; align-items:center; gap:12px; margin-bottom:16px; color:var(--cinza); font-size:13px}
+  .barra .contagem{font-weight:700;color:var(--verde-escuro)}
+  .zoom{display:flex;align-items:center;gap:6px;margin-left:auto}
+  .zoom button{width:26px;height:26px;border-radius:6px;border:1px solid var(--linha);background:#fff;cursor:pointer;font-size:15px;line-height:1;color:var(--tinta)}
+  #pages{transform-origin:top center}
+
+  /* ====== FOLHA A4 (também usada na impressão) ====== */
+  .page{
+    width:210mm; height:297mm; box-sizing:border-box;
+    padding:10mm 10mm 8mm; background:#fff; margin:0 auto 16px;
+    box-shadow:0 3px 18px rgba(0,0,0,.16);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .rf-head{
+    border:1px solid #000; padding:3mm 5mm; display:flex; align-items:center;
+    justify-content:space-between; gap:8mm;
+  }
+  .rf-logo{display:flex; align-items:center; height:16mm}
+  .rf-logo img{max-height:16mm; max-width:60mm; object-fit:contain}
+  .rf-addr{display:flex; align-items:flex-start; gap:3mm; justify-content:flex-end}
+  .rf-addr .txt{text-align:right; font-size:7pt; color:#222; line-height:1.4}
+  .rf-addr .txt a{color:var(--verde-escuro); font-weight:700; text-decoration:none}
+  .rf-pin{width:5mm;height:5mm;flex:none;margin-top:1px}
+
+  .rf-title{
+    border:1px solid #000; border-top:none; text-align:center; font-weight:700;
+    font-size:11pt; padding:2.4mm 3mm; letter-spacing:.01em;
+  }
+
+  .rf-grid{
+    flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr 1fr;
+    gap:3.2mm 4mm; margin-top:3mm; min-height:0;
+  }
+  .rf-cell{display:flex; flex-direction:column; min-height:0}
+  .rf-cap{
+    border:1px solid #000; text-align:center; font-weight:700; line-height:1.15;
+    padding:1mm 1.5mm; min-height:6.4mm; display:flex; align-items:center; justify-content:center;
+    white-space:pre-line;
+  }
+  .rf-cap[contenteditable]{cursor:text}
+  .rf-cap[contenteditable]:focus{outline:2px solid var(--verde); outline-offset:-2px; background:#f2fbef}
+  .rf-photo{
+    flex:1; min-height:0; border:1px solid #000; margin-top:1.2mm;
+    overflow:hidden; display:flex; align-items:center; justify-content:center; background:#fff;
+  }
+  .rf-photo img{width:100%; height:100%; display:block}
+  .fit-fill .rf-photo img{object-fit:fill}
+  .fit-contain .rf-photo img{object-fit:contain}
+  .rf-cell.vazia .rf-cap{color:transparent}
+
+  .rf-foot{text-align:center; font-size:8pt; color:#333; margin-top:3mm}
+
+  .overlay{position:fixed; inset:0; background:rgba(15,30,20,.5); display:flex; align-items:center; justify-content:center; z-index:200}
+  .modal{background:#fff; border-radius:12px; padding:22px 22px 20px; max-width:400px; width:90%; box-shadow:0 16px 50px rgba(0,0,0,.35)}
+  .modal h3{margin:0 0 8px; color:var(--verde-escuro); font-size:16px}
+  .modal p{margin:0 0 18px; color:var(--cinza); font-size:13.5px; line-height:1.55}
+  .modal-btns{display:flex; flex-direction:column; gap:8px}
+
+  @media print{
+    body{display:block; background:#fff}
+    .painel, .barra, .overlay{display:none !important}
+    .prevwrap{height:auto; overflow:visible; padding:0; background:#fff}
+    #pages{transform:none !important}
+    .page{box-shadow:none; margin:0}
+    .page:not(:last-child){break-after:page; page-break-after:always}
+    @page{size:A4 portrait; margin:0}
+  }
+</style>
+</head>
+<body>
+
+<aside class="painel">
+  <h1>
+    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiByeD0iNSIgZmlsbD0iIzA1NkIyOCIvPjxwYXRoIGQ9Ik03IDlhMSAxIDAgMCAxIDEtMWgxLjJsLjctMS4zYTEgMSAwIDAgMSAuOS0uNWgyLjRhMSAxIDAgMCAxIC45LjVMMTQuOCA4SDE2YTEgMSAwIDAgMSAxIDF2Ni4yYTEgMSAwIDAgMS0xIDFIOGExIDEgMCAwIDEtMS0xVjlaIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMS4zIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyLjQiIHI9IjIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjEuMyIvPjwvc3ZnPg==" width="24" height="24" style="border-radius:5px" alt="">
+    <span>Relatório Fotográfico
+      <small>gerador offline · sem servidor</small>
+    </span>
+  </h1>
+
+  <div class="grupo">
+    <label class="tit">Relatório</label>
+    <div class="campo">
+      <label>Título</label>
+      <input type="text" id="titulo" value="RELATÓRIO FOTOGRÁFICO – PODA DE ÁRVORES E ARBUSTOS">
+    </div>
+    <div class="campo">
+      <label>Modo de montagem</label>
+      <select id="modo">
+        <option value="seq">Sequencial (FOTO 01, 02, 03…)</option>
+        <option value="pareado">Antes / Depois (pareado por linha)</option>
+        <option value="antes">Somente Antes (sufixo “- ANTES”)</option>
+        <option value="depois">Somente Depois (sufixo “- DEPOIS”)</option>
+      </select>
+    </div>
+    <label class="check"><input type="checkbox" id="usarNome"> Usar o nome do arquivo como legenda</label>
+    <div class="campo">
+      <label>Ajuste da foto na moldura</label>
+      <select id="ajuste">
+        <option value="fill">Preencher (igual ao Excel — mantém carimbo)</option>
+        <option value="contain">Ajustar (sem distorção, com margem)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="grupo">
+    <label class="tit">Fotos</label>
+    <div id="dz1" class="dropzone">
+      <div class="dz-tag" id="dz1tag" style="display:none">Antes</div>
+      <b>Clique ou arraste</b> as imagens aqui<br><span style="font-size:11px">.jpg · .jpeg · .png</span>
+    </div>
+    <input type="file" id="file1" accept="image/*" multiple hidden>
+    <div class="miniatura-lista" id="lista1"></div>
+
+    <div id="bloco2" style="display:none;margin-top:12px">
+      <div id="dz2" class="dropzone">
+        <div class="dz-tag">Depois</div>
+        <b>Clique ou arraste</b> as imagens “depois”
+      </div>
+      <input type="file" id="file2" accept="image/*" multiple hidden>
+      <div class="miniatura-lista" id="lista2"></div>
+    </div>
+
+    <label class="check" style="margin-top:10px"><input type="checkbox" id="ordenar" checked> Ordenar por número no nome do arquivo</label>
+  </div>
+
+  <div class="grupo">
+    <label class="tit">Cabeçalho da página</label>
+    <div class="campo">
+      <label>Logotipo (opcional — troca pelo oficial)</label>
+      <input type="file" id="logoFile" accept="image/*" hidden>
+      <button class="acao secundario" id="btnLogo" style="width:100%">Enviar logotipo…</button>
+    </div>
+    <div class="campo"><label>Rodovia / km</label><input type="text" id="hRod" value="Rodovia Exemplo | km 10,0"></div>
+    <div class="campo"><label>Bairro | CEP | Cidade</label><input type="text" id="hEnd" value="Bairro Exemplo | 00000-000 | Sua Cidade, UF"></div>
+    <div class="linha2">
+      <div class="campo"><label>Telefone</label><input type="text" id="hTel" value="+55 11 0000-0000"></div>
+    </div>
+    <div class="campo"><label>Site</label><input type="text" id="hSite" value="www.suaempresa.com.br"></div>
+  </div>
+
+  <div class="botoes">
+    <button class="acao primario" id="btnPdf">🖨️ Exportar PDF (imprimir)</button>
+    <button class="acao secundario" id="btnSalvar">💾 Salvar projeto (.json)</button>
+    <button class="acao secundario" id="btnAbrir">📂 Abrir projeto</button>
+    <input type="file" id="abrirFile" accept=".json,application/json" hidden>
+    <button class="acao perigo" id="btnLimpar">Limpar tudo</button>
+  </div>
+  <p class="dica">✏️ Para mudar uma legenda, clique no título da foto (ex.: <code>FOTO 01</code>) na prévia e digite. Deixe em branco para voltar à legenda automática.</p>
+  <p class="dica">No diálogo de impressão escolha <b>Salvar como PDF</b>, papel <b>A4</b> e margens <b>Nenhuma</b>. Cada página sai com exatamente 6 fotos — a quebra é fixa e não desconfigura.</p>
+  <div class="app-footer">Gerador de Relatório Fotográfico <span class="ver">v1.0.0</span> — 100% no navegador, sem servidor.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></div>
+</aside>
+
+<div class="prevwrap">
+  <div class="barra">
+    <span>Prévia — <span class="contagem" id="contagem">0 fotos · 0 páginas</span></span>
+    <div class="zoom">
+      <button id="zMenos" title="Reduzir">−</button>
+      <span id="zVal" style="min-width:42px;text-align:center">80%</span>
+      <button id="zMais" title="Ampliar">+</button>
+    </div>
+  </div>
+  <div id="pages"></div>
+</div>
+
+<div id="overlay" class="overlay" style="display:none">
+  <div class="modal">
+    <h3 id="mTitulo">Adicionar fotos</h3>
+    <p id="mTexto"></p>
+    <div class="modal-btns" id="mBtns"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var LOGO_PADRAO = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCAzMDAgODAiPjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iODAiIHJ4PSIxMCIgZmlsbD0iI2VlZjJlZiIvPjxyZWN0IHg9IjE2IiB5PSIyMCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiByeD0iOCIgZmlsbD0iI2NkZGJkMSIvPjxwYXRoIGQ9Ik0yNCA1MGw3LTkgNiA2IDgtMTAgMTEgMTNaIiBmaWxsPSIjOGFhMDkzIi8+PGNpcmNsZSBjeD0iMjkiIGN5PSIzMCIgcj0iNCIgZmlsbD0iIzhhYTA5MyIvPjx0ZXh0IHg9IjY4IiB5PSI0NyIgZm9udC1mYW1pbHk9IkFyaWFsLCBIZWx2ZXRpY2EsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTgiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiM1YjY3NzAiPlNFVSBMT0dPVElQTzwvdGV4dD48L3N2Zz4=";
+
+  var estado = {
+    fotos: [],        // {name, url}
+    depois: [],       // {name, url} (modo pareado)
+    logo: null
+  };
+
+  // ---------- utilidades ----------
+  function $(id){ return document.getElementById(id); }
+  function pad(n){ return String(n).padStart(2,"0"); }
+
+  function extrairNumero(nome){
+    var d = (nome||"").replace(/\D/g,"");
+    if(!d) return Number.MAX_SAFE_INTEGER;      // sem número vai para o fim
+    return Number(d.slice(0,15));
+  }
+  function ordenarSeNecessario(lista){
+    if($("ordenar").checked){
+      lista.sort(function(a,b){
+        var na=extrairNumero(a.name), nb=extrairNumero(b.name);
+        if(na!==nb) return na-nb;
+        return a.name.localeCompare(b.name);
+      });
+    }
+  }
+  function semExtensao(nome){
+    var i = nome.lastIndexOf(".");
+    return i>0 ? nome.slice(0,i) : nome;
+  }
+  function tamanhoLegenda(txt){
+    var n = txt.length;
+    if(n<=20) return "9pt";
+    if(n<=40) return "8.2pt";
+    if(n<=70) return "7.4pt";
+    return "6.6pt";
+  }
+
+  // ---------- leitura de arquivos ----------
+  function lerArquivos(fileList, destino, cb){
+    var arqs = Array.prototype.slice.call(fileList).filter(function(f){
+      return /\.(jpe?g|png)$/i.test(f.name) || /^image\//.test(f.type);
+    });
+    var pend = arqs.length;
+    if(!pend){ cb&&cb(); return; }
+    arqs.forEach(function(f){
+      var r = new FileReader();
+      r.onload = function(){
+        destino.push({name:f.name, url:r.result});
+        if(--pend===0){ ordenarSeNecessario(destino); cb&&cb(); }
+      };
+      r.onerror = function(){ if(--pend===0){ ordenarSeNecessario(destino); cb&&cb(); } };
+      r.readAsDataURL(f);
+    });
+  }
+
+  // ---------- miniaturas (com remover e reordenar) ----------
+  function renderMiniaturas(lista, elId){
+    var box = $(elId); box.innerHTML="";
+    lista.forEach(function(item, idx){
+      var row = document.createElement("div");
+      row.className="mini"; row.draggable=true;
+      row.innerHTML =
+        '<span class="ord">'+(idx+1)+'</span>'+
+        '<img src="'+item.url+'">'+
+        '<span class="nome">'+escapar(item.name)+'</span>'+
+        '<button title="Remover">✕</button>';
+      row.querySelector("button").onclick=function(){ lista.splice(idx,1); atualizar(); };
+      row.addEventListener("dragstart",function(e){ row.classList.add("dragging"); e.dataTransfer.setData("text/plain",idx); });
+      row.addEventListener("dragend",function(){ row.classList.remove("dragging"); });
+      row.addEventListener("dragover",function(e){ e.preventDefault(); });
+      row.addEventListener("drop",function(e){
+        e.preventDefault();
+        var de = parseInt(e.dataTransfer.getData("text/plain"),10);
+        if(isNaN(de)||de===idx) return;
+        var mov = lista.splice(de,1)[0];
+        lista.splice(idx,0,mov);
+        atualizar();
+      });
+      box.appendChild(row);
+    });
+  }
+
+  // ---------- montagem dos itens conforme o modo ----------
+  function montarItens(){
+    var modo = $("modo").value;
+    var usarNome = $("usarNome").checked;
+    var itens = [];
+
+    function legenda(base, item){
+      if(item.legenda) return item.legenda;                 // legenda personalizada tem prioridade
+      return usarNome ? semExtensao(item.name) : base;
+    }
+
+    if(modo==="seq" || modo==="antes" || modo==="depois"){
+      var suf = modo==="antes" ? " - ANTES" : (modo==="depois" ? " - DEPOIS" : "");
+      estado.fotos.forEach(function(f,i){
+        itens.push({ url:f.url, cap: legenda("FOTO "+pad(i+1)+suf, f), lista:"fotos", idx:i });
+      });
+    } else if(modo==="pareado"){
+      var n = Math.max(estado.fotos.length, estado.depois.length);
+      for(var i=0;i<n;i++){
+        var a = estado.fotos[i], d = estado.depois[i];
+        itens.push(a ? { url:a.url, cap: legenda("FOTO "+pad(i+1)+" - ANTES", a), lista:"fotos", idx:i } : null);
+        itens.push(d ? { url:d.url, cap: legenda("FOTO "+pad(i+1)+" - DEPOIS", d), lista:"depois", idx:i } : null);
+      }
+      // remove pares totalmente vazios no fim
+      while(itens.length && !itens[itens.length-1] && !itens[itens.length-2]) itens.splice(-2);
+    }
+    return itens;
+  }
+
+  // ---------- cabeçalho da página ----------
+  function pinSVG(){
+    return '<svg class="rf-pin" viewBox="0 0 24 24"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z" fill="#1DA013"/><circle cx="12" cy="9" r="2.6" fill="#fff"/></svg>';
+  }
+  function logoHTML(){
+    return '<img src="'+(estado.logo||LOGO_PADRAO)+'" alt="Logotipo">';
+  }
+  function cabecalhoHTML(){
+    return ''+
+      '<div class="rf-head">'+
+        '<div class="rf-logo">'+logoHTML()+'</div>'+
+        '<div class="rf-addr">'+
+          '<div class="txt">'+
+            escapar($("hRod").value)+'<br>'+
+            escapar($("hEnd").value)+'<br>'+
+            escapar($("hTel").value)+'<br>'+
+            '<a href="#">'+escapar($("hSite").value)+'</a>'+
+          '</div>'+ pinSVG()+
+        '</div>'+
+      '</div>'+
+      '<div class="rf-title">'+escapar($("titulo").value)+'</div>';
+  }
+  function escapar(s){ return (s||"").replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];}); }
+
+  // ---------- render principal ----------
+  function atualizar(){
+    renderMiniaturas(estado.fotos, "lista1");
+    var modo = $("modo").value;
+    var pareado = (modo==="pareado");
+    $("bloco2").style.display = pareado ? "block" : "none";
+    $("dz1tag").style.display = pareado ? "block" : "none";
+    if(pareado) renderMiniaturas(estado.depois, "lista2");
+
+    var itens = montarItens();
+    var ajuste = $("ajuste").value;
+    var cont = $("pages");
+    cont.className = ajuste==="contain" ? "fit-contain" : "fit-fill";
+    cont.innerHTML = "";
+
+    // garante blocos de 6, na ordem esquerda→direita, cima→baixo
+    var totalPaginas = Math.max(1, Math.ceil(itens.length/6));
+    for(var p=0; p<totalPaginas; p++){
+      var page = document.createElement("div");
+      page.className = "page";
+      var grid = '<div class="rf-grid">';
+      for(var c=0; c<6; c++){
+        var it = itens[p*6+c];
+        if(it){
+          grid += '<div class="rf-cell">'+
+                    '<div class="rf-cap" contenteditable="true" data-lista="'+it.lista+'" data-idx="'+it.idx+'" title="Clique para editar a legenda" style="font-size:'+tamanhoLegenda(it.cap)+'">'+escapar(it.cap)+'</div>'+
+                    '<div class="rf-photo"><img src="'+it.url+'"></div>'+
+                  '</div>';
+        } else {
+          // célula vazia mantém a moldura (borda preta) do layout
+          grid += '<div class="rf-cell vazia"><div class="rf-cap">.</div><div class="rf-photo"></div></div>';
+        }
+      }
+      grid += '</div>';
+      page.innerHTML = cabecalhoHTML() + grid +
+        '<div class="rf-foot">Página '+(p+1)+' de '+totalPaginas+'</div>';
+      cont.appendChild(page);
+    }
+
+    // legendas editáveis direto na prévia
+    Array.prototype.forEach.call(cont.querySelectorAll('.rf-cap[contenteditable]'), function(el){
+      el.addEventListener('blur', function(){
+        var lst=el.getAttribute('data-lista'), i=parseInt(el.getAttribute('data-idx'),10);
+        var alvo = estado[lst] && estado[lst][i]; if(!alvo) return;
+        var txt = el.textContent.replace(/\s+/g,' ').trim();
+        if(txt){ alvo.legenda = txt; }
+        else { alvo.legenda = null; atualizar(); }   // vazio volta ao automático
+      });
+      el.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); el.blur(); } });
+    });
+
+    var nfotos = (modo==="pareado") ? (estado.fotos.length+estado.depois.length) : estado.fotos.length;
+    $("contagem").textContent = nfotos+" foto"+(nfotos===1?"":"s")+" · "+totalPaginas+" página"+(totalPaginas===1?"":"s");
+  }
+
+  // ---------- zoom da prévia ----------
+  var zoom = 80;
+  function aplicarZoom(){ $("pages").style.transform="scale("+(zoom/100)+")"; $("zVal").textContent=zoom+"%"; }
+  $("zMais").onclick=function(){ zoom=Math.min(140,zoom+10); aplicarZoom(); };
+  $("zMenos").onclick=function(){ zoom=Math.max(30,zoom-10); aplicarZoom(); };
+
+  // ---------- dropzones ----------
+  function perguntarInclusao(qtd, onAdd, onNew){
+    var ov=$("overlay");
+    $("mTexto").textContent = "Já existem fotos neste relatório. Você está adicionando "+qtd+" foto"+(qtd===1?"":"s")+". O que deseja fazer?";
+    var b=$("mBtns"); b.innerHTML="";
+    function botao(txt,cls,fn){ var x=document.createElement("button"); x.className="acao "+cls; x.textContent=txt; x.onclick=function(){ ov.style.display="none"; fn&&fn(); }; return x; }
+    b.appendChild(botao("➕ Incluir neste relatório","primario",onAdd));
+    b.appendChild(botao("🔄 Começar um novo (substituir)","secundario",onNew));
+    b.appendChild(botao("Cancelar","perigo",null));
+    ov.style.display="flex";
+  }
+  function receberArquivos(arr, destino){
+    if(!arr || !arr.length) return;
+    if(destino.length>0){
+      perguntarInclusao(arr.length,
+        function(){ lerArquivos(arr, destino, atualizar); },
+        function(){ destino.length=0; lerArquivos(arr, destino, atualizar); });
+    } else {
+      lerArquivos(arr, destino, atualizar);
+    }
+  }
+  function ligarDropzone(dzId, inputId, destino){
+    var dz=$(dzId), inp=$(inputId);
+    dz.onclick=function(){ inp.click(); };
+    inp.onchange=function(){ var arr=Array.prototype.slice.call(inp.files); inp.value=""; receberArquivos(arr, destino); };
+    ["dragenter","dragover"].forEach(function(ev){ dz.addEventListener(ev,function(e){ e.preventDefault(); dz.classList.add("drag"); }); });
+    ["dragleave","drop"].forEach(function(ev){ dz.addEventListener(ev,function(e){ e.preventDefault(); dz.classList.remove("drag"); }); });
+    dz.addEventListener("drop",function(e){ var arr=Array.prototype.slice.call(e.dataTransfer.files); receberArquivos(arr, destino); });
+  }
+  ligarDropzone("dz1","file1",estado.fotos);
+  ligarDropzone("dz2","file2",estado.depois);
+
+  // ---------- logotipo ----------
+  $("btnLogo").onclick=function(){ $("logoFile").click(); };
+  $("logoFile").onchange=function(){
+    var f=$("logoFile").files[0]; if(!f) return;
+    var r=new FileReader(); r.onload=function(){ estado.logo=r.result; atualizar(); }; r.readAsDataURL(f);
+    $("logoFile").value="";
+  };
+
+  // ---------- reagir a mudanças ----------
+  ["titulo","modo","usarNome","ajuste","ordenar","hRod","hEnd","hTel","hSite"].forEach(function(id){
+    $(id).addEventListener("input", function(){
+      if(id==="ordenar"){ ordenarSeNecessario(estado.fotos); ordenarSeNecessario(estado.depois); }
+      atualizar();
+    });
+    $(id).addEventListener("change", atualizar);
+  });
+
+  // ---------- PDF ----------
+  $("btnPdf").onclick=function(){ window.print(); };
+
+  // ---------- salvar / abrir projeto ----------
+  $("btnSalvar").onclick=function(){
+    var dados={
+      v:1,
+      titulo:$("titulo").value, modo:$("modo").value, usarNome:$("usarNome").checked,
+      ajuste:$("ajuste").value, ordenar:$("ordenar").checked,
+      hRod:$("hRod").value, hEnd:$("hEnd").value, hTel:$("hTel").value, hSite:$("hSite").value,
+      logo:estado.logo, fotos:estado.fotos, depois:estado.depois
+    };
+    var blob=new Blob([JSON.stringify(dados)],{type:"application/json"});
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="relatorio-fotografico-projeto.json";
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+  $("btnAbrir").onclick=function(){ $("abrirFile").click(); };
+  $("abrirFile").onchange=function(){
+    var f=$("abrirFile").files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){
+      try{
+        var d=JSON.parse(r.result);
+        $("titulo").value=d.titulo||""; $("modo").value=d.modo||"seq";
+        $("usarNome").checked=!!d.usarNome; $("ajuste").value=d.ajuste||"fill";
+        $("ordenar").checked=d.ordenar!==false;
+        $("hRod").value=d.hRod||""; $("hEnd").value=d.hEnd||""; $("hTel").value=d.hTel||""; $("hSite").value=d.hSite||"";
+        estado.logo=d.logo||null; estado.fotos=d.fotos||[]; estado.depois=d.depois||[];
+        atualizar();
+      }catch(err){ alert("Não foi possível ler este projeto: arquivo inválido."); }
+    };
+    r.readAsText(f); $("abrirFile").value="";
+  };
+
+  // ---------- limpar ----------
+  $("btnLimpar").onclick=function(){
+    if(!confirm("Remover todas as fotos e recomeçar?")) return;
+    estado.fotos=[]; estado.depois=[]; atualizar();
+  };
+
+  aplicarZoom();
+  atualizar();
+})();
+</script>
+</body>
+</html>

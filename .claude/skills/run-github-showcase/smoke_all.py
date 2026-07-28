@@ -74,11 +74,26 @@ def smoke_assinador_mtr():
     return errors
 
 
+def smoke_gerador_relatorio():
+    pw, browser, page, errors = open_page("ferramentas/gerador-relatorio-fotografico/index.html", viewport=(1400, 900))
+    png_bytes = bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108020000009077"
+        "53de0000000c4944415478da6360606000000005000162a0eea50000000049454e44ae426082"
+    )
+    page.set_input_files("#file1", [{"name": "teste.png", "mimeType": "image/png", "buffer": png_bytes}])
+    page.wait_for_timeout(300)
+    shot(page, OUT, "gerador-relatorio-fotografico")
+    browser.close()
+    pw.stop()
+    return errors
+
+
 CHECKS = {
     "reflex-rush": smoke_reflex_rush,
     "fusion-rush": smoke_fusion_rush,
     "gerador-titulo-seo": smoke_gerador_titulo,
     "assinador-mtr": smoke_assinador_mtr,
+    "gerador-relatorio-fotografico": smoke_gerador_relatorio,
 }
 
 if __name__ == "__main__":
