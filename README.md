@@ -4,7 +4,7 @@ Um repositório único com minijogos e ferramentas práticas — cada um roda di
 
 Cada projeto vive na sua própria pasta e é 100% autocontido (`index.html` único com CSS e JS embutidos).
 
-## Minijogos
+## 🎮 Minijogos
 
 | Projeto | Descrição | Jogar |
 |---|---|---|
@@ -23,7 +23,7 @@ Cada projeto vive na sua própria pasta e é 100% autocontido (`index.html` úni
 
 Cada projeto assina o próprio rodapé com número de versão (semver) e link para [@jvaz-DEVENG](https://github.com/jvaz-DEVENG) — assim qualquer um que abrir um link isolado (sem passar pelo README) já reconhece de onde veio. Ao evoluir um projeto, suba a versão no rodapé (`vMAJOR.MINOR.PATCH`): PATCH para correção, MINOR para funcionalidade nova, MAJOR para mudança que quebra compatibilidade com versões salvas (ex: formato do `.json` do Gerador de Relatório Fotográfico).
 
-Ícones de cabeçalho e favicon seguem um padrão único (linha fina, 24×24, cor sólida sobre fundo em gradiente/degradê) — sem emoji coloridos de plataforma, que renderizam diferente em cada sistema.
+Nas **ferramentas**, ícone de cabeçalho e favicon seguem um padrão único (linha fina, 24×24, cor sólida sobre fundo em gradiente) em vez de emoji coloridos de plataforma — reforça a cara de produto profissional. Os **minijogos** mantêm emoji na identidade visual, que combina mais com o tom descontraído deles.
 
 ## Stack
 
