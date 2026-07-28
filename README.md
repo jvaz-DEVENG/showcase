@@ -8,16 +8,14 @@ Cada projeto vive na sua própria pasta e é 100% autocontido (`index.html` úni
 
 | Projeto | Descrição | Jogar |
 |---|---|---|
-| [Reflex Rush](minijogos/reflex-rush/) | Jogo de reflexo: acerte alvos que somem rápido, monte combos, 30 segundos por rodada, recorde salvo localmente. | [Demo ao vivo](#) |
-| [Fusion Rush](minijogos/fusion-rush/) | Física de merge (bolhas iguais se fundem numa maior) com combo por velocidade, modo sem cronômetro (só acaba se o pote transbordar) e um gato ativo tentando roubar bolhas pelas laterais — acerta e você ganha uma bola de força que sacode a pilha, erra 5 vezes seguidas e ele se estressa e estoura sua maior bolha. Desafio diário compartilhável estilo Wordle. | [Demo ao vivo](#) |
+| [Reflex Rush](minijogos/reflex-rush/) | Jogo de reflexo: acerte alvos que somem rápido, monte combos, 30 segundos por rodada, recorde salvo localmente. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/minijogos/reflex-rush/) |
+| [Fusion Rush](minijogos/fusion-rush/) | Física de merge (bolhas iguais se fundem numa maior) com combo por velocidade, modo sem cronômetro (só acaba se o pote transbordar) e um gato ativo tentando roubar bolhas pelas laterais — acerta e você ganha uma bola de força que sacode a pilha, erra 5 vezes seguidas e ele se estressa e estoura sua maior bolha. Desafio diário compartilhável estilo Wordle. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/minijogos/fusion-rush/) |
 
 ## 🛠️ Ferramentas
 
 | Projeto | Descrição | Usar |
 |---|---|---|
-| [Gerador de Título SEO](ferramentas/gerador-titulo-seo/) | Monta títulos de anúncio otimizados para Mercado Livre, Amazon e Shopee a partir do produto e palavras-chave, respeitando limite de caracteres e boas práticas de cada marketplace. | [Demo ao vivo](#) |
-
-> Os links de demo ficam ativos assim que o GitHub Pages deste repositório for habilitado (Settings → Pages → branch `main` → pasta `/`).
+| [Gerador de Título SEO](ferramentas/gerador-titulo-seo/) | Monta títulos de anúncio otimizados para Mercado Livre, Amazon e Shopee a partir do produto e palavras-chave, respeitando limite de caracteres e boas práticas de cada marketplace. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/ferramentas/gerador-titulo-seo/) |
 
 ## Stack
 
