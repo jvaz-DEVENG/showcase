@@ -59,10 +59,26 @@ def smoke_gerador_titulo():
     return errors
 
 
+def smoke_assinador_mtr():
+    # ~5MB page: pdf-lib/fontkit/pdf.js are embedded as base64 and decoded
+    # on load, so give the loading overlay real time to disappear before
+    # treating the page as ready.
+    pw, browser, page, errors = open_page("ferramentas/assinador-mtr/index.html", viewport=(1200, 800))
+    page.wait_for_selector("#loading", state="hidden", timeout=15000)
+    page.fill("#name", "Teste Smoke")
+    page.click('.stylecard[data-style="Allura"]')
+    page.wait_for_timeout(200)
+    shot(page, OUT, "assinador-mtr")
+    browser.close()
+    pw.stop()
+    return errors
+
+
 CHECKS = {
     "reflex-rush": smoke_reflex_rush,
     "fusion-rush": smoke_fusion_rush,
     "gerador-titulo-seo": smoke_gerador_titulo,
+    "assinador-mtr": smoke_assinador_mtr,
 }
 
 if __name__ == "__main__":

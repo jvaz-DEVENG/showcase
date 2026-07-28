@@ -16,6 +16,7 @@ Cada projeto vive na sua própria pasta e é 100% autocontido (`index.html` úni
 | Projeto | Descrição | Usar |
 |---|---|---|
 | [Gerador de Título SEO](ferramentas/gerador-titulo-seo/) | Monta títulos de anúncio otimizados para Mercado Livre, Amazon e Shopee a partir do produto e palavras-chave, respeitando limite de caracteres e boas práticas de cada marketplace. | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/ferramentas/gerador-titulo-seo/) |
+| [Assinador de MTR](ferramentas/assinador-mtr/) | Assina em lote o campo "assinatura do responsável" de Manifestos de Transporte de Resíduos (PDF) com fonte cursiva, posição travada e prévia ao vivo — 100% offline, nenhum arquivo sai do navegador (bibliotecas de PDF embutidas no próprio HTML). | [Demo ao vivo](https://jvaz-deveng.github.io/showcase/ferramentas/assinador-mtr/) |
 
 ## Stack
 

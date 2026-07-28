@@ -1,6 +1,6 @@
 ---
 name: run-github-showcase
-description: Build, run, and drive the GITHUB-SHOWCASE minigames/tools (Reflex Rush, Fusion Rush, Gerador de Título SEO). Use when asked to run, test, screenshot, or verify any project in this repo, smoke-test the whole showcase, or catch a fast/rare in-game event (e.g. an animation that only shows for <1s) on screen.
+description: Build, run, and drive the GITHUB-SHOWCASE minigames/tools (Reflex Rush, Fusion Rush, Gerador de Título SEO, Assinador de MTR). Use when asked to run, test, screenshot, or verify any project in this repo, smoke-test the whole showcase, or catch a fast/rare in-game event (e.g. an animation that only shows for <1s) on screen.
 ---
 
 This repo is a collection of standalone `index.html` projects (HTML+CSS+JS,
@@ -110,6 +110,24 @@ shot(page, "_shots", "gerador-titulo-seo")
 browser.close(); pw.stop()
 ```
 
+**Assinador de MTR** — ~5MB page (pdf-lib/fontkit/pdf.js embedded as
+base64 and decoded on load). Wait for the `#loading` overlay to hide
+instead of a fixed timeout — a plain `wait_for_timeout` raced the
+library decode and produced false negatives:
+
+```python
+import sys
+sys.path.insert(0, ".claude/skills/run-github-showcase")
+from pw_driver import open_page, shot
+
+pw, browser, page, errors = open_page("ferramentas/assinador-mtr/index.html", viewport=(1200, 800))
+page.wait_for_selector("#loading", state="hidden", timeout=15000)
+page.fill("#name", "Teste Smoke")
+page.click('.stylecard[data-style="Allura"]')
+shot(page, "_shots", "assinador-mtr")
+browser.close(); pw.stop()
+```
+
 ## Run (human path)
 
 Just open the `index.html` in any browser — double-click it, or
@@ -158,7 +176,9 @@ drawn on `<canvas>`.
 
 ## Troubleshooting
 
-No failures hit this session — `smoke_all.py` and all three per-project
-scripts above ran clean on the first real attempt (after fixing one
-actual game bug they surfaced — a paw-direction sign error in Fusion
-Rush, unrelated to the driver itself).
+No failures hit in the original session — `smoke_all.py` and all
+per-project scripts above ran clean on the first real attempt (after
+fixing one actual game bug they surfaced — a paw-direction sign error
+in Fusion Rush, unrelated to the driver itself). Assinador de MTR was
+added in a later session; its only gotcha (the `#loading` overlay wait
+above) is already folded into the pattern.
