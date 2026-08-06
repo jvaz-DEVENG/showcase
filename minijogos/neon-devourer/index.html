@@ -335,7 +335,8 @@
       Devore os mobs pra roubar a <b style="color:var(--accent)">essência</b> deles.</p>
       <div class="row" style="justify-content:center">
         <button id="btnPlay">JOGAR</button>
-        <button class="ghost" id="btnDupla">2 JOGADORES</button>
+        <button class="ghost" id="btnDupla">2 NO MESMO PC</button>
+        <button class="ghost" id="btnOnline">ONLINE</button>
         <button class="ghost" id="btnSkins">SKINS</button>
         <button class="ghost" id="btnReset">ZERAR</button>
       </div>
@@ -385,6 +386,50 @@
         </div>
       </div>
       <button class="ghost" id="btnDuplaBack">VOLTAR</button>
+    </div>
+
+    <!-- ONLINE: criar ou entrar -->
+    <div class="ov" id="ovOnline">
+      <h2>JOGAR ONLINE</h2>
+      <p class="sub">Até 4 jogadores no mesmo labirinto, cada um no seu aparelho.
+        Quem cria a sala vira o anfitrião e comanda a partida.</p>
+      <div class="grid" style="max-width:400px">
+        <div class="card" id="cardCriar">
+          <h4>CRIAR SALA</h4>
+          <p>Gera um código de 4 letras. Passe pros seus amigos e eles entram.</p>
+        </div>
+        <div class="card" id="cardEntrar">
+          <h4>ENTRAR NUMA SALA</h4>
+          <p>Digite o código que seu amigo te passou.</p>
+        </div>
+      </div>
+      <div id="caixaCodigo" style="display:none">
+        <div class="iniciais" id="codigoEntrada"></div>
+        <p class="sub" style="font-size:10px">digite as 4 letras · <kbd>ENTER</kbd> entra</p>
+      </div>
+      <p class="sub" id="onlineAviso" style="color:var(--danger);min-height:14px"></p>
+      <button class="ghost" id="btnOnlineBack">VOLTAR</button>
+    </div>
+
+    <!-- SALA DE ESPERA -->
+    <div class="ov" id="ovSala">
+      <h2>SALA <b id="salaCodigo" style="color:var(--accent);letter-spacing:8px"></b></h2>
+      <p class="sub" id="salaDica"></p>
+      <div class="rank" id="salaLista" style="max-width:360px"></div>
+      <div class="row" style="justify-content:center" id="salaModos">
+        <button class="ghost" id="btnModoCoop">COOPERATIVO</button>
+        <button class="ghost" id="btnModoVersus">COMPETITIVO</button>
+      </div>
+      <button id="btnComecar">COMEÇAR PARTIDA</button>
+      <button class="ghost" id="btnSairSala">SAIR DA SALA</button>
+    </div>
+
+    <!-- ESPERANDO O ANFITRIAO -->
+    <div class="ov" id="ovEspera">
+      <h2>AGUARDE</h2>
+      <p class="sub" id="esperaTexto"></p>
+      <p class="sub" style="font-size:10px">a próxima fase começa sozinha</p>
+      <button class="ghost" id="btnEsperaSair">SAIR DA SALA</button>
     </div>
 
     <!-- PAUSE -->
@@ -1210,6 +1255,7 @@ function montarFase(){
   G.devorar = 0; G.combo = 0;
   montarModificador();
   G.mazeCanvas = renderMaze();
+  if(SOU_HOST()){ G.comidos = []; RT.enviar('mapa', serializarMapa()); }
   toast(G.bioma.nome + ' — ' + G.bioma.desc.toUpperCase());
 }
 
@@ -1576,6 +1622,7 @@ function coletar(p, a){
       if(dist > Math.max(0.55, limite)) continue;
 
       G.pellets[y][x] = 0; G.restantes--;
+      if(SOU_HOST()) (G.comidos || (G.comidos = [])).push(y*COLS + x);
       if(tipo === 1){
         p.score += 10*mult; p.carga = Math.min(100, p.carga + 2*mult);
         if(p.local){ ganharXp(1*mult); sfx('pellet'); }
@@ -1662,6 +1709,11 @@ function atirar(m){
 /* ------------------------------ HABILIDADES ---------------------------- */
 function usarDash(p){
   p = p || euJogador();
+  // no online quem decide e o host: o convidado so pede
+  if(ONLINE() && !SOU_HOST() && p && p.local){
+    (G.acoesPendentes || (G.acoesPendentes = [])).push('dash');
+    return;
+  }
   if(!p || p.fora || p.dashCd > 0 || p.morto > 0) return;
   if(!(p.dir.x || p.dir.y)) return;
   const turbo = temBuff(p, 'impulso');
@@ -1684,6 +1736,11 @@ function usarDash(p){
 
 function usarPulso(p){
   p = p || euJogador();
+  // no online quem decide e o host: o convidado so pede
+  if(ONLINE() && !SOU_HOST() && p && p.local){
+    (G.acoesPendentes || (G.acoesPendentes = [])).push('pulso');
+    return;
+  }
   const a = attr();
   if(!p || p.fora || !temPulso() || p.pulsoCd > 0 || p.morto > 0) return;
   const gratis = temBuff(p, 'sobrecarga');
@@ -1714,6 +1771,11 @@ function pulsoOnda(p, raio, stun){
 
 function usarFase(p){
   p = p || euJogador();
+  // no online quem decide e o host: o convidado so pede
+  if(ONLINE() && !SOU_HOST() && p && p.local){
+    (G.acoesPendentes || (G.acoesPendentes = [])).push('fase');
+    return;
+  }
   if(!p || p.fora || !temFase() || p.faseCd > 0 || p.morto > 0) return;
   const gratis = temBuff(p, 'sobrecarga');
   if(!gratis && p.carga < 50){
@@ -1776,10 +1838,13 @@ function concluirFase(){
   gravarSave();
   sfx('level');
   G.estado = 'upgrades';
+  if(SOU_HOST()) RT.enviar('espera', {f: G.fase - 1});
   abrirUpgrades('FASE ' + (G.fase-1) + ' CONCLUÍDA');
 }
 
 function fimDeJogo(){
+  if(SOU_HOST() && ONLINE())
+    RT.enviar('acabou', {ps: G.players.map(p => p.score), f: G.fase});
   save.recorde = Math.max(save.recorde, G.score);
   gravarSave();
   el('overStats').innerHTML =
@@ -1860,6 +1925,401 @@ async function enviarPendentes(){
     if(await enviarPartida(p.nome, p.pontos, p.fase, p.nivel, p.skin, p.cor)) ok++;
   }
   if(ok) toast(ok + ' PARTIDA(S) ENVIADA(S)');
+}
+
+/* ==========================================================================
+   REDE — SALAS ONLINE (Supabase Realtime, protocolo Phoenix na unha)
+   Não uso o SDK para o arquivo seguir único e sem CDN. O modelo é
+   HOST-AUTORITATIVO: quem cria a sala roda a simulação inteira e transmite;
+   os convidados mandam só a direção e desenham o que recebem.
+   ========================================================================== */
+const RT = {
+  ws:null, canal:null, codigo:null, papel:null,   // null | 'host' | 'guest'
+  ref:0, joinRef:null, entrou:false, hb:null,
+  uid: Math.random().toString(36).slice(2, 10),
+  pares:[],            // no host: convidados conectados
+  pacote:0, ultimoEstado:0, ultimaEntrada:0,
+  ping:0, visto:0, aoVivo:false,
+
+  proximoRef(){ return String(++this.ref); },
+
+  conectar(codigo, papel){
+    return new Promise((resolve, reject) => {
+      this.fechar();
+      this.codigo = codigo;
+      this.papel  = papel;
+      this.canal  = 'realtime:nd-' + codigo;
+      const url = `${NUVEM.url.replace('https://','wss://')}/realtime/v1/websocket` +
+                  `?apikey=${NUVEM.chave}&vsn=1.0.0`;
+      let ws;
+      try{ ws = new WebSocket(url); }catch(e){ return reject(e); }
+      this.ws = ws;
+
+      const limite = setTimeout(() => reject(new Error('tempo esgotado')), 12000);
+
+      ws.onopen = () => {
+        this.joinRef = this.proximoRef();
+        ws.send(JSON.stringify({
+          topic: this.canal, event: 'phx_join', ref: this.joinRef,
+          payload: {config: {broadcast: {self: false, ack: false}}}
+        }));
+      };
+
+      ws.onmessage = ev => {
+        let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+        // o join só é confirmado pelo reply com o MESMO ref (broadcasts também respondem)
+        if(m.event === 'phx_reply' && m.ref === this.joinRef){
+          clearTimeout(limite);
+          if(m.payload && m.payload.status === 'ok'){
+            this.entrou = true; this.aoVivo = true;
+            this.hb = setInterval(() => {
+              if(ws.readyState === 1)
+                ws.send(JSON.stringify({topic:'phoenix', event:'heartbeat', ref:this.proximoRef(), payload:{}}));
+            }, 25000);
+            resolve(this);
+          }else{
+            reject(new Error('sala recusada'));
+          }
+          return;
+        }
+        if(m.event === 'broadcast' && m.payload){
+          this.visto = G.tempo;
+          receberDaRede(m.payload.event, m.payload.payload || {});
+        }
+        if(m.event === 'phx_error' || m.event === 'phx_close'){
+          this.aoVivo = false;
+          if(G.estado === 'jogando') toast('CONEXÃO PERDIDA');
+        }
+      };
+
+      ws.onerror = () => { clearTimeout(limite); reject(new Error('falha de conexão')); };
+      ws.onclose = () => { this.aoVivo = false; };
+    });
+  },
+
+  enviar(evento, dados){
+    if(!this.ws || this.ws.readyState !== 1 || !this.entrou) return false;
+    this.ws.send(JSON.stringify({
+      topic: this.canal, event: 'broadcast', ref: this.proximoRef(),
+      payload: {type:'broadcast', event: evento, payload: dados}
+    }));
+    return true;
+  },
+
+  fechar(){
+    if(this.hb){ clearInterval(this.hb); this.hb = null; }
+    if(this.ws){ try{ this.ws.close(); }catch(e){} }
+    this.ws = null; this.entrou = false; this.aoVivo = false;
+    this.pares = []; this.pacote = 0;
+  },
+
+  desligar(){ this.fechar(); this.papel = null; this.codigo = null; }
+};
+
+const ONLINE = () => RT.papel !== null;
+const SOU_HOST = () => RT.papel === 'host';
+
+function gerarCodigo(){
+  const letras = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // sem I/O/0/1, que confundem
+  let s = '';
+  for(let i=0;i<4;i++) s += letras[(Math.random()*letras.length)|0];
+  return s;
+}
+
+/* ---- serialização do mapa: o convidado não gera, ele recebe pronto ---- */
+function serializarMapa(){
+  let g = '', pl = '';
+  for(let y=0;y<ROWS;y++)
+    for(let x=0;x<COLS;x++){ g += G.grid[y][x]; pl += G.pellets[y][x]; }
+  return {
+    f: G.fase, b: G.bioma.id, g, pl,
+    sx: G.spawn.x, sy: G.spawn.y,
+    mo: G.modo,
+    po: G.portais.map(p => [p.a.x, p.a.y, p.b.x, p.b.y, p.cor]),
+    la: G.lasers.map(l => [l.horiz?1:0, l.idx, l.ciclo]),
+    es: G.esteiras ? G.esteiras.map(lin => lin.map(d => d ? (d.x?(d.x>0?'R':'L'):(d.y>0?'D':'U')) : '.').join('')) : null
+  };
+}
+
+function aplicarMapa(d){
+  G.fase  = d.f;
+  G.modo  = d.mo || 'coop';
+  G.bioma = BIOMAS.find(b => b.id === d.b) || BIOMAS[0];
+  G.paleta = G.bioma.cor;
+  G.grid    = Array.from({length:ROWS}, () => new Array(COLS).fill(1));
+  G.pellets = Array.from({length:ROWS}, () => new Array(COLS).fill(0));
+  G.restantes = 0;
+  let i = 0;
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++, i++){
+      G.grid[y][x] = +d.g[i];
+      G.pellets[y][x] = +d.pl[i];
+      if(G.pellets[y][x]) G.restantes++;
+    }
+  }
+  G.spawn = {x: d.sx, y: d.sy};
+  const hx = (COLS-1)/2, hy = ((ROWS-1)/2)|0;
+  G.casa = {x0:hx-2, x1:hx+2, y0:hy-1, y1:hy+1};
+  G.distCasa = calcularCampo(hx, hy);
+  G.distFora = calcularCampo(G.spawn.x, G.spawn.y);
+
+  G.portais = (d.po||[]).map(p => ({a:{x:p[0],y:p[1]}, b:{x:p[2],y:p[3]}, cor:p[4]}));
+  G.lasers  = (d.la||[]).map(l => ({horiz:!!l[0], idx:l[1], ciclo:l[2], t:0, ativo:false, aviso:false}));
+  G.esteiras = null;
+  if(d.es){
+    G.esteiras = d.es.map(lin => lin.split('').map(c =>
+      c === 'R' ? DIRS.right : c === 'L' ? DIRS.left :
+      c === 'D' ? DIRS.down  : c === 'U' ? DIRS.up   : null));
+  }
+  G.tiros = []; G.parts = [];
+  G.mazeCanvas = renderMaze();
+}
+
+/* ---- pacote de estado: só o essencial, arredondado pra caber ---- */
+const EST_MOB = {normal:0, assustado:1, olhos:2};
+const MOB_EST = ['normal','assustado','olhos'];
+
+function montarEstado(){
+  const com = G.comidos || [];
+  G.comidos = [];
+  return {
+    n: ++RT.pacote,
+    ps: G.players.map(p => [Math.round(p.x), Math.round(p.y), p.dir.x, p.dir.y,
+                            p.score, p.vidas, p.fora?1:0, p.morto>0?1:0, Math.round(p.carga)]),
+    ms: G.mobs.map(m => [Math.round(m.x), Math.round(m.y), m.dir.x, m.dir.y,
+                         EST_MOB[m.estado]||0, m.stun>0?1:0, m.tipo]),
+    dv: Math.round(G.devorar*10),
+    re: G.restantes,
+    co: com,
+    fa: G.fase
+  };
+}
+
+function aplicarEstado(d){
+  // jogadores: o meu tem correção suave; os outros vão direto
+  d.ps.forEach((a, i) => {
+    const p = G.players[i];
+    if(!p) return;
+    p.score = a[4]; p.vidas = a[5]; p.fora = !!a[6]; p.carga = a[8];
+    const morto = !!a[7];
+    p.morto = morto ? Math.max(p.morto, 0.5) : 0;
+    if(i === G.eu){
+      // previsão local: só corrige se divergiu muito (evita teleporte a cada pacote)
+      if(Math.hypot(p.x - a[0], p.y - a[1]) > TILE*1.6){
+        p.x = a[0]; p.y = a[1]; p.lastTile = '';
+      }
+      return;
+    }
+    p.alvoX = a[0]; p.alvoY = a[1];
+    p.dir = {x:a[2], y:a[3]};
+    if(p.x === undefined || Math.hypot(p.x-a[0], p.y-a[1]) > TILE*4){ p.x = a[0]; p.y = a[1]; }
+  });
+
+  // mobs: o convidado não roda IA, só desenha onde o host disse
+  if(d.ms.length !== G.mobs.length){
+    G.mobs = d.ms.map((m, i) => criarMob(m[6] || 'cacador', i, false));
+  }
+  d.ms.forEach((a, i) => {
+    const m = G.mobs[i];
+    if(!m) return;
+    m.alvoX = a[0]; m.alvoY = a[1];
+    if(Math.hypot(m.x-a[0], m.y-a[1]) > TILE*4){ m.x = a[0]; m.y = a[1]; }
+    m.dir = {x:a[2], y:a[3]};
+    m.estado = MOB_EST[a[4]] || 'normal';
+    m.stun = a[5] ? 1 : 0;
+    m.saida = 0;
+  });
+
+  G.devorar = d.dv/10;
+  G.restantes = d.re;
+  // núcleos comidos por qualquer um
+  (d.co||[]).forEach(idx => {
+    const y = (idx / COLS) | 0, x = idx % COLS;
+    if(G.pellets[y] && G.pellets[y][x]){
+      G.pellets[y][x] = 0;
+      explodir(centro(x), centro(y), G.paleta, 1);
+    }
+  });
+}
+
+/* ---- entrada do convidado: só a direção e as habilidades ---- */
+function montarEntrada(){
+  const p = euJogador();
+  if(!p) return null;
+  const acoes = G.acoesPendentes || [];
+  G.acoesPendentes = [];
+  return {u: RT.uid, d: [p.quer.x, p.quer.y], a: acoes,
+          x: Math.round(p.x), y: Math.round(p.y)};
+}
+
+function aplicarEntrada(d){
+  const par = RT.pares.find(x => x.uid === d.u);
+  if(!par) return;
+  const p = G.players[par.idx];
+  if(!p || p.fora) return;
+  p.quer = {x: d.d[0], y: d.d[1]};
+  for(const a of (d.a || [])){
+    if(a === 'dash')  usarDash(p);
+    if(a === 'pulso') usarPulso(p);
+    if(a === 'fase')  usarFase(p);
+  }
+}
+
+/* ------------------------- ROTEADOR DE MENSAGENS ----------------------- */
+function receberDaRede(evento, d){
+  switch(evento){
+    case 'ola':                                  // convidado se apresentando
+      if(!SOU_HOST()) return;
+      if(RT.pares.some(p => p.uid === d.u)) { enviarTime(); return; }
+      if(G.players.length >= 4){ RT.enviar('cheio', {u:d.u}); return; }
+      RT.pares.push({uid:d.u, idx:G.players.length, nome:d.n});
+      G.players.push(criarPlayer(G.players.length, {
+        nome:d.n, skin:d.s, cor:d.c, local:false, controles:'rede'
+      }));
+      G.players[G.players.length-1].vidas = attr().vidas;
+      toast(d.n + ' ENTROU NA SALA');
+      enviarTime();
+      break;
+
+    case 'time':                                 // host anunciando o elenco
+      if(SOU_HOST()) return;
+      G.modo = d.mo || 'coop';
+      G.players = d.js.map((j, i) => {
+        const p = criarPlayer(i, {nome:j.n, skin:j.s, cor:j.c,
+                                  local: j.u === RT.uid, controles:'wasd'});
+        p.vidas = j.v != null ? j.v : 3;
+        return p;
+      });
+      const meu = d.js.findIndex(j => j.u === RT.uid);
+      G.eu = meu < 0 ? 0 : meu;
+      G.player = euJogador();
+      renderSala();
+      break;
+
+    case 'mapa':                                 // fase nova chegando
+      if(SOU_HOST()) return;
+      aplicarMapa(d);
+      G.players.forEach(pl => { pl.buffs = {}; pl.carga = 0; renascer(pl); });
+      G.estado = 'jogando';
+      esconderTudo();
+      break;
+
+    case 'estado':
+      if(SOU_HOST()) return;
+      aplicarEstado(d);
+      break;
+
+    case 'entrada':
+      if(!SOU_HOST()) return;
+      aplicarEntrada(d);
+      break;
+
+    case 'saiu':
+      if(SOU_HOST()){
+        const i = RT.pares.findIndex(p => p.uid === d.u);
+        if(i >= 0){
+          const par = RT.pares[i];
+          if(G.players[par.idx]) G.players[par.idx].fora = true;
+          toast((par.nome||'JOGADOR') + ' SAIU');
+          RT.pares.splice(i,1);
+          enviarTime();
+        }
+      }
+      break;
+
+    case 'cheio':
+      if(d.u === RT.uid){ toast('SALA CHEIA'); sairDaSala(); }
+      break;
+
+    case 'espera':                               // host escolhendo talentos
+      if(SOU_HOST()) return;
+      G.estado = 'espera';
+      el('esperaTexto').textContent =
+        'Fase ' + d.f + ' concluída! O anfitrião está escolhendo os talentos dele.';
+      mostrar('ovEspera');
+      break;
+
+    case 'acabou':                               // partida encerrada pelo host
+      if(SOU_HOST()) return;
+      const meuScore = (d.ps || [])[G.eu];
+      if(meuScore != null) G.score = meuScore;
+      G.fase = d.f || G.fase;
+      RT.desligar();
+      fimDeJogo();
+      break;
+
+    case 'fim':
+      if(!SOU_HOST()){ toast('O HOST ENCERROU'); sairDaSala(); }
+      break;
+  }
+}
+
+function enviarTime(){
+  RT.enviar('time', {
+    mo: G.modo,
+    js: G.players.map((p, i) => ({
+      u: i === 0 ? RT.uid : (RT.pares.find(x => x.idx === i) || {}).uid,
+      n: p.nome, s: p.skin, c: p.cor, v: p.vidas
+    }))
+  });
+  renderSala();
+}
+
+/* ------------------------------ TICKS DE REDE -------------------------- */
+function tickRede(dt){
+  if(!ONLINE() || G.estado !== 'jogando') return;
+  const agora = G.tempo;
+  if(SOU_HOST()){
+    if(agora - RT.ultimoEstado >= 1/15){        // 15 pacotes por segundo
+      RT.ultimoEstado = agora;
+      RT.enviar('estado', montarEstado());
+    }
+  }else{
+    if(agora - RT.ultimaEntrada >= 1/15){
+      RT.ultimaEntrada = agora;
+      const e = montarEntrada();
+      if(e) RT.enviar('entrada', e);
+    }
+  }
+}
+
+/* Convidado: não simula mobs nem colisões — interpola o que recebeu e
+   move o próprio boneco na frente pra não sentir a latência. */
+function atualizarConvidado(dt){
+  G.tempo += dt;
+  if(G.shake > 0) G.shake = Math.max(0, G.shake - dt*3);
+  const a = attr();
+  const eu = euJogador();
+
+  if(eu && !eu.fora && eu.morto <= 0){
+    tickBuffs(eu, dt);
+    eu.invuln  = Math.max(0, eu.invuln - dt);
+    eu.dashCd  = Math.max(0, eu.dashCd - dt);
+    eu.pulsoCd = Math.max(0, eu.pulsoCd - dt);
+    eu.faseCd  = Math.max(0, eu.faseCd - dt);
+    eu.vel = a.vel * (temBuff(eu,'furia') ? 1.35 : 1) * (G.devorar > 0 ? 1.06 : 1);
+    eu.derrapa = Math.max(0, (eu.derrapa||0) - dt);
+    mover(eu, dt, eu.faseT > 0, escolhaPlayer);
+    const and = !!(eu.dir.x || eu.dir.y);
+    if(and) eu.boca += dt*11;
+    eu.giro += (and ? eu.vel*0.85 : 0.7) * dt;
+  }
+
+  // os outros e os mobs deslizam até a posição informada pelo host
+  const suave = Math.min(1, dt * 12);
+  for(const p of G.players){
+    if(p === eu || p.alvoX === undefined) continue;
+    p.x += (p.alvoX - p.x) * suave;
+    p.y += (p.alvoY - p.y) * suave;
+    if(p.dir.x || p.dir.y) p.boca += dt*11;
+    p.giro += dt*3;
+  }
+  for(const m of G.mobs){
+    if(m.alvoX === undefined) continue;
+    m.x += (m.alvoX - m.x) * suave;
+    m.y += (m.alvoY - m.y) * suave;
+  }
+  atualizarParticulas(dt);
 }
 
 /* ==========================================================================
@@ -3087,7 +3547,7 @@ function toast(txt){
 }
 
 function mostrar(id){
-  ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovNome','ovRank','ovDupla']
+  ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovNome','ovRank','ovDupla','ovOnline','ovSala','ovEspera']
     .forEach(o => el(o).classList.toggle('on', o === id));
   if(id === 'ovMenu') renderMiniRanking();   // sempre com os dados frescos
 }
@@ -3364,6 +3824,130 @@ function retomar(){
   esconderTudo();
 }
 
+/* ==========================================================================
+   TELAS DE SALA ONLINE
+   ========================================================================== */
+let codigoDigitado = ['A','A','A','A'], codPos = 0;
+
+function renderCodigo(){
+  const c = el('codigoEntrada');
+  c.innerHTML = codigoDigitado
+    .map((ch,i) => `<span class="${i===codPos?'at':''}" data-i="${i}">${ch}</span>`).join('');
+  for(const s of c.children) s.onclick = () => { codPos = +s.dataset.i; renderCodigo(); };
+}
+
+function teclaCodigo(e){
+  const ch = e.key && e.key.length === 1 ? e.key.toUpperCase() : '';
+  if(ch && /[A-Z0-9]/.test(ch)){
+    codigoDigitado[codPos] = ch;
+    codPos = Math.min(3, codPos + 1);
+    beep(620,.05,'square',.04);
+  }else if(e.code === 'ArrowLeft')  codPos = Math.max(0, codPos-1);
+  else if(e.code === 'ArrowRight')  codPos = Math.min(3, codPos+1);
+  else if(e.code === 'Backspace'){ codigoDigitado[codPos]='A'; codPos = Math.max(0,codPos-1); }
+  else if(e.code === 'Enter'){ entrarNaSala(codigoDigitado.join('')); return; }
+  else return;
+  e.preventDefault();
+  renderCodigo();
+}
+
+async function criarSala(){
+  destravarAudio();
+  el('onlineAviso').textContent = 'criando...';
+  const codigo = gerarCodigo();
+  try{
+    await RT.conectar(codigo, 'host');
+    G.modo = 'coop';
+    G.players = [criarPlayer(0, {nome: save.ultimoNome || 'P1', local:true, controles:'wasd'})];
+    G.players[0].vidas = attr().vidas;
+    G.eu = 0; G.player = euJogador();
+    RT.pares = [];
+    G.estado = 'sala';
+    el('onlineAviso').textContent = '';
+    renderSala();
+    mostrar('ovSala');
+  }catch(e){
+    el('onlineAviso').textContent = 'não deu para criar: ' + e.message;
+  }
+}
+
+async function entrarNaSala(codigo){
+  destravarAudio();
+  el('onlineAviso').textContent = 'entrando em ' + codigo + '...';
+  try{
+    await RT.conectar(codigo, 'guest');
+    const sk = skinAtual();
+    RT.enviar('ola', {u: RT.uid, n: save.ultimoNome || 'P2',
+                      s: sk.id, c: save.cores[sk.id] || 0});
+    G.estado = 'sala';
+    G.players = [];
+    el('onlineAviso').textContent = '';
+    renderSala();
+    mostrar('ovSala');
+    // se ninguém responder, a sala não existe
+    setTimeout(() => {
+      if(G.estado === 'sala' && !G.players.length){
+        el('onlineAviso').textContent = 'ninguém respondeu — confira o código';
+        sairDaSala();
+      }
+    }, 6000);
+  }catch(e){
+    el('onlineAviso').textContent = 'não deu para entrar: ' + e.message;
+  }
+}
+
+function renderSala(){
+  el('salaCodigo').textContent = RT.codigo || '----';
+  el('salaDica').innerHTML = SOU_HOST()
+    ? `Passe o código <b>${RT.codigo}</b> pros seus amigos. Modo:
+       <b style="color:var(--accent)">${G.modo === 'versus' ? 'COMPETITIVO' : 'COOPERATIVO'}</b>`
+    : 'Esperando o anfitrião começar...';
+  el('salaModos').style.display  = SOU_HOST() ? 'flex' : 'none';
+  el('btnComecar').style.display = SOU_HOST() ? 'block' : 'none';
+  el('btnModoCoop').className   = G.modo === 'coop'   ? '' : 'ghost';
+  el('btnModoVersus').className = G.modo === 'versus' ? '' : 'ghost';
+
+  const lista = el('salaLista');
+  lista.innerHTML = '';
+  if(!G.players.length){
+    const p = document.createElement('p');
+    p.className = 'sub'; p.textContent = 'conectando...';
+    lista.appendChild(p);
+    return;
+  }
+  G.players.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'rk';
+    d.innerHTML = `<b class="pos" style="color:${p.par[0]}">${i+1}</b>
+      <span class="ini" style="color:${p.par[0]}">${p.nome}</span>
+      <span class="pts" style="font-size:10px;color:var(--dim)">
+        ${i === 0 ? 'anfitrião' : 'convidado'}${p === euJogador() ? ' · você' : ''}</span>`;
+    lista.appendChild(d);
+  });
+}
+
+function comecarOnline(){
+  if(!SOU_HOST()) return;
+  G.fase = 1;
+  G.players.forEach(p => { p.score = 0; p.vidas = attr().vidas; p.fora = false; });
+  G.ganhosFase = {xp:0, coins:0, pontos:0};
+  enviarTime();
+  montarFase();                     // já transmite o mapa
+  G.estado = 'jogando';
+  esconderTudo();
+  atualizarHud();
+}
+
+function sairDaSala(){
+  if(ONLINE()){
+    RT.enviar(SOU_HOST() ? 'fim' : 'saiu', {u: RT.uid});
+    setTimeout(() => RT.desligar(), 120);
+  }
+  G.players = []; G.eu = 0; G.modo = 'solo';
+  G.estado = 'menu';
+  mostrar('ovMenu');
+}
+
 /* -------------------------------- BOTÕES ------------------------------- */
 function destravarAudio(){
   if(AC) return;
@@ -3372,6 +3956,23 @@ function destravarAudio(){
 el('btnPlay').onclick   = () => { destravarAudio(); novoJogo('solo'); };
 el('btnSkins').onclick  = () => { renderSkins(); mostrar('ovSkins'); };
 el('btnDupla').onclick  = () => mostrar('ovDupla');
+el('btnOnline').onclick = () => {
+  el('onlineAviso').textContent = '';
+  el('caixaCodigo').style.display = 'none';
+  mostrar('ovOnline');
+};
+el('btnOnlineBack').onclick = () => mostrar('ovMenu');
+el('cardCriar').onclick  = criarSala;
+el('cardEntrar').onclick = () => {
+  el('caixaCodigo').style.display = 'block';
+  codigoDigitado = ['A','A','A','A']; codPos = 0;
+  renderCodigo();
+};
+el('btnModoCoop').onclick   = () => { if(SOU_HOST()){ G.modo='coop';   enviarTime(); } };
+el('btnModoVersus').onclick = () => { if(SOU_HOST()){ G.modo='versus'; enviarTime(); } };
+el('btnComecar').onclick = comecarOnline;
+el('btnSairSala').onclick = sairDaSala;
+el('btnEsperaSair').onclick = sairDaSala;
 el('btnDuplaBack').onclick = () => mostrar('ovMenu');
 el('cardCoop').onclick   = () => { destravarAudio(); novoJogo('coop'); };
 el('cardVersus').onclick = () => { destravarAudio(); novoJogo('versus'); };
@@ -3383,7 +3984,7 @@ el('btnReset').onclick  = () => {
 };
 el('btnNext').onclick   = proximaFase;
 el('btnResume').onclick = retomar;
-el('btnQuit').onclick   = () => { G.estado = 'menu'; gravarSave(); mostrar('ovMenu'); };
+el('btnQuit').onclick   = () => { gravarSave(); if(ONLINE()) sairDaSala(); else { G.estado='menu'; mostrar('ovMenu'); } };
 el('btnRetry').onclick  = () => novoJogo(G.modo);
 el('btnMenu').onclick   = () => { G.estado = 'menu'; mostrar('ovMenu'); };
 el('btnNomeOk').onclick = confirmarNome;
@@ -3412,6 +4013,8 @@ function donoDoTeclado(esquema){
 }
 window.addEventListener('keydown', e => {
   if(G.estado === 'nome'){ teclaNome(e); return; }   // digitando as iniciais
+  if(el('caixaCodigo').style.display === 'block' &&
+     el('ovOnline').classList.contains('on')){ teclaCodigo(e); return; }
 
   // direção: descobre de qual esquema veio e entrega ao dono dele
   for(const esquema of ['wasd','setas']){
@@ -3537,7 +4140,11 @@ function loop(agora){
   const dt = Math.min(0.033, (agora - ultimo)/1000);
   ultimo = agora;
 
-  if(G.estado === 'jogando') atualizar(dt);
+  if(G.estado === 'jogando'){
+    if(ONLINE() && !SOU_HOST()) atualizarConvidado(dt);
+    else atualizar(dt);
+    tickRede(dt);
+  }
   else if(G.grid) { atualizarParticulas(dt); G.tempo += dt; }
 
   desenhar();
