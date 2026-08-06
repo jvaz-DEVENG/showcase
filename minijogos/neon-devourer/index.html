@@ -36,6 +36,22 @@
     width:min(96vw, 620px);
     display:flex;flex-direction:column;gap:8px;
   }
+  /* o mapa nunca pode passar da altura da tela: sobra do viewport menos o HUD */
+  #stage{max-height:calc(100dvh - var(--fora, 190px))}
+  #stage canvas{max-height:calc(100dvh - var(--fora, 190px));object-fit:contain;margin:0 auto}
+
+  /* celular: cola nas bordas e aproveita cada pixel */
+  @media (hover:none){
+    body{align-items:flex-start;padding:0}
+    #app{width:100vw;gap:4px;padding:4px}
+    #hud{border-radius:0 0 12px 12px;padding:6px 8px;gap:5px}
+    #stage{border-radius:10px}
+    .stat b{font-size:14px}
+    .stat span{font-size:8px}
+    .ab{width:52px;height:44px}      /* alvo de toque maior */
+    .ab b{font-size:16px}
+    #tips{font-size:9px;padding:0 6px}
+  }
 
   /* ---------- HUD ---------- */
   #hud{
@@ -303,7 +319,7 @@
 
       <div class="mrwrap">
         <div class="mrhead">
-          <span>MELHORES PONTUAÇÕES</span>
+          <span>PONTUAÇÃO ACUMULADA</span>
           <button class="mini" id="btnVerMais">VER MAIS ›</button>
         </div>
         <div class="mrlist" id="miniRank"></div>
@@ -346,7 +362,7 @@
 
     <!-- ENTRADA DE INICIAIS (estilo fliperama) -->
     <div class="ov" id="ovNome">
-      <h2 style="color:var(--accent)">NOVO RECORDE</h2>
+      <h2 style="color:var(--accent)">FIM DE PARTIDA</h2>
       <p class="sub" id="nomeSub"></p>
       <div class="entrada">
         <canvas id="nomeSkin" width="120" height="120"></canvas>
@@ -389,10 +405,20 @@
    ========================================================================= */
 
 /* ---------------------------- CONFIGURAÇÃO ---------------------------- */
-const TILE = 22;          // tamanho do tile em px
-const COLS = 25;          // largura do labirinto (ímpar)
-const ROWS = 21;          // altura do labirinto (ímpar)
+/* O labirinto nasce no formato da tela: em pé no celular, deitado no PC.
+   COLS e ROWS precisam ser ÍMPARES (o gerador espelha a metade esquerda). */
+const RETRATO = window.innerHeight > window.innerWidth * 1.15;
+const TILE = 22;                       // tamanho do tile em px
+const COLS = RETRATO ? 19 : 25;        // largura do labirinto (ímpar)
+const ROWS = RETRATO ? 27 : 21;        // altura do labirinto (ímpar)
 const W = COLS * TILE, H = ROWS * TILE;
+
+/* Aparelho fraco/touch: corta os efeitos caros (shadowBlur mata o FPS no
+   celular). QUALIDADE multiplica todo shadowBlur do jogo. */
+const TOQUE = matchMedia('(hover:none)').matches;
+const FRACO = TOQUE || (navigator.hardwareConcurrency || 8) <= 4;
+const QUALIDADE = FRACO ? 0 : 1;
+const MAX_PARTS = FRACO ? 120 : 400;
 
 const cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
@@ -519,7 +545,8 @@ function carregarSave(){
     const novo = Object.assign(saveBase(), s, {
       up: Object.assign({}, s.up),
       cores: Object.assign({}, s.cores),
-      ranking: Array.isArray(s.ranking) ? s.ranking.slice(0, 10) : []
+      // consolida rankings antigos: uma linha por partida virou uma por jogador
+      ranking: consolidarRanking(Array.isArray(s.ranking) ? s.ranking : [])
     });
     // migração: skins antigas (só cor) viraram variantes de cor da Plasma
     const validas = SKINS.map(k => k.id);
@@ -1562,12 +1589,13 @@ function usarFase(){
 
 /* ------------------------------ PARTÍCULAS ----------------------------- */
 function explodir(x, y, cor, n){
+  if(FRACO) n = Math.ceil(n/2);          // metade das partículas no celular
   for(let i=0;i<n;i++){
     const ang = Math.random()*Math.PI*2, v = 30 + Math.random()*110;
     G.parts.push({x, y, dx:Math.cos(ang)*v, dy:Math.sin(ang)*v,
                   vida:.3+Math.random()*.5, vidaMax:.8, cor, r:1+Math.random()*2.5});
   }
-  if(G.parts.length > 400) G.parts.splice(0, G.parts.length-400);
+  if(G.parts.length > MAX_PARTS) G.parts.splice(0, G.parts.length - MAX_PARTS);
 }
 function atualizarParticulas(dt){
   for(let i=G.parts.length-1;i>=0;i--){
@@ -1617,8 +1645,8 @@ function fimDeJogo(){
     `Pontos: <b style="color:var(--accent)">${G.score}</b> &nbsp;·&nbsp; Fase ${G.fase} &nbsp;·&nbsp; Recorde ${save.recorde}<br>
      Nível ${save.charLevel} &nbsp;·&nbsp; ${save.coins} créditos`;
 
-  const pos = posicaoNoRanking(G.score);
-  if(pos >= 0){ abrirEntradaNome(pos); return; }   // entrou no top 10
+  // toda partida conta: a pontuação é somada ao total do jogador
+  if(G.score > 0){ abrirEntradaNome(); return; }
   G.estado = 'over';
   mostrar('ovOver');
 }
@@ -1626,23 +1654,46 @@ function fimDeJogo(){
 /* ==========================================================================
    RANKING ARCADE
    ========================================================================== */
-const RANK_MAX = 10;
+const RANK_MOSTRA = 10;    // quantos aparecem na tela cheia de ranking
+const RANK_GUARDA = 50;    // quantos ficam salvos (não perde o acumulado de ninguém)
 const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -!';
 
-// retorna o índice onde a pontuação entraria, ou -1 se não entrar
-function posicaoNoRanking(score){
-  if(score <= 0) return -1;
-  const r = save.ranking;
-  for(let i=0;i<r.length;i++) if(score > r[i].score) return i;
-  return r.length < RANK_MAX ? r.length : -1;
+const chaveNome = n => (n || 'AAA').toUpperCase();
+const achaJogador = n => save.ranking.find(r => r.nome === chaveNome(n));
+
+// junta linhas repetidas do mesmo nome num só jogador acumulado
+function consolidarRanking(lista){
+  const mapa = new Map();
+  for(const r of lista || []){
+    const nome = chaveNome(r.nome);
+    const pontos = r.score || 0;
+    const melhorDele = r.melhor || pontos;
+    const a = mapa.get(nome);
+    if(!a){
+      mapa.set(nome, {
+        nome, score: pontos, partidas: r.partidas || 1, melhor: melhorDele,
+        fase: r.fase || 1, nivel: r.nivel || 1,
+        skin: r.skin || 'plasma', cor: r.cor || 0
+      });
+      continue;
+    }
+    if(melhorDele > a.melhor){          // a skin exibida é a da melhor partida
+      a.melhor = melhorDele;
+      a.skin = r.skin || a.skin;
+      a.cor  = r.cor  != null ? r.cor : a.cor;
+    }
+    a.score += pontos;
+    a.partidas += r.partidas || 1;
+    a.fase  = Math.max(a.fase,  r.fase  || 1);
+    a.nivel = Math.max(a.nivel, r.nivel || 1);
+  }
+  return [...mapa.values()].sort((a,b) => b.score - a.score).slice(0, RANK_GUARDA);
 }
 
-function abrirEntradaNome(pos){
+function abrirEntradaNome(){
   G.estado = 'nome';
-  G.iniciais = (save.ultimoNome || 'AAA').split('');
+  G.iniciais = chaveNome(save.ultimoNome).padEnd(3, 'A').slice(0,3).split('');
   G.iniPos = 0;
-  el('nomeSub').innerHTML =
-    `${(G.score).toLocaleString('pt-BR')} pontos — <b style="color:var(--ok)">${pos+1}º lugar</b>`;
   renderIniciais();
   mostrar('ovNome');
 }
@@ -1654,6 +1705,18 @@ function renderIniciais(){
     .join('');
   for(const s of c.children)
     s.onclick = () => { G.iniPos = +s.dataset.i; renderIniciais(); };
+
+  // mostra ao vivo o que vai acontecer com o nome digitado
+  const nome = chaveNome(G.iniciais.join(''));
+  const ex = achaJogador(nome);
+  const fmt = v => v.toLocaleString('pt-BR');
+  el('nomeSub').innerHTML = ex
+    ? `<b style="color:var(--accent)">${fmt(G.score)}</b> desta partida somam ao total de
+       <b>${nome}</b>: ${fmt(ex.score)} → <b style="color:var(--ok)">${fmt(ex.score + G.score)}</b>
+       <br><span style="font-size:10px">${ex.partidas + 1}ª partida</span>`
+    : `<b style="color:var(--accent)">${fmt(G.score)}</b> pontos —
+       <b style="color:var(--ok)">novo jogador</b>
+       <br><span style="font-size:10px">as próximas partidas somam neste nome</span>`;
 }
 
 function teclaNome(e){
@@ -1679,15 +1742,30 @@ function teclaNome(e){
 }
 
 function confirmarNome(){
-  const nome = G.iniciais.join('').trim() || 'AAA';
+  const nome = chaveNome(G.iniciais.join('').trim() || 'AAA');
   const sk = skinAtual();
+  const cor = save.cores[sk.id] || 0;
   save.ultimoNome = nome;
-  save.ranking.push({
-    nome, score: G.score, fase: G.fase, nivel: save.charLevel,
-    skin: sk.id, cor: save.cores[sk.id] || 0, novo: true
-  });
+
+  const ex = achaJogador(nome);
+  if(ex){
+    ex.score += G.score;                       // acumula
+    ex.partidas = (ex.partidas || 1) + 1;
+    if(G.score > (ex.melhor || 0)){            // recorde pessoal troca a skin exibida
+      ex.melhor = G.score; ex.skin = sk.id; ex.cor = cor;
+    }
+    ex.fase  = Math.max(ex.fase  || 1, G.fase);
+    ex.nivel = Math.max(ex.nivel || 1, save.charLevel);
+    ex.novo = true;
+  }else{
+    save.ranking.push({
+      nome, score: G.score, partidas: 1, melhor: G.score,
+      fase: G.fase, nivel: save.charLevel, skin: sk.id, cor, novo: true
+    });
+  }
+
   save.ranking.sort((a,b) => b.score - a.score);
-  save.ranking = save.ranking.slice(0, RANK_MAX);
+  save.ranking = save.ranking.slice(0, RANK_GUARDA);
   gravarSave();
   sfx('level');
   abrirRanking();
@@ -1710,7 +1788,7 @@ function renderRanking(){
     return;
   }
 
-  save.ranking.forEach((r, i) => {
+  save.ranking.slice(0, RANK_MOSTRA).forEach((r, i) => {
     const sk = SKINS.find(s => s.id === r.skin) || SKINS[0];
     const par = sk.cores[(r.cor || 0) % sk.cores.length];
     const d = document.createElement('div');
@@ -1735,7 +1813,10 @@ function renderRanking(){
     d.appendChild(pts);
 
     const fs = document.createElement('span');
-    fs.className = 'fs'; fs.innerHTML = 'fase ' + r.fase + '<br>nível ' + (r.nivel || 1);
+    fs.className = 'fs';
+    fs.innerHTML = (r.partidas || 1) + (r.partidas === 1 ? ' partida' : ' partidas') +
+                   '<br>melhor ' + String(r.melhor || r.score).padStart(6, '0') +
+                   '<br>fase ' + r.fase;
     d.appendChild(fs);
 
     cont.appendChild(d);
@@ -1804,7 +1885,8 @@ function renderMiniRanking(){
     d.appendChild(pts);
 
     const fs = document.createElement('span');
-    fs.className = 'fs'; fs.textContent = 'fase ' + r.fase;
+    fs.className = 'fs';
+    fs.textContent = (r.partidas || 1) + (r.partidas === 1 ? ' jogo' : ' jogos');
     d.appendChild(fs);
 
     cont.appendChild(d);
@@ -1851,7 +1933,7 @@ function renderMaze(){
   }
   // brilho suave
   x2.globalAlpha = .35;
-  x2.shadowColor = cor; x2.shadowBlur = 10;
+  x2.shadowColor = cor; x2.shadowBlur = QUALIDADE*10;
   for(let y=0;y<ROWS;y++)
     for(let x=0;x<COLS;x++)
       if(G.grid[y][x] === 1){
@@ -1859,7 +1941,7 @@ function renderMaze(){
         roundRect(x2, x*TILE+2, y*TILE+2, TILE-4, TILE-4, 5);
         x2.stroke();
       }
-  x2.shadowBlur = 0; x2.globalAlpha = 1;
+  x2.shadowBlur = QUALIDADE*0; x2.globalAlpha = 1;
 
   // piso das esteiras: setas indicando o sentido do empurrão
   if(G.esteiras){
@@ -1921,10 +2003,10 @@ const FORMAS = {
   pac(c, o){
     c.save(); c.rotate(o.ang);
     const ab = o.mov ? Math.abs(Math.sin(o.boca))*0.32 : 0.06;
-    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = 16;
+    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*16;
     c.beginPath(); c.moveTo(0,0);
     c.arc(0, 0, o.r, ab*Math.PI, (2-ab)*Math.PI);
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
     c.fillStyle = 'rgba(0,0,0,.6)';
     c.beginPath(); c.arc(o.r*0.12, -o.r*0.42, o.r*0.15, 0, 7); c.fill();
     c.restore();
@@ -1934,7 +2016,7 @@ const FORMAS = {
   serra(c, o){
     c.save(); c.rotate(o.giro);
     const n = 10;
-    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = 16;
+    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*16;
     c.beginPath();
     for(let i=0;i<n;i++){
       const a1 = (i/n)*Math.PI*2, a2 = ((i+0.5)/n)*Math.PI*2;
@@ -1943,7 +2025,7 @@ const FORMAS = {
       i ? c.lineTo(x1,y1) : c.moveTo(x1,y1);
       c.lineTo(Math.cos(a2)*rp, Math.sin(a2)*rp);
     }
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
     c.fillStyle = 'rgba(0,0,0,.5)';
     c.beginPath(); c.arc(0, 0, o.r*0.40, 0, 7); c.fill();
     c.fillStyle = o.glow;
@@ -1957,9 +2039,9 @@ const FORMAS = {
   /* orbe: núcleo pulsante com 3 satélites em órbita elíptica */
   orbe(c, o){
     const p = 1 + Math.sin(o.t*5)*0.06;
-    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = 20;
+    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*20;
     c.beginPath(); c.arc(0, 0, o.r*0.76*p, 0, 7); c.fill();
-    c.shadowBlur = 0;
+    c.shadowBlur = QUALIDADE*0;
     c.strokeStyle = o.glow; c.lineWidth = 1.6; c.globalAlpha = .7;
     c.beginPath(); c.ellipse(0, 0, o.r*1.12, o.r*0.42, o.giro*0.35, 0, 7); c.stroke();
     c.globalAlpha = 1;
@@ -1968,10 +2050,10 @@ const FORMAS = {
       const x = Math.cos(a)*o.r*1.12, y = Math.sin(a)*o.r*0.42;
       const rot = o.giro*0.35;
       const xr = x*Math.cos(rot) - y*Math.sin(rot), yr = x*Math.sin(rot) + y*Math.cos(rot);
-      c.fillStyle = o.glow; c.shadowColor = o.glow; c.shadowBlur = 10;
+      c.fillStyle = o.glow; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*10;
       c.beginPath(); c.arc(xr, yr, o.r*0.16, 0, 7); c.fill();
     }
-    c.shadowBlur = 0;
+    c.shadowBlur = QUALIDADE*0;
     c.fillStyle = 'rgba(0,0,0,.55)';
     c.beginPath(); c.arc(Math.cos(o.ang)*o.r*0.22, Math.sin(o.ang)*o.r*0.22, o.r*0.19, 0, 7); c.fill();
   },
@@ -1982,19 +2064,19 @@ const FORMAS = {
     if(o.mov){
       const f = o.r * (0.9 + Math.abs(Math.sin(o.t*30))*0.6);
       c.fillStyle = '#ff8a3d'; c.globalAlpha = .9;
-      c.shadowColor = '#ff8a3d'; c.shadowBlur = 14;
+      c.shadowColor = '#ff8a3d'; c.shadowBlur = QUALIDADE*14;
       c.beginPath();
       c.moveTo(-o.r*0.6, -o.r*0.38); c.lineTo(-o.r*0.6 - f, 0); c.lineTo(-o.r*0.6, o.r*0.38);
       c.closePath(); c.fill();
-      c.globalAlpha = 1; c.shadowBlur = 0;
+      c.globalAlpha = 1; c.shadowBlur = QUALIDADE*0;
     }
-    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = 16;
+    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*16;
     c.beginPath();
     c.moveTo(o.r*1.18, 0);
     c.lineTo(-o.r*0.72, o.r*0.95);
     c.lineTo(-o.r*0.30, 0);
     c.lineTo(-o.r*0.72, -o.r*0.95);
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
     c.fillStyle = 'rgba(255,255,255,.8)';
     c.beginPath(); c.ellipse(o.r*0.28, 0, o.r*0.30, o.r*0.19, 0, 0, 7); c.fill();
     c.restore();
@@ -2004,18 +2086,18 @@ const FORMAS = {
   cometa(c, o){
     c.save(); c.rotate(o.ang);
     c.globalAlpha = .5; c.fillStyle = o.glow;
-    c.shadowColor = o.glow; c.shadowBlur = 14;
+    c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*14;
     for(let i=1;i<=4;i++){
       const d = -o.r*(0.7 + i*0.45), y = Math.sin(o.t*12 - i*0.9)*o.r*0.24;
       c.beginPath(); c.arc(d, y, o.r*(0.46 - i*0.085), 0, 7); c.fill();
     }
     c.globalAlpha = 1;
-    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = 18;
+    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*18;
     c.beginPath();
     c.moveTo(o.r*1.08, 0);
     c.quadraticCurveTo(o.r*0.15,  o.r*0.98, -o.r*0.78, 0);
     c.quadraticCurveTo(o.r*0.15, -o.r*0.98,  o.r*1.08, 0);
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
     c.fillStyle = 'rgba(0,0,0,.55)';
     c.beginPath(); c.arc(o.r*0.32, -o.r*0.14, o.r*0.14, 0, 7); c.fill();
     c.restore();
@@ -2025,14 +2107,14 @@ const FORMAS = {
   cristal(c, o){
     c.save(); c.rotate(o.giro*0.45);
     const R = o.r * 1.06 * (1 + Math.sin(o.t*4)*0.07);
-    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = 18;
+    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*18;
     c.beginPath();
     for(let i=0;i<6;i++){
       const a = i*Math.PI/3 - Math.PI/2;
       const x = Math.cos(a)*R, y = Math.sin(a)*R;
       i ? c.lineTo(x,y) : c.moveTo(x,y);
     }
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
     c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 1.1;
     c.beginPath();
     for(let i=0;i<6;i++){
@@ -2040,9 +2122,9 @@ const FORMAS = {
       c.moveTo(0,0); c.lineTo(Math.cos(a)*R, Math.sin(a)*R);
     }
     c.stroke();
-    c.fillStyle = o.glow; c.shadowColor = o.glow; c.shadowBlur = 12;
+    c.fillStyle = o.glow; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*12;
     c.beginPath(); c.arc(0, 0, R*0.30, 0, 7); c.fill();
-    c.shadowBlur = 0;
+    c.shadowBlur = QUALIDADE*0;
     c.restore();
   },
 
@@ -2050,7 +2132,7 @@ const FORMAS = {
   aracno(c, o){
     const t = o.giro*3.2;
     c.strokeStyle = o.cor; c.lineWidth = Math.max(2, o.r*0.15); c.lineCap = 'round';
-    c.shadowColor = o.glow; c.shadowBlur = 10;
+    c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*10;
     [-2.45, -0.70, 0.70, 2.45].forEach((a, i) => {
       const sw = Math.sin(t + i*1.7)*0.30;
       const A = a + sw;
@@ -2059,10 +2141,10 @@ const FORMAS = {
       const x3 = x2 + Math.cos(A)*o.r*0.30, y3 = y2 + o.r*0.85;
       c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.lineTo(x3,y3); c.stroke();
     });
-    c.shadowBlur = 0;
-    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = 16;
+    c.shadowBlur = QUALIDADE*0;
+    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*16;
     c.beginPath(); c.ellipse(0, 0, o.r*0.98, o.r*0.80, 0, 0, 7); c.fill();
-    c.shadowBlur = 0;
+    c.shadowBlur = QUALIDADE*0;
     // 4 olhinhos virados pra direção
     const ex = Math.cos(o.ang), ey = Math.sin(o.ang);
     for(const [d, s, rr] of [[0.45,-0.34,0.13],[0.45,0.34,0.13],[0.62,-0.15,0.09],[0.62,0.15,0.09]]){
@@ -2077,16 +2159,16 @@ const FORMAS = {
   coroa(c, o){
     c.save(); c.rotate(o.ang);
     const ab = o.mov ? Math.abs(Math.sin(o.boca))*0.30 : 0.06;
-    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = 20;
+    c.fillStyle = o.cor; c.shadowColor = o.glow; c.shadowBlur = QUALIDADE*20;
     c.beginPath(); c.moveTo(0,0);
     c.arc(0, 0, o.r, ab*Math.PI, (2-ab)*Math.PI);
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
     c.fillStyle = 'rgba(0,0,0,.55)';
     c.beginPath(); c.arc(o.r*0.12, -o.r*0.42, o.r*0.15, 0, 7); c.fill();
     c.restore();
     // coroa não gira com o corpo
     const cy = -o.r*1.02, w = o.r*0.82;
-    c.fillStyle = '#ffd23f'; c.shadowColor = '#ffb703'; c.shadowBlur = 12;
+    c.fillStyle = '#ffd23f'; c.shadowColor = '#ffb703'; c.shadowBlur = QUALIDADE*12;
     c.beginPath();
     c.moveTo(-w, cy + o.r*0.30);
     c.lineTo(-w, cy - o.r*0.10);
@@ -2095,7 +2177,7 @@ const FORMAS = {
     c.lineTo(w*0.5, cy + o.r*0.14);
     c.lineTo(w, cy - o.r*0.10);
     c.lineTo(w, cy + o.r*0.30);
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
     c.fillStyle = '#fff';
     for(let i=0;i<3;i++){
       const a = o.t*2 + i*2.094;
@@ -2110,14 +2192,18 @@ const FORMAS = {
 
 function pintarPlayer(c, skin, o){ (FORMAS[skin.forma] || FORMAS.pac)(c, o); }
 
+let fundoCache = null;
 function desenhar(){
   ctx.save();
   ctx.clearRect(0,0,W,H);
 
-  // fundo
-  const g = ctx.createRadialGradient(W/2, H/2, 20, W/2, H/2, W*0.8);
-  g.addColorStop(0, '#080f22'); g.addColorStop(1, '#03050c');
-  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  // fundo (o gradiente é criado uma vez só, não a cada quadro)
+  if(!fundoCache){
+    fundoCache = ctx.createRadialGradient(W/2, H/2, 20, W/2, H/2, Math.max(W,H)*0.8);
+    fundoCache.addColorStop(0, '#080f22');
+    fundoCache.addColorStop(1, '#03050c');
+  }
+  ctx.fillStyle = fundoCache; ctx.fillRect(0,0,W,H);
 
   if(G.shake > 0){
     ctx.translate((Math.random()-0.5)*G.shake*10, (Math.random()-0.5)*G.shake*10);
@@ -2141,9 +2227,9 @@ function desenhar(){
       }else{
         ctx.globalAlpha = 1;
         ctx.fillStyle = '#ffd23f';
-        ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 14 + pulso*10;
+        ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = QUALIDADE*14 + pulso*10;
         ctx.beginPath(); ctx.arc(px, py, 4.5 + pulso*1.6, 0, 7); ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.shadowBlur = QUALIDADE*0;
       }
     }
   }
@@ -2155,17 +2241,17 @@ function desenhar(){
     if(q.onda){
       ctx.globalAlpha = al * .8;
       ctx.strokeStyle = q.cor; ctx.lineWidth = 3;
-      ctx.shadowColor = q.cor; ctx.shadowBlur = 18;
+      ctx.shadowColor = q.cor; ctx.shadowBlur = QUALIDADE*18;
       ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 7); ctx.stroke();
-      ctx.shadowBlur = 0;
+      ctx.shadowBlur = QUALIDADE*0;
     }else if(q.texto){
       ctx.globalAlpha = al;
       ctx.fillStyle = q.cor;
       ctx.font = 'bold 13px "Segoe UI",sans-serif';
       ctx.textAlign = 'center';
-      ctx.shadowColor = q.cor; ctx.shadowBlur = 10;
+      ctx.shadowColor = q.cor; ctx.shadowBlur = QUALIDADE*10;
       ctx.fillText(q.texto, q.x, q.y);
-      ctx.shadowBlur = 0;
+      ctx.shadowBlur = QUALIDADE*0;
     }else{
       ctx.globalAlpha = al;
       ctx.fillStyle = q.cor;
@@ -2177,9 +2263,9 @@ function desenhar(){
   // projéteis
   for(const t of G.tiros){
     ctx.fillStyle = '#b46bff';
-    ctx.shadowColor = '#b46bff'; ctx.shadowBlur = 12;
+    ctx.shadowColor = '#b46bff'; ctx.shadowBlur = QUALIDADE*12;
     ctx.beginPath(); ctx.arc(t.x, t.y, 4, 0, 7); ctx.fill();
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur = QUALIDADE*0;
   }
 
   // mobs
@@ -2199,7 +2285,7 @@ function desenharModificadores(){
   for(const p of G.portais){
     for(const t of [p.a, p.b]){
       const x = centro(t.x), y = centro(t.y);
-      ctx.strokeStyle = p.cor; ctx.shadowColor = p.cor; ctx.shadowBlur = 14;
+      ctx.strokeStyle = p.cor; ctx.shadowColor = p.cor; ctx.shadowBlur = QUALIDADE*14;
       for(let i=0;i<2;i++){
         ctx.lineWidth = 2 - i*0.7;
         ctx.globalAlpha = .85 - i*0.3;
@@ -2208,7 +2294,7 @@ function desenharModificadores(){
         ctx.arc(x, y, Math.max(2, r), G.tempo*(i?-3:3), G.tempo*(i?-3:3) + 4.4);
         ctx.stroke();
       }
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
     }
   }
 
@@ -2217,7 +2303,7 @@ function desenharModificadores(){
     if(!L.aviso && !L.ativo) continue;
     const cor = L.ativo ? '#ff5d3b' : '#ffd23f';
     ctx.strokeStyle = cor; ctx.shadowColor = cor;
-    ctx.shadowBlur = L.ativo ? 20 : 8;
+    ctx.shadowBlur = QUALIDADE*(L.ativo ? 20 : 8);
     ctx.lineWidth = L.ativo ? 9 : 1.6;
     ctx.globalAlpha = L.ativo ? .85 : .35 + Math.sin(G.tempo*22)*0.25;
     // o feixe para na primeira parede a partir da borda
@@ -2234,7 +2320,7 @@ function desenharModificadores(){
       ctx.moveTo(centro(L.idx), 0); ctx.lineTo(centro(L.idx), y*TILE);
       ctx.stroke();
     }
-    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
   }
 
   // --- BLECAUTE: escurece tudo menos um círculo em volta do jogador ---
@@ -2298,9 +2384,9 @@ function desenharPlayer(){
   if(G.devorar > 0){
     ctx.globalAlpha = .35 + Math.sin(G.tempo*12)*.15;
     ctx.fillStyle = '#ffd23f';
-    ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 22;
+    ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = QUALIDADE*22;
     ctx.beginPath(); ctx.arc(0,0, raio+6, 0, 7); ctx.fill();
-    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    ctx.shadowBlur = QUALIDADE*0; ctx.globalAlpha = 1;
   }
   // anéis das essências ativas (um por buff, girando)
   const ativos = Object.keys(G.buffs);
@@ -2312,12 +2398,12 @@ function desenharPlayer(){
       const giro = G.tempo * (i%2 ? -2.2 : 2.2);
       ctx.globalAlpha = .75;
       ctx.strokeStyle = b.cor; ctx.lineWidth = 2;
-      ctx.shadowColor = b.cor; ctx.shadowBlur = 12;
+      ctx.shadowColor = b.cor; ctx.shadowBlur = QUALIDADE*12;
       ctx.setLineDash([7, 9]);
       ctx.lineDashOffset = giro * 10;
       ctx.beginPath(); ctx.arc(0, 0, r2, 0, 7); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.shadowBlur = 0;
+      ctx.shadowBlur = QUALIDADE*0;
     });
     ctx.restore();
     ctx.globalAlpha = 1;
@@ -2327,9 +2413,9 @@ function desenharPlayer(){
   if(p.faseT > 0){
     ctx.globalAlpha = .5;
     ctx.strokeStyle = '#39e0ff'; ctx.lineWidth = 2;
-    ctx.shadowColor = '#39e0ff'; ctx.shadowBlur = 16;
+    ctx.shadowColor = '#39e0ff'; ctx.shadowBlur = QUALIDADE*16;
     ctx.beginPath(); ctx.arc(0,0, raio+5, 0, 7); ctx.stroke();
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur = QUALIDADE*0;
   }
   // escudo
   if(p.escudo > 0){
@@ -2355,7 +2441,7 @@ function desenharPlayer(){
 
 // base "fantasma" usada por algumas espécies
 function corpoBase(c, cor, r, t, semente, ondas){
-  c.fillStyle = cor; c.shadowColor = cor; c.shadowBlur = 14;
+  c.fillStyle = cor; c.shadowColor = cor; c.shadowBlur = QUALIDADE*14;
   c.beginPath();
   c.arc(0, -r*0.15, r, Math.PI, 0);
   c.lineTo(r, r*0.7);
@@ -2367,7 +2453,7 @@ function corpoBase(c, cor, r, t, semente, ondas){
   }
   c.lineTo(-r, -r*0.15);
   c.closePath(); c.fill();
-  c.shadowBlur = 0;
+  c.shadowBlur = QUALIDADE*0;
 }
 
 const MOB_FORMAS = {
@@ -2375,7 +2461,7 @@ const MOB_FORMAS = {
   /* CAÇADOR — predador: chifres, mandíbula serrilhada, olhos em fenda */
   cacador(c, o){
     const r = o.r;
-    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = 12;
+    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = QUALIDADE*12;
     // chifres
     for(const s of [-1, 1]){
       c.beginPath();
@@ -2384,9 +2470,9 @@ const MOB_FORMAS = {
       c.lineTo(s*r*0.24, -r*0.85);
       c.closePath(); c.fill();
     }
-    c.shadowBlur = 0;
+    c.shadowBlur = QUALIDADE*0;
     // corpo com base em presas
-    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = 14;
+    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = QUALIDADE*14;
     c.beginPath();
     c.arc(0, -r*0.12, r, Math.PI, 0);
     c.lineTo(r, r*0.45);
@@ -2396,7 +2482,7 @@ const MOB_FORMAS = {
       c.lineTo(r - (i+1)*w, r*0.45);
     }
     c.lineTo(-r, -r*0.12);
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
 
     if(o.assustado) return pintarOlhosAssustados(c, r);
     // olhos raivosos (fendas inclinadas)
@@ -2444,7 +2530,7 @@ const MOB_FORMAS = {
   /* ERRANTE — massa instável: contorno ruidoso e um olho único girando */
   errante(c, o){
     const r = o.r;
-    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = 16;
+    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = QUALIDADE*16;
     c.beginPath();
     const N = 24;
     for(let i=0;i<=N;i++){
@@ -2453,7 +2539,7 @@ const MOB_FORMAS = {
       const x = Math.cos(a)*rr, y = Math.sin(a)*rr*0.95;
       i ? c.lineTo(x,y) : c.moveTo(x,y);
     }
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
 
     if(o.assustado) return pintarOlhosAssustados(c, r);
     // olho único que vagueia (nunca olha pra onde vai)
@@ -2468,14 +2554,14 @@ const MOB_FORMAS = {
   /* GUARDIÃO — blindado: casco octogonal, placas e visor em fenda */
   guardiao(c, o){
     const r = o.r;
-    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = 14;
+    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = QUALIDADE*14;
     c.beginPath();
     for(let i=0;i<8;i++){
       const a = i*Math.PI/4 + Math.PI/8;
       const x = Math.cos(a)*r*1.05, y = Math.sin(a)*r*1.05;
       i ? c.lineTo(x,y) : c.moveTo(x,y);
     }
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
     // placas de armadura
     c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = Math.max(1, r*0.10);
     c.beginPath();
@@ -2487,18 +2573,18 @@ const MOB_FORMAS = {
       const ang = Math.atan2(o.dy, o.dx);
       c.save(); c.rotate(ang);
       c.fillStyle = o.cor; c.globalAlpha = .95;
-      c.shadowColor = '#fff'; c.shadowBlur = 8;
+      c.shadowColor = '#fff'; c.shadowBlur = QUALIDADE*8;
       c.beginPath();
       c.moveTo(r*0.95, -r*0.75); c.lineTo(r*1.35, 0); c.lineTo(r*0.95, r*0.75);
       c.closePath(); c.fill();
-      c.globalAlpha = 1; c.shadowBlur = 0;
+      c.globalAlpha = 1; c.shadowBlur = QUALIDADE*0;
       c.restore();
     }
     if(o.assustado) return pintarOlhosAssustados(c, r);
     // visor
-    c.fillStyle = '#fff'; c.shadowColor = '#fff'; c.shadowBlur = 10;
+    c.fillStyle = '#fff'; c.shadowColor = '#fff'; c.shadowBlur = QUALIDADE*10;
     c.fillRect(-r*0.55, -r*0.18, r*1.1, r*0.16);
-    c.shadowBlur = 0;
+    c.shadowBlur = QUALIDADE*0;
     c.fillStyle = 'rgba(0,0,0,.5)';
     c.fillRect(-r*0.55 + o.dx*r*0.2, -r*0.18, r*0.3, r*0.16);
   },
@@ -2545,23 +2631,23 @@ const MOB_FORMAS = {
     }
     c.setLineDash([]); c.globalAlpha = 1;
     // base hexagonal
-    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = 14;
+    c.fillStyle = o.cor; c.shadowColor = o.cor; c.shadowBlur = QUALIDADE*14;
     c.beginPath();
     for(let i=0;i<6;i++){
       const a = i*Math.PI/3;
       const x = Math.cos(a)*r*0.95, y = Math.sin(a)*r*0.95;
       i ? c.lineTo(x,y) : c.moveTo(x,y);
     }
-    c.closePath(); c.fill(); c.shadowBlur = 0;
+    c.closePath(); c.fill(); c.shadowBlur = QUALIDADE*0;
 
     if(o.assustado) return pintarOlhosAssustados(c, r);
     // lente que mira o alvo
     c.fillStyle = 'rgba(0,0,0,.55)';
     c.beginPath(); c.arc(0, 0, r*0.52, 0, 7); c.fill();
     const brilho = 0.5 + Math.abs(Math.sin(o.t*3))*0.5;
-    c.fillStyle = '#fff'; c.shadowColor = '#fff'; c.shadowBlur = 10*brilho;
+    c.fillStyle = '#fff'; c.shadowColor = '#fff'; c.shadowBlur = QUALIDADE*(10*brilho);
     c.beginPath(); c.arc(o.dx*r*0.20, o.dy*r*0.20, r*0.24, 0, 7); c.fill();
-    c.shadowBlur = 0;
+    c.shadowBlur = QUALIDADE*0;
   }
 };
 
@@ -2887,9 +2973,9 @@ function animarBestiario(){
       if(k < 0.5){
         c.globalAlpha = 1 - k*2;
         c.strokeStyle = b.cor; c.lineWidth = 2.4;
-        c.shadowColor = b.cor; c.shadowBlur = 12;
+        c.shadowColor = b.cor; c.shadowBlur = QUALIDADE*12;
         c.beginPath(); c.arc(0, 0, 3 + k*46, 0, 7); c.stroke();
-        c.shadowBlur = 0;
+        c.shadowBlur = QUALIDADE*0;
         // estilhaços
         c.fillStyle = b.cor;
         for(let i=0;i<8;i++){
@@ -2905,7 +2991,7 @@ function animarBestiario(){
       c.translate(0, -k*8);
 
       c.strokeStyle = b.buff.cor; c.lineWidth = 1.8;
-      c.shadowColor = b.buff.cor; c.shadowBlur = 10;
+      c.shadowColor = b.buff.cor; c.shadowBlur = QUALIDADE*10;
       c.setLineDash([5, 6]);
       c.lineDashOffset = -G.tempo*14;
       c.beginPath(); c.arc(0, 0, 16, 0, 7); c.stroke();
@@ -2915,7 +3001,7 @@ function animarBestiario(){
       c.font = 'bold 19px "Segoe UI",sans-serif';
       c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText(b.buff.icone, 0, 1);
-      c.shadowBlur = 0;
+      c.shadowBlur = QUALIDADE*0;
     }
     c.restore();
   }
@@ -3101,10 +3187,21 @@ function loop(agora){
   if(el('ovNome').classList.contains('on')) animarEntradaNome();
 
   acumHud += dt;
-  if(acumHud > 0.08){ acumHud = 0; atualizarHud(); }
+  if(acumHud > (FRACO ? 0.17 : 0.08)){ acumHud = 0; atualizarHud(); }
 
   requestAnimationFrame(loop);
 }
+
+/* --- mede HUD + dicas pra o mapa ocupar exatamente o resto da tela ------ */
+function ajustarAltura(){
+  const hud  = el('hud').offsetHeight || 0;
+  const tips = el('tips').offsetHeight || 0;
+  const app  = document.getElementById('app');
+  const gaps = 26;
+  app.style.setProperty('--fora', (hud + tips + gaps) + 'px');
+}
+window.addEventListener('resize', ajustarAltura);
+window.addEventListener('orientationchange', () => setTimeout(ajustarAltura, 250));
 
 /* -------------------------------- BOOT --------------------------------- */
 // gera um labirinto só para o fundo do menu
@@ -3113,6 +3210,7 @@ montarFase();
 G.estado = 'menu';
 renderMiniRanking();          // o menu já abre com o top 5 preenchido
 atualizarHud();
+ajustarAltura();
 requestAnimationFrame(loop);
 </script>
 </body>
