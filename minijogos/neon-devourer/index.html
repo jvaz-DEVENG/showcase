@@ -217,6 +217,23 @@
   .mrvazio{font-size:10px;color:var(--dim);text-align:center;padding:8px;
            border:1px dashed var(--line);border-radius:8px}
 
+  /* Campos de texto precisam escapar do user-select:none do body,
+     senão em vários navegadores de celular o toque não abre o teclado. */
+  input, textarea{
+    -webkit-user-select:text; user-select:text;
+    -webkit-touch-callout:default; touch-action:manipulation;
+  }
+  /* código da sala: parece as 4 casinhas, mas é um campo de verdade */
+  .codigo{
+    font-family:inherit;font-size:30px;font-weight:800;letter-spacing:14px;
+    text-align:center;text-transform:uppercase;text-indent:14px;
+    width:200px;padding:8px 0;
+    background:#0a1122;border:2px solid var(--line);border-radius:10px;
+    color:var(--accent);outline:none;
+  }
+  .codigo::placeholder{font-size:15px;letter-spacing:3px;color:var(--dim);text-indent:0}
+  .codigo:focus{border-color:var(--accent);box-shadow:0 0 18px rgba(255,210,63,.3)}
+
   /* ---------- PERFIL ---------- */
   .perfil{display:flex;align-items:center;gap:16px;justify-content:center}
   .perfil canvas{width:70px;height:70px;flex:none}
@@ -464,8 +481,11 @@
         </div>
       </div>
       <div id="caixaCodigo" style="display:none">
-        <div class="iniciais" id="codigoEntrada"></div>
-        <p class="sub" style="font-size:10px">digite as 4 letras · <kbd>ENTER</kbd> entra</p>
+        <input id="codigoEntrada" class="codigo" maxlength="4"
+               autocomplete="off" autocorrect="off" autocapitalize="characters"
+               spellcheck="false" inputmode="text" placeholder="CÓDIGO">
+        <p class="sub" style="font-size:10px">as 4 letras que seu amigo te passou</p>
+        <button id="btnEntrarSala">ENTRAR</button>
       </div>
       <p class="sub" id="onlineAviso" style="color:var(--danger);min-height:14px"></p>
       <button class="ghost" id="btnOnlineBack">VOLTAR</button>
@@ -3942,28 +3962,25 @@ function animarPerfilSkin(){
 /* ==========================================================================
    TELAS DE SALA ONLINE
    ========================================================================== */
-let codigoDigitado = ['A','A','A','A'], codPos = 0;
-
-function renderCodigo(){
-  const c = el('codigoEntrada');
-  c.innerHTML = codigoDigitado
-    .map((ch,i) => `<span class="${i===codPos?'at':''}" data-i="${i}">${ch}</span>`).join('');
-  for(const s of c.children) s.onclick = () => { codPos = +s.dataset.i; renderCodigo(); };
+/* O código da sala é um <input> real: em celular, só campo de texto faz o
+   teclado virtual aparecer. Antes eram 4 <span> alimentados por keydown,
+   que só funciona com teclado físico. */
+function normalizarCodigo(v){
+  return (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
 }
-
-function teclaCodigo(e){
-  const ch = e.key && e.key.length === 1 ? e.key.toUpperCase() : '';
-  if(ch && /[A-Z0-9]/.test(ch)){
-    codigoDigitado[codPos] = ch;
-    codPos = Math.min(3, codPos + 1);
-    beep(620,.05,'square',.04);
-  }else if(e.code === 'ArrowLeft')  codPos = Math.max(0, codPos-1);
-  else if(e.code === 'ArrowRight')  codPos = Math.min(3, codPos+1);
-  else if(e.code === 'Backspace'){ codigoDigitado[codPos]='A'; codPos = Math.max(0,codPos-1); }
-  else if(e.code === 'Enter'){ entrarNaSala(codigoDigitado.join('')); return; }
-  else return;
-  e.preventDefault();
-  renderCodigo();
+function aoDigitarCodigo(){
+  const inp = el('codigoEntrada');
+  const limpo = normalizarCodigo(inp.value);
+  if(inp.value !== limpo) inp.value = limpo;
+  el('btnEntrarSala').disabled = limpo.length < 4;
+}
+function tentarEntrar(){
+  const cod = normalizarCodigo(el('codigoEntrada').value);
+  if(cod.length < 4){
+    el('onlineAviso').textContent = 'o código tem 4 letras';
+    return;
+  }
+  entrarNaSala(cod);
 }
 
 async function criarSala(){
@@ -4093,9 +4110,20 @@ el('btnOnlineBack').onclick = () => mostrar('ovMulti');
 el('cardCriar').onclick  = criarSala;
 el('cardEntrar').onclick = () => {
   el('caixaCodigo').style.display = 'block';
-  codigoDigitado = ['A','A','A','A']; codPos = 0;
-  renderCodigo();
+  const inp = el('codigoEntrada');
+  inp.value = '';
+  aoDigitarCodigo();
+  setTimeout(() => { try{ inp.focus(); }catch(e){} }, 60);   // abre o teclado
 };
+el('btnEntrarSala').onclick = tentarEntrar;
+(() => {
+  const inp = el('codigoEntrada');
+  inp.addEventListener('input', aoDigitarCodigo);
+  inp.addEventListener('keydown', ev => {
+    ev.stopPropagation();                    // não deixa a tecla mover o boneco
+    if(ev.code === 'Enter') tentarEntrar();
+  });
+})();
 el('btnModoCoop').onclick   = () => { if(SOU_HOST()){ G.modo='coop';   enviarTime(); } };
 el('btnModoVersus').onclick = () => { if(SOU_HOST()){ G.modo='versus'; enviarTime(); } };
 el('btnComecar').onclick = comecarOnline;
@@ -4134,8 +4162,6 @@ function donoDoTeclado(esquema){
   return locais.find(p => p.controles === esquema) || locais[0];
 }
 window.addEventListener('keydown', e => {
-  if(el('caixaCodigo').style.display === 'block' &&
-     el('ovOnline').classList.contains('on')){ teclaCodigo(e); return; }
 
   // direção: descobre de qual esquema veio e entrega ao dono dele
   for(const esquema of ['wasd','setas']){
