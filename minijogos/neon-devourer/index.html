@@ -1019,6 +1019,22 @@ function criarPlayer(idx, cfg){
 const jogadoresVivos = () => G.players.filter(p => !p.fora && p.morto <= 0);
 const euJogador = () => G.players[G.eu] || G.players[0];
 
+// busca em anéis o tile livre mais próximo (usado pra resgatar quem saiu da grade)
+function tileLivreProximo(tx, ty){
+  for(let raio=0; raio<=6; raio++){
+    for(let dy=-raio; dy<=raio; dy++){
+      for(let dx=-raio; dx<=raio; dx++){
+        if(Math.max(Math.abs(dx), Math.abs(dy)) !== raio) continue;
+        const y = ty + dy;
+        if(y < 0 || y >= ROWS) continue;
+        const x = ((tx + dx) % COLS + COLS) % COLS;
+        if(G.grid[y][x] === 0) return {x, y};
+      }
+    }
+  }
+  return null;
+}
+
 // alvo dos mobs: o jogador vivo mais perto (empate resolvido pelo índice)
 function maisProximo(x, y){
   let melhor = null, md = Infinity;
@@ -1611,18 +1627,40 @@ function atualizarMobs(dt){
     if(m.vigia <= 0){
       if(Math.hypot(m.x - m.vx0, m.y - m.vy0) < TILE*0.9){
         const tx = tileDe(m.x), ty = tileDe(m.y);
+        // ESSENCIAL: voltar pra grade antes de virar. Trocar a direção com o
+        // mob no meio do tile o joga pra fora do alinhamento — e aí ele nunca
+        // mais atinge um centro, nunca reavalia e atravessa parede pra sempre.
+        m.x = centro(tx); m.y = centro(ty);
         const saidas = ['up','down','left','right'].map(k => DIRS[k])
                         .filter(d => livre(tx+d.x, ty+d.y, false));
-        if(saidas.length) m.dir = saidas[(Math.random()*saidas.length)|0];
+        m.dir = saidas.length ? saidas[(Math.random()*saidas.length)|0] : DIRS.none;
         m.lastTile = '';
       }
       m.vx0 = m.x; m.vy0 = m.y; m.vigia = 2.5;
     }
 
+    // rede de segurança: se por qualquer motivo o mob parou dentro de parede,
+    // devolve pro tile livre mais próximo em vez de deixá-lo vagando pelo mapa
+    if(m.estado !== 'olhos' && !livre(tileDe(m.x), tileDe(m.y), false)){
+      const alvo = tileLivreProximo(tileDe(m.x), tileDe(m.y));
+      if(alvo){
+        m.x = centro(alvo.x); m.y = centro(alvo.y);
+        m.dir = DIRS.none; m.lastTile = '';
+      }
+    }
+
     if(m.estado === 'olhos'){
       const hx = (COLS-1)/2, hy = ((ROWS-1)/2)|0;
       if(Math.hypot(m.x-centro(hx), m.y-centro(hy)) < TILE*0.7){
-        m.estado = 'normal'; m.saida = 1.2; m.lastTile = '';
+        // chega com até 15px de folga: sem encaixar na grade ele revive
+        // desalinhado, nunca mais atinge um centro e trava dentro do ninho
+        m.x = centro(hx); m.y = centro(hy);
+        m.estado = 'normal';
+        m.dir = DIRS.none;      // parado => reavalia a rota no próximo quadro
+        m.saiu = false;         // acabou de nascer: precisa sair de novo
+        m.saida = 1.2;
+        m.lastTile = '';
+        m.vigia = 3; m.vx0 = m.x; m.vy0 = m.y;
       }
     }
   }
