@@ -205,8 +205,9 @@
   }
   .mr canvas{width:22px;height:22px;flex:none}
   .mr .pos{font-size:10px;font-weight:800;width:18px;text-align:center;color:var(--dim)}
-  .mr .ini{font-size:12px;font-weight:800;letter-spacing:3px;width:52px}
-  .mr .pts{flex:1;text-align:right;font-size:12px;font-weight:700;
+  .mr .ini{font-size:11px;font-weight:800;letter-spacing:.5px;
+           flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mr .pts{flex:none;text-align:right;font-size:12px;font-weight:700;
            font-variant-numeric:tabular-nums;letter-spacing:1px}
   .mr .fs{width:46px;text-align:right;font-size:8px;color:var(--dim)}
   .mr.p1{border-color:rgba(255,210,63,.5)}
@@ -215,6 +216,28 @@
   .mr.p3 .pos,.mr.p3 .ini{color:#e0955c}
   .mrvazio{font-size:10px;color:var(--dim);text-align:center;padding:8px;
            border:1px dashed var(--line);border-radius:8px}
+
+  /* ---------- PERFIL ---------- */
+  .perfil{display:flex;align-items:center;gap:16px;justify-content:center}
+  .perfil canvas{width:70px;height:70px;flex:none}
+  .perfilCampos{display:flex;flex-direction:column;gap:3px;text-align:left}
+  .perfilCampos label{font-size:9px;letter-spacing:2px;color:var(--dim)}
+  .perfilCampos input{
+    font-family:inherit;font-size:20px;font-weight:800;letter-spacing:3px;
+    text-transform:uppercase;
+    background:#0a1122;border:2px solid var(--line);border-radius:9px;
+    color:var(--txt);padding:7px 12px;width:240px;outline:none;
+  }
+  .perfilCampos input:focus{border-color:var(--accent);box-shadow:0 0 14px rgba(255,210,63,.25)}
+  .perfilCampos small{font-size:9px;color:var(--dim);text-align:right}
+  .perfilCampos .dica{font-size:10px;min-height:13px;color:var(--danger)}
+  .fichas{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:430px}
+  .ficha{
+    border:1px solid var(--line);border-radius:8px;background:#0a1122;
+    padding:4px 11px;display:flex;flex-direction:column;line-height:1.2;
+  }
+  .ficha b{font-size:14px;font-variant-numeric:tabular-nums}
+  .ficha span{font-size:8px;letter-spacing:1.5px;color:var(--dim)}
 
   /* ---------- ABAS DO RANKING ---------- */
   .abas{display:flex;gap:5px;justify-content:center;margin-bottom:4px}
@@ -236,8 +259,9 @@
   .rk canvas{width:38px;height:38px;flex:none}
   .rk .pos{font-size:13px;font-weight:800;width:26px;text-align:center;color:var(--dim);
            font-variant-numeric:tabular-nums}
-  .rk .ini{font-size:16px;font-weight:800;letter-spacing:4px;width:64px}
-  .rk .pts{font-size:15px;font-weight:700;letter-spacing:1px;flex:1;text-align:right;
+  .rk .ini, .sala .ini{font-size:14px;font-weight:800;letter-spacing:1px;
+           flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rk .pts{font-size:15px;font-weight:700;letter-spacing:1px;flex:none;text-align:right;
            font-variant-numeric:tabular-nums;color:var(--txt)}
   .rk .fs{font-size:9px;color:var(--dim);width:72px;text-align:right;line-height:1.2}
   .rk.p1{border-color:#ffd23f;box-shadow:0 0 14px rgba(255,210,63,.22)}
@@ -336,6 +360,7 @@
       <div class="row" style="justify-content:center">
         <button id="btnPlay">CAMPANHA</button>
         <button class="ghost" id="btnMulti">MULTIPLAYER</button>
+        <button class="ghost" id="btnPerfil">PERFIL</button>
         <button class="ghost" id="btnSkins">SKINS</button>
       </div>
       <div class="legend" id="legend"></div>
@@ -363,6 +388,24 @@
       <p class="sub">Créditos: <b id="skCoins" style="color:var(--accent)">0</b> — ganhe devorando núcleos e completando fases.</p>
       <div class="skins" id="skGrid"></div>
       <button class="ghost" id="btnSkinsBack">VOLTAR</button>
+    </div>
+
+    <!-- PERFIL DO JOGADOR -->
+    <div class="ov" id="ovPerfil">
+      <h2>PERFIL</h2>
+      <div class="perfil">
+        <canvas id="perfilSkin" width="140" height="140"></canvas>
+        <div class="perfilCampos">
+          <label for="perfilNome">NOME DE JOGADOR</label>
+          <input id="perfilNome" maxlength="10" autocomplete="off" spellcheck="false"
+                 placeholder="SEU NOME">
+          <small id="perfilContador">0/10</small>
+          <p class="dica" id="perfilAviso"></p>
+        </div>
+      </div>
+      <div class="fichas" id="perfilFichas"></div>
+      <button id="btnPerfilOk">SALVAR</button>
+      <button class="ghost" id="btnPerfilBack">VOLTAR</button>
     </div>
 
     <!-- MULTIPLAYER: local ou online -->
@@ -467,20 +510,6 @@
       </div>
     </div>
 
-    <!-- ENTRADA DE INICIAIS (estilo fliperama) -->
-    <div class="ov" id="ovNome">
-      <h2 style="color:var(--accent)">FIM DE PARTIDA</h2>
-      <p class="sub" id="nomeSub"></p>
-      <div class="entrada">
-        <canvas id="nomeSkin" width="120" height="120"></canvas>
-        <div class="iniciais" id="iniciais"></div>
-      </div>
-      <p class="sub" style="font-size:10px">
-        digite as letras · <kbd>← →</kbd> muda de casa · <kbd>↑ ↓</kbd> troca a letra ·
-        <kbd>ENTER</kbd> confirma
-      </p>
-      <button id="btnNomeOk">CONFIRMAR</button>
-    </div>
 
     <!-- RANKING -->
     <div class="ov" id="ovRank">
@@ -643,7 +672,7 @@ let save = carregarSave();
 function saveBase(){
   return {charLevel:1, xp:0, pontos:0, coins:0, skin:'plasma',
           skins:['plasma'], cores:{}, up:{}, recorde:0, faseMax:1, som:true,
-          ranking:[], ultimoNome:'AAA', pendentes:[]};
+          ranking:[], nome:'', ultimoNome:'', pendentes:[]};
 }
 function carregarSave(){
   try{
@@ -1868,8 +1897,12 @@ function fimDeJogo(){
     `Pontos: <b style="color:var(--accent)">${G.score}</b> &nbsp;·&nbsp; Fase ${G.fase} &nbsp;·&nbsp; Recorde ${save.recorde}<br>
      Nível ${save.charLevel} &nbsp;·&nbsp; ${save.coins} créditos`;
 
-  // toda partida conta: a pontuação é somada ao total do jogador
-  if(G.score > 0){ abrirEntradaNome(); return; }
+  // toda partida conta e vai no nome do perfil; só pede se ainda não houver
+  if(G.score > 0){
+    if(!temPerfil()){ abrirPerfil(() => registrarPartida()); return; }
+    registrarPartida();
+    return;
+  }
   G.estado = 'over';
   mostrar('ovOver');
 }
@@ -2344,9 +2377,8 @@ function atualizarConvidado(dt){
    ========================================================================== */
 const RANK_MOSTRA = 10;    // quantos aparecem na tela cheia de ranking
 const RANK_GUARDA = 50;    // quantos ficam salvos (não perde o acumulado de ninguém)
-const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -!';
 
-const chaveNome = n => (n || 'AAA').toUpperCase();
+const chaveNome = n => limparNome(n) || 'JOGADOR';
 const achaJogador = n => save.ranking.find(r => r.nome === chaveNome(n));
 
 // junta linhas repetidas do mesmo nome num só jogador acumulado
@@ -2378,59 +2410,10 @@ function consolidarRanking(lista){
   return [...mapa.values()].sort((a,b) => b.score - a.score).slice(0, RANK_GUARDA);
 }
 
-function abrirEntradaNome(){
-  G.estado = 'nome';
-  G.iniciais = chaveNome(save.ultimoNome).padEnd(3, 'A').slice(0,3).split('');
-  G.iniPos = 0;
-  renderIniciais();
-  mostrar('ovNome');
-}
+/* A entrada de 3 iniciais foi substituida pelo PERFIL (ate 10 caracteres). */
 
-function renderIniciais(){
-  const c = el('iniciais');
-  c.innerHTML = G.iniciais
-    .map((ch,i) => `<span class="${i===G.iniPos?'at':''}" data-i="${i}">${ch}</span>`)
-    .join('');
-  for(const s of c.children)
-    s.onclick = () => { G.iniPos = +s.dataset.i; renderIniciais(); };
-
-  // mostra ao vivo o que vai acontecer com o nome digitado
-  const nome = chaveNome(G.iniciais.join(''));
-  const ex = achaJogador(nome);
-  const fmt = v => v.toLocaleString('pt-BR');
-  el('nomeSub').innerHTML = ex
-    ? `<b style="color:var(--accent)">${fmt(G.score)}</b> desta partida somam ao total de
-       <b>${nome}</b>: ${fmt(ex.score)} → <b style="color:var(--ok)">${fmt(ex.score + G.score)}</b>
-       <br><span style="font-size:10px">${ex.partidas + 1}ª partida</span>`
-    : `<b style="color:var(--accent)">${fmt(G.score)}</b> pontos —
-       <b style="color:var(--ok)">novo jogador</b>
-       <br><span style="font-size:10px">as próximas partidas somam neste nome</span>`;
-}
-
-function teclaNome(e){
-  const ch = e.key && e.key.length === 1 ? e.key.toUpperCase() : '';
-  // atenção: ''.includes é sempre true — sem o teste de ch, seta/Shift apagariam a casa
-  if(ch && ch !== ' ' && ALFABETO.includes(ch)){
-    G.iniciais[G.iniPos] = ch;
-    G.iniPos = Math.min(2, G.iniPos + 1);
-    beep(620, .05, 'square', .04);
-  }else if(e.code === 'ArrowLeft')  G.iniPos = Math.max(0, G.iniPos - 1);
-  else if(e.code === 'ArrowRight')  G.iniPos = Math.min(2, G.iniPos + 1);
-  else if(e.code === 'ArrowUp' || e.code === 'ArrowDown'){
-    const i = ALFABETO.indexOf(G.iniciais[G.iniPos]);
-    const d = e.code === 'ArrowUp' ? 1 : -1;
-    G.iniciais[G.iniPos] = ALFABETO[(i + d + ALFABETO.length) % ALFABETO.length];
-    beep(500, .04, 'square', .03);
-  }
-  else if(e.code === 'Backspace'){ G.iniciais[G.iniPos] = 'A'; G.iniPos = Math.max(0, G.iniPos-1); }
-  else if(e.code === 'Enter'){ confirmarNome(); return; }
-  else return;
-  e.preventDefault();
-  renderIniciais();
-}
-
-function confirmarNome(){
-  const nome = chaveNome(G.iniciais.join('').trim() || 'AAA');
+function registrarPartida(){
+  const nome = chaveNome(nomeDoJogador());
   const sk = skinAtual();
   const cor = save.cores[sk.id] || 0;
   save.ultimoNome = nome;
@@ -2639,19 +2622,6 @@ function renderMiniRanking(){
   });
 }
 
-function animarEntradaNome(){
-  const c = el('nomeSkin').getContext('2d');
-  const sk = skinAtual(), par = corAtual(sk);
-  c.setTransform(2, 0, 0, 2, 0, 0);
-  c.clearRect(0, 0, 60, 60);
-  c.save();
-  c.translate(30, 30);
-  pintarPlayer(c, sk, {
-    r: 17, t: G.tempo, ang: 0, boca: G.tempo*9,
-    giro: G.tempo*2.4, mov: true, cor: par[0], glow: par[1]
-  });
-  c.restore();
-}
 
 /* ==========================================================================
    RENDER
@@ -3564,7 +3534,7 @@ function toast(txt){
 }
 
 function mostrar(id){
-  ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovNome','ovRank','ovDupla','ovOnline','ovSala','ovEspera','ovMulti']
+  ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovRank','ovPerfil','ovDupla','ovOnline','ovSala','ovEspera','ovMulti']
     .forEach(o => el(o).classList.toggle('on', o === id));
   if(id === 'ovMenu') renderMiniRanking();   // sempre com os dados frescos
 }
@@ -3842,6 +3812,96 @@ function retomar(){
 }
 
 /* ==========================================================================
+   PERFIL DO JOGADOR
+   O nome vale para o ranking, para o multiplayer e para a etiqueta em jogo.
+   Até 10 caracteres — o banco corta e normaliza do mesmo jeito.
+   ========================================================================== */
+const NOME_MAX = 10;
+const NOME_OK  = /^[A-Z0-9 ._!-]{1,10}$/;
+
+/* Precisa dar EXATAMENTE o mesmo resultado que jogo_registrar_partida() no
+   banco — senão o placar local e o global viram chaves diferentes. */
+function limparNome(v){
+  return (v || '').toUpperCase()
+    .replace(/[^A-Z0-9 ._!-]/g, '')     // mesmo conjunto aceito pelo banco
+    .replace(/\s+/g, ' ')               // espaços repetidos viram um
+    .trim()                             // sem sobra nas pontas
+    .slice(0, NOME_MAX)
+    .trim();                            // o corte pode ter deixado espaço no fim
+}
+// nome em uso; cai num padrão se o perfil ainda não foi preenchido
+function nomeDoJogador(){
+  return limparNome(save.nome || save.ultimoNome || '') || 'JOGADOR';
+}
+const temPerfil = () => !!(save.nome && limparNome(save.nome));
+
+function abrirPerfil(depois){
+  G.aposPerfil = depois || null;
+  const inp = el('perfilNome');
+  inp.value = save.nome ? limparNome(save.nome) : '';
+  el('perfilAviso').textContent = G.aposPerfil
+    ? 'Escolha um nome para entrar no ranking.' : '';
+  el('perfilAviso').style.color = G.aposPerfil ? 'var(--accent)' : 'var(--danger)';
+  atualizarPerfil();
+  mostrar('ovPerfil');
+  setTimeout(() => { try{ inp.focus(); }catch(e){} }, 60);
+}
+
+function atualizarPerfil(){
+  const inp = el('perfilNome');
+  const limpo = limparNome(inp.value);
+  if(inp.value !== limpo) inp.value = limpo;      // filtra enquanto digita
+  el('perfilContador').textContent = limpo.length + '/' + NOME_MAX;
+  el('perfilContador').style.color = limpo.length >= NOME_MAX ? 'var(--accent)' : 'var(--dim)';
+
+  // fichas com o progresso do perfil
+  const meu = save.ranking.find(r => r.nome === nomeDoJogador());
+  const dados = [
+    ['NÍVEL',    save.charLevel],
+    ['TALENTOS', save.pontos],
+    ['CRÉDITOS', save.coins],
+    ['SKINS',    save.skins.length + '/' + SKINS.length],
+    ['RECORDE',  save.recorde],
+    ['PARTIDAS', meu ? meu.partidas : 0]
+  ];
+  el('perfilFichas').innerHTML = dados
+    .map(([r,v]) => `<div class="ficha"><b>${v}</b><span>${r}</span></div>`).join('');
+}
+
+function salvarPerfil(){
+  const limpo = limparNome(el('perfilNome').value);
+  if(!limpo || !NOME_OK.test(limpo)){
+    el('perfilAviso').style.color = 'var(--danger)';
+    el('perfilAviso').textContent = 'digite ao menos 1 caractere válido';
+    return;
+  }
+  save.nome = limpo;
+  save.ultimoNome = limpo;                        // mantém o resto do jogo em sincronia
+  gravarSave();
+  // renomeia o jogador local em partida, se houver
+  G.players.forEach(p => { if(p.local && p.idx === G.eu) p.nome = limpo; });
+  sfx('up');
+  toast('PERFIL SALVO: ' + limpo);
+
+  const seguir = G.aposPerfil;
+  G.aposPerfil = null;
+  if(seguir) seguir();
+  else mostrar('ovMenu');
+}
+
+function animarPerfilSkin(){
+  const c = el('perfilSkin').getContext('2d');
+  const sk = skinAtual(), par = corAtual(sk);
+  c.setTransform(2, 0, 0, 2, 0, 0);
+  c.clearRect(0, 0, 70, 70);
+  c.save();
+  c.translate(35, 35);
+  pintarPlayer(c, sk, {r:19, t:G.tempo, ang:0, boca:G.tempo*9,
+                       giro:G.tempo*2.4, mov:true, cor:par[0], glow:par[1]});
+  c.restore();
+}
+
+/* ==========================================================================
    TELAS DE SALA ONLINE
    ========================================================================== */
 let codigoDigitado = ['A','A','A','A'], codPos = 0;
@@ -3972,6 +4032,17 @@ function destravarAudio(){
 }
 el('btnPlay').onclick   = () => { destravarAudio(); novoJogo('solo'); };
 el('btnSkins').onclick  = () => { renderSkins(); mostrar('ovSkins'); };
+el('btnPerfil').onclick = () => abrirPerfil();
+el('btnPerfilBack').onclick = () => mostrar('ovMenu');
+el('btnPerfilOk').onclick = salvarPerfil;
+(() => {
+  const inp = el('perfilNome');
+  inp.addEventListener('input', atualizarPerfil);
+  inp.addEventListener('keydown', ev => {
+    ev.stopPropagation();                     // nao deixa a tecla mover o boneco
+    if(ev.code === 'Enter') salvarPerfil();
+  });
+})();
 el('btnMulti').onclick  = () => mostrar('ovMulti');
 el('btnMultiBack').onclick = () => mostrar('ovMenu');
 el('cardLocal').onclick = () => mostrar('ovDupla');
@@ -4001,7 +4072,6 @@ el('btnResume').onclick = retomar;
 el('btnQuit').onclick   = () => { gravarSave(); if(ONLINE()) sairDaSala(); else { G.estado='menu'; mostrar('ovMenu'); } };
 el('btnRetry').onclick  = () => novoJogo(G.modo);
 el('btnMenu').onclick   = () => { G.estado = 'menu'; mostrar('ovMenu'); };
-el('btnNomeOk').onclick = confirmarNome;
 el('btnVerRank').onclick = abrirRanking;
 el('btnVerMais').onclick = abrirRanking;
 el('btnRankBack').onclick = () => { G.estado = 'menu'; mostrar('ovMenu'); };
@@ -4026,7 +4096,6 @@ function donoDoTeclado(esquema){
   return locais.find(p => p.controles === esquema) || locais[0];
 }
 window.addEventListener('keydown', e => {
-  if(G.estado === 'nome'){ teclaNome(e); return; }   // digitando as iniciais
   if(el('caixaCodigo').style.display === 'block' &&
      el('ovOnline').classList.contains('on')){ teclaCodigo(e); return; }
 
@@ -4167,7 +4236,7 @@ function loop(agora){
   if(el('ovMenu').classList.contains('on')){ animarBestiario(); animarMiniRanking(); }
   if(el('ovSkins').classList.contains('on')) animarSkins();
   if(el('ovRank').classList.contains('on')) animarRanking();
-  if(el('ovNome').classList.contains('on')) animarEntradaNome();
+  if(el('ovPerfil').classList.contains('on')) animarPerfilSkin();
 
   acumHud += dt;
   if(acumHud > (FRACO ? 0.17 : 0.08)){ acumHud = 0; atualizarHud(); }
