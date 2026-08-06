@@ -334,11 +334,9 @@
       escuridão, portais, lasers, esteiras — com labirinto gerado do zero.
       Devore os mobs pra roubar a <b style="color:var(--accent)">essência</b> deles.</p>
       <div class="row" style="justify-content:center">
-        <button id="btnPlay">JOGAR</button>
-        <button class="ghost" id="btnDupla">2 NO MESMO PC</button>
-        <button class="ghost" id="btnOnline">ONLINE</button>
+        <button id="btnPlay">CAMPANHA</button>
+        <button class="ghost" id="btnMulti">MULTIPLAYER</button>
         <button class="ghost" id="btnSkins">SKINS</button>
-        <button class="ghost" id="btnReset">ZERAR</button>
       </div>
       <div class="legend" id="legend"></div>
 
@@ -365,6 +363,25 @@
       <p class="sub">Créditos: <b id="skCoins" style="color:var(--accent)">0</b> — ganhe devorando núcleos e completando fases.</p>
       <div class="skins" id="skGrid"></div>
       <button class="ghost" id="btnSkinsBack">VOLTAR</button>
+    </div>
+
+    <!-- MULTIPLAYER: local ou online -->
+    <div class="ov" id="ovMulti">
+      <h2>MULTIPLAYER</h2>
+      <p class="sub">Jogue com seus amigos no mesmo aparelho ou pela internet.</p>
+      <div class="grid" style="max-width:400px">
+        <div class="card" id="cardLocal">
+          <h4>MODO LOCAL</h4>
+          <p>Dois jogadores no mesmo teclado, dividindo a tela.
+             Não precisa de internet.</p>
+        </div>
+        <div class="card" id="cardOnline">
+          <h4>MODO ONLINE</h4>
+          <p>Até 4 jogadores, cada um no seu aparelho, com sala por código.
+             Precisa de internet.</p>
+        </div>
+      </div>
+      <button class="ghost" id="btnMultiBack">VOLTAR</button>
     </div>
 
     <!-- ESCOLHA DO MODO DE DUPLA -->
@@ -3547,7 +3564,7 @@ function toast(txt){
 }
 
 function mostrar(id){
-  ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovNome','ovRank','ovDupla','ovOnline','ovSala','ovEspera']
+  ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovNome','ovRank','ovDupla','ovOnline','ovSala','ovEspera','ovMulti']
     .forEach(o => el(o).classList.toggle('on', o === id));
   if(id === 'ovMenu') renderMiniRanking();   // sempre com os dados frescos
 }
@@ -3955,13 +3972,15 @@ function destravarAudio(){
 }
 el('btnPlay').onclick   = () => { destravarAudio(); novoJogo('solo'); };
 el('btnSkins').onclick  = () => { renderSkins(); mostrar('ovSkins'); };
-el('btnDupla').onclick  = () => mostrar('ovDupla');
-el('btnOnline').onclick = () => {
+el('btnMulti').onclick  = () => mostrar('ovMulti');
+el('btnMultiBack').onclick = () => mostrar('ovMenu');
+el('cardLocal').onclick = () => mostrar('ovDupla');
+el('cardOnline').onclick = () => {
   el('onlineAviso').textContent = '';
   el('caixaCodigo').style.display = 'none';
   mostrar('ovOnline');
 };
-el('btnOnlineBack').onclick = () => mostrar('ovMenu');
+el('btnOnlineBack').onclick = () => mostrar('ovMulti');
 el('cardCriar').onclick  = criarSala;
 el('cardEntrar').onclick = () => {
   el('caixaCodigo').style.display = 'block';
@@ -3973,15 +3992,10 @@ el('btnModoVersus').onclick = () => { if(SOU_HOST()){ G.modo='versus'; enviarTim
 el('btnComecar').onclick = comecarOnline;
 el('btnSairSala').onclick = sairDaSala;
 el('btnEsperaSair').onclick = sairDaSala;
-el('btnDuplaBack').onclick = () => mostrar('ovMenu');
+el('btnDuplaBack').onclick = () => mostrar('ovMulti');
 el('cardCoop').onclick   = () => { destravarAudio(); novoJogo('coop'); };
 el('cardVersus').onclick = () => { destravarAudio(); novoJogo('versus'); };
 el('btnSkinsBack').onclick = () => mostrar('ovMenu');
-el('btnReset').onclick  = () => {
-  if(confirm('Apagar todo o progresso (nível, talentos, skins e créditos)?')){
-    save = saveBase(); gravarSave(); atualizarHud(); toast('PROGRESSO ZERADO');
-  }
-};
 el('btnNext').onclick   = proximaFase;
 el('btnResume').onclick = retomar;
 el('btnQuit').onclick   = () => { gravarSave(); if(ONLINE()) sairDaSala(); else { G.estado='menu'; mostrar('ovMenu'); } };
