@@ -162,6 +162,18 @@
   .dots i:hover{opacity:1;transform:scale(1.2)}
   .dots i.on{opacity:1;border-color:#fff;box-shadow:0 0 7px currentColor;transform:scale(1.15)}
 
+  /* placar do time (2+ jogadores) */
+  .placar{display:flex;gap:6px;flex-wrap:wrap}
+  .jog{
+    display:flex;align-items:center;gap:6px;
+    border:1px solid;border-radius:7px;background:rgba(0,0,0,.25);
+    padding:2px 8px;font-size:11px;
+  }
+  .jog b{letter-spacing:1px}
+  .jog span{font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt)}
+  .jog i{font-style:normal;font-size:9px;color:var(--danger)}
+  .jog.morto{opacity:.4}
+
   /* essências ativas */
   .buffs{display:flex;gap:5px;min-height:24px;align-items:center}
   .buff{
@@ -307,6 +319,7 @@
       </div>
       <div class="buffs" id="hBuffs"></div>
     </div>
+    <div class="placar" id="placarTime" style="display:none"></div>
   </div>
 
   <!-- ================= STAGE ================= -->
@@ -322,8 +335,9 @@
       Devore os mobs pra roubar a <b style="color:var(--accent)">essência</b> deles.</p>
       <div class="row" style="justify-content:center">
         <button id="btnPlay">JOGAR</button>
+        <button class="ghost" id="btnDupla">2 JOGADORES</button>
         <button class="ghost" id="btnSkins">SKINS</button>
-        <button class="ghost" id="btnReset">ZERAR PROGRESSO</button>
+        <button class="ghost" id="btnReset">ZERAR</button>
       </div>
       <div class="legend" id="legend"></div>
 
@@ -350,6 +364,27 @@
       <p class="sub">Créditos: <b id="skCoins" style="color:var(--accent)">0</b> — ganhe devorando núcleos e completando fases.</p>
       <div class="skins" id="skGrid"></div>
       <button class="ghost" id="btnSkinsBack">VOLTAR</button>
+    </div>
+
+    <!-- ESCOLHA DO MODO DE DUPLA -->
+    <div class="ov" id="ovDupla">
+      <h2>2 JOGADORES</h2>
+      <p class="sub">No mesmo teclado: <b>P1</b> usa <kbd>WASD</kbd> +
+        <kbd>ESPAÇO</kbd> <kbd>SHIFT esq</kbd> <kbd>E</kbd> &nbsp;·&nbsp;
+        <b>P2</b> usa <kbd>← ↑ ↓ →</kbd> + <kbd>ENTER</kbd> <kbd>SHIFT dir</kbd></p>
+      <div class="grid" style="max-width:400px">
+        <div class="card" id="cardCoop">
+          <h4>COOPERATIVO</h4>
+          <p>Limpam o mapa juntos. Cada um tem as próprias vidas e a fase só
+             acaba quando o último núcleo cair. Acaba quando os dois ficam sem vida.</p>
+        </div>
+        <div class="card" id="cardVersus">
+          <h4>COMPETITIVO</h4>
+          <p>Mesmo mapa, cada um por si. Ganha quem tiver mais pontos quando o
+             mapa acabar. Coroa marca quem está na frente.</p>
+        </div>
+      </div>
+      <button class="ghost" id="btnDuplaBack">VOLTAR</button>
     </div>
 
     <!-- PAUSE -->
@@ -792,6 +827,7 @@ const G = {
   restantes:0,
   fase:1, score:0, vidas:3,
   bioma:null, portais:[], lasers:[], esteiras:null, purgaT:0,
+  players:[], eu:0, modo:'solo',      // solo | coop | versus
   player:null, mobs:[], tiros:[], parts:[],
   devorar:0, combo:0,
   carga:0,
@@ -823,24 +859,30 @@ function attr(){
 const temPulso = () => save.charLevel >= 3;
 const temFase  = () => save.charLevel >= 6;
 
-/* --------------------------- ESSÊNCIAS: API ---------------------------- */
-function temBuff(id){ const b = G.buffs[id]; return !!b && b.t > 0; }
-function ganharBuff(id){
+/* --------------------------- ESSÊNCIAS: API ----------------------------
+   Cada jogador tem as suas: no co-op, a essência é de quem devorou o mob. */
+function temBuff(p, id){ const b = p && p.buffs[id]; return !!b && b.t > 0; }
+function ganharBuff(p, id){
   const b = BUFFS[id];
-  if(!b) return;
-  const atual = G.buffs[id];
+  if(!b || !p) return;
+  const atual = p.buffs[id];
   // empilhar renova e soma metade do que sobrou (com teto de 2x)
   const sobra = atual ? Math.min(atual.t, b.dur) * 0.5 : 0;
-  G.buffs[id] = {t: b.dur + sobra, max: b.dur * 2};
-  toast(b.icone + ' ' + b.nome + ' — ' + b.desc.toUpperCase());
-  beep(520, .12, 'triangle', .05);
-  setTimeout(() => beep(780, .12, 'triangle', .045), 90);
+  p.buffs[id] = {t: b.dur + sobra, max: b.dur * 2};
+  if(p.local){
+    toast(b.icone + ' ' + b.nome + ' — ' + b.desc.toUpperCase());
+    beep(520, .12, 'triangle', .05);
+    setTimeout(() => beep(780, .12, 'triangle', .045), 90);
+  }
 }
-function consumirBuff(id){ delete G.buffs[id]; }
-function tickBuffs(dt){
-  for(const id in G.buffs){
-    G.buffs[id].t -= dt;
-    if(G.buffs[id].t <= 0){ delete G.buffs[id]; toast(BUFFS[id].nome + ' ACABOU'); }
+function consumirBuff(p, id){ if(p) delete p.buffs[id]; }
+function tickBuffs(p, dt){
+  for(const id in p.buffs){
+    p.buffs[id].t -= dt;
+    if(p.buffs[id].t <= 0){
+      delete p.buffs[id];
+      if(p.local) toast(BUFFS[id].nome + ' ACABOU');
+    }
   }
 }
 
@@ -857,16 +899,44 @@ function livre(tx, ty, atravessa){
   return G.grid[ty][tx] === 0;
 }
 
-function criarPlayer(){
+/* Cada jogador é uma entidade completa: estado, recursos e identidade.
+   idx 0 é sempre o jogador local no modo de um jogador só. */
+function criarPlayer(idx, cfg){
   const a = attr();
+  cfg = cfg || {};
+  const off = [[0,0],[1,0],[0,1],[1,1]][idx % 4];
+  const sk = cfg.skin ? (SKINS.find(s => s.id === cfg.skin) || SKINS[0]) : skinAtual();
+  const par = cfg.skin ? sk.cores[(cfg.cor || 0) % sk.cores.length] : corAtual(sk);
   return {
-    x: centro(G.spawn.x), y: centro(G.spawn.y),
+    idx,
+    nome:  cfg.nome  || save.ultimoNome || 'EU',
+    skin:  sk.id,
+    cor:   cfg.cor != null ? cfg.cor : (save.cores[sk.id] || 0),
+    par,                                   // [cor, brilho] já resolvido
+    local: cfg.local !== false,            // false = controlado por outro aparelho
+    controles: cfg.controles || 'wasd',
+    x: centro(G.spawn.x + off[0]), y: centro(G.spawn.y + off[1]),
     dir: DIRS.none, quer: DIRS.none,
     vel: a.vel, boca: 0, lastTile:'',
-    invuln: 0, dashCd: 0, faseT: 0, faseCd: 0, pulsoCd: 0,
+    invuln: 2, dashCd: 0, faseT: 0, faseCd: 0, pulsoCd: 0,
     lento: 0, escudo: a.escudos, escudoT: 0, morto: 0,
-    giro: 0, angAnterior: 0
+    giro: 0, angAnterior: 0,
+    buffs: {}, carga: 0, score: 0,
+    vidas: 3, fora: false                  // fora = perdeu todas as vidas
   };
+}
+const jogadoresVivos = () => G.players.filter(p => !p.fora && p.morto <= 0);
+const euJogador = () => G.players[G.eu] || G.players[0];
+
+// alvo dos mobs: o jogador vivo mais perto (empate resolvido pelo índice)
+function maisProximo(x, y){
+  let melhor = null, md = Infinity;
+  for(const p of G.players){
+    if(p.fora || p.morto > 0) continue;
+    const d = Math.hypot(p.x - x, p.y - y);
+    if(d < md){ md = d; melhor = p; }
+  }
+  return melhor;
 }
 
 function criarMob(tipo, idx, mini){
@@ -1023,11 +1093,13 @@ function escolhaMob(m, tx, ty){
 }
 
 function alvoDoMob(m){
-  const p = G.player;
-  const ptx = tileDe(p.x), pty = tileDe(p.y);
   const hx = (COLS-1)/2, hy = ((ROWS-1)/2)|0;
-
   if(m.estado === 'olhos') return {x:hx, y:hy};
+
+  // persegue (ou foge de) o jogador vivo mais próximo
+  const p = maisProximo(m.x, m.y);
+  if(!p) return {x:hx, y:hy};
+  const ptx = tileDe(p.x), pty = tileDe(p.y);
   if(m.estado === 'assustado') return {x:ptx, y:pty};
 
   switch(m.tipo){
@@ -1121,12 +1193,21 @@ function montarFase(){
     if(melhor) G.pellets[melhor.y][melhor.x] = 2;
   }
 
-  G.player = criarPlayer();
+  // reposiciona os jogadores existentes; cria o time se ainda não houver
+  if(!G.players.length) montarTime();
+  G.players.forEach(p => {
+    renascer(p);
+    p.buffs = {}; p.carga = 0; p.fora = false;
+    p.escudo = attr().escudos; p.escudoT = 0;
+  });
+  G.player = euJogador();
+
   const lista = tiposDaFase(G.fase);
   if(G.bioma.id === 'colmeia') lista.push('errante');      // mapa aberto pede mais
+  if(G.players.length > 2) lista.push('cacador');          // mais gente, mais caça
   G.mobs = lista.map((t,i) => criarMob(t,i,false));
-  G.tiros = []; G.parts = []; G.buffs = {};
-  G.devorar = 0; G.combo = 0; G.carga = 0;
+  G.tiros = []; G.parts = [];
+  G.devorar = 0; G.combo = 0;
   montarModificador();
   G.mazeCanvas = renderMaze();
   toast(G.bioma.nome + ' — ' + G.bioma.desc.toUpperCase());
@@ -1212,17 +1293,20 @@ function checarPortais(e){
 }
 
 // ---- lasers: carrega, dispara e descansa ----
+// só avança o ciclo dos feixes (uma vez por quadro, não por jogador)
 function atualizarLasers(dt){
-  const p = G.player;
   for(const L of G.lasers){
     L.t += dt;
     if(L.t > L.ciclo) L.t = 0;
-    const carregando = L.t < 1.3;
-    const disparando = L.t >= 1.3 && L.t < 2.0;
-    L.ativo = disparando;
-    L.aviso = carregando;
-    if(!disparando) continue;
-    // acerta se estiver na linha e sem parede entre o emissor e ele
+    L.aviso = L.t < 1.3;
+    L.ativo = L.t >= 1.3 && L.t < 2.0;
+  }
+}
+
+// checa se ESTE jogador está sendo atingido
+function checarLasers(p){
+  for(const L of G.lasers){
+    if(!L.ativo) continue;
     const pt = {x: tileDe(p.x), y: tileDe(p.y)};
     if((L.horiz && pt.y !== L.idx) || (!L.horiz && pt.x !== L.idx)) continue;
     if(p.invuln > 0 || p.faseT > 0) continue;
@@ -1230,9 +1314,16 @@ function atualizarLasers(dt){
     if(L.horiz){ for(let x=1;x<pt.x;x++) if(G.grid[L.idx][x] === 1){ livreAte = false; break; } }
     else       { for(let y=1;y<pt.y;y++) if(G.grid[y][L.idx] === 1){ livreAte = false; break; } }
     if(!livreAte) continue;
-    if(temBuff('casco')){ consumirBuff('casco'); p.invuln = 1.8; toast('✜ CASCO ABSORVEU'); }
-    else if(p.escudo > 0){ p.escudo--; p.escudoT = 0; p.invuln = 1.6; toast('ESCUDO ABSORVEU'); }
-    else { perderVida(); return; }
+    if(temBuff(p, 'casco')){
+      consumirBuff(p, 'casco'); p.invuln = 1.8;
+      if(p.local) toast('✜ CASCO ABSORVEU');
+    }else if(p.escudo > 0){
+      p.escudo--; p.escudoT = 0; p.invuln = 1.6;
+      if(p.local) toast('ESCUDO ABSORVEU');
+    }else{
+      perderVida(p);
+      return;
+    }
   }
 }
 
@@ -1254,23 +1345,8 @@ function atualizarPurga(dt){
   }
 }
 
-function reposicionar(){
-  const p = G.player;
-  p.x = centro(G.spawn.x); p.y = centro(G.spawn.y);
-  p.dir = DIRS.none; p.quer = DIRS.none; p.lastTile = '';
-  p.invuln = 2.2; p.faseT = 0; p.lento = 0;
-  G.mobs = G.mobs.filter(m => !m.mini);
-  G.mobs.forEach((m,i) => {
-    const hx = (COLS-1)/2, hy = ((ROWS-1)/2)|0;
-    const off = [[0,0],[-1,0],[1,0],[-2,0],[2,0],[0,-1],[0,1],[-1,1]][i % 8];
-    m.x = centro(hx+off[0]); m.y = centro(hy+off[1]);
-    m.estado = 'normal'; m.stun = 0; m.saida = 0.5 + i*0.5; m.lastTile = '';
-    m.dir = DIRS.up; m.saiu = false; m.vigia = 3;
-  });
-  G.tiros = [];
-  G.devorar = 0;
-  G.buffs = {};                        // perdeu uma vida, perde as essências
-}
+/* Com vários jogadores, resetar os mobs quando UM morre puniria os outros.
+   Agora só quem morreu volta ao spawn (renascer); o mapa segue vivo. */
 
 /* ==========================================================================
    ATUALIZAÇÃO
@@ -1280,21 +1356,55 @@ function atualizar(dt){
   if(G.shake > 0) G.shake = Math.max(0, G.shake - dt*3);
   if(G.msgT > 0) G.msgT -= dt;
 
-  const p = G.player;
   const a = attr();
+
+  // modificadores que valem pro mapa inteiro, não por jogador
+  const modG = G.bioma ? G.bioma.mod : null;
+  if(modG === 'lasers') atualizarLasers(dt);
+  if(modG === 'purga')  atualizarPurga(dt);
+
+  if(G.devorar > 0){
+    G.devorar -= dt;
+    if(G.devorar <= 0){
+      G.combo = 0;
+      G.mobs.forEach(m => { if(m.estado === 'assustado') m.estado = 'normal'; });
+    }
+  }
+
+  // cada jogador é atualizado de forma independente
+  for(const p of G.players) atualizarJogador(p, dt, a);
+  // G.score é o que vai pro ranking: sempre a pontuação de quem está jogando aqui
+  const eu = euJogador();
+  if(eu) G.score = eu.score;
+
+  // acabou quando todo mundo ficou sem vidas
+  if(G.players.length && G.players.every(pl => pl.fora)){
+    atualizarParticulas(dt);
+    fimDeJogo();
+    return;
+  }
+
+  atualizarMobs(dt);
+  atualizarTiros(dt);
+  atualizarParticulas(dt);
+
+  if(G.restantes <= 0) concluirFase();
+}
+
+function atualizarJogador(p, dt, a){
+  if(p.fora) return;
 
   if(p.morto > 0){
     p.morto -= dt;
     if(p.morto <= 0){
-      if(G.vidas <= 0){ fimDeJogo(); return; }
-      reposicionar();
+      if(p.vidas <= 0){ p.fora = true; return; }
+      renascer(p);
     }
-    atualizarParticulas(dt);
     return;
   }
 
-  /* --- timers do player --- */
-  tickBuffs(dt);
+  /* --- timers do jogador --- */
+  tickBuffs(p, dt);
   p.invuln  = Math.max(0, p.invuln - dt);
   p.dashCd  = Math.max(0, p.dashCd - dt);
   p.pulsoCd = Math.max(0, p.pulsoCd - dt);
@@ -1306,23 +1416,19 @@ function atualizar(dt){
   }
   if(a.escudos > 0 && p.escudo < a.escudos){
     p.escudoT += dt;
-    if(p.escudoT >= 20){ p.escudoT = 0; p.escudo++; toast('ESCUDO RESTAURADO'); }
-  }
-  if(G.devorar > 0){
-    G.devorar -= dt;
-    if(G.devorar <= 0){
-      G.combo = 0;
-      G.mobs.forEach(m => { if(m.estado === 'assustado') m.estado = 'normal'; });
+    if(p.escudoT >= 20){
+      p.escudoT = 0; p.escudo++;
+      if(p.local) toast('ESCUDO RESTAURADO');
     }
   }
 
-  /* --- movimento do player --- */
+  /* --- movimento do jogador --- */
   const atravessa = p.faseT > 0;
   const mod = G.bioma ? G.bioma.mod : null;
   p.vel = a.vel
         * (p.lento > 0 ? 0.55 : 1)
         * (G.devorar > 0 ? 1.06 : 1)
-        * (temBuff('furia') ? 1.35 : 1)
+        * (temBuff(p, 'furia') ? 1.35 : 1)
         * (mod === 'gelo' ? 1.18 : 1);        // no gelo você anda mais rápido
   p.derrapa = Math.max(0, (p.derrapa || 0) - dt);
 
@@ -1344,17 +1450,46 @@ function atualizar(dt){
   // giro acumulado: skins de roda/órbita rodam conforme o deslocamento
   p.giro += (andando ? p.vel * 0.85 : 0.7) * dt;
 
-  /* --- modificadores do bioma --- */
+  /* --- modificadores do bioma que agem sobre o jogador --- */
   p.portalCd = Math.max(0, (p.portalCd || 0) - dt);
   if(mod === 'portais') checarPortais(p);
-  if(mod === 'lasers')  atualizarLasers(dt);
-  if(mod === 'purga')   atualizarPurga(dt);
+  if(mod === 'lasers')  checarLasers(p);
   if(p.morto > 0) return;                       // laser pode ter matado
 
   /* --- coleta --- */
   coletar(p, a);
 
-  /* --- mobs --- */
+  /* --- colisões com mobs --- */
+  for(const m of G.mobs){
+    if(m.estado === 'olhos' || m.saida > 0) continue;
+    if(Math.hypot(m.x-p.x, m.y-p.y) > TILE*0.72) continue;
+
+    if(m.estado === 'assustado'){
+      if(devorarMob(m, p)) break;      // a lista foi alterada: sai do laço
+    }else if(m.stun > 0){
+      // ATORDOADO: o corpo não machuca — dá pra atravessar
+      if(Math.random() < .25) explodir(m.x, m.y, '#ffd23f', 1);
+    }else if(p.invuln <= 0 && p.faseT <= 0){
+      if(temBuff(p, 'casco')){
+        consumirBuff(p, 'casco');
+        p.invuln = 1.8;
+        pulsoOnda(p, TILE*4.5, false);
+        if(p.local) toast('✜ CASCO ABSORVEU');
+        beep(240,.32,'triangle',.07);
+      }else if(p.escudo > 0){
+        p.escudo--; p.escudoT = 0; p.invuln = 1.6;
+        pulsoOnda(p, TILE*4, false);
+        if(p.local) toast('ESCUDO ABSORVEU');
+        beep(200,.3,'triangle',.07);
+      }else{
+        perderVida(p);
+        return;
+      }
+    }
+  }
+}
+
+function atualizarMobs(dt){
   for(const m of G.mobs){
     if(m.saida > 0){ m.saida -= dt; continue; }
     if(m.stun > 0){ m.stun -= dt; continue; }
@@ -1399,8 +1534,9 @@ function atualizar(dt){
       }
     }
   }
+}
 
-  /* --- projéteis --- */
+function atualizarTiros(dt){
   for(let i=G.tiros.length-1;i>=0;i--){
     const t = G.tiros[i];
     t.x += t.dx*dt; t.y += t.dy*dt; t.vida -= dt;
@@ -1409,53 +1545,23 @@ function atualizar(dt){
     if(t.vida <= 0 || ty<0 || ty>=ROWS || G.grid[ty][((tx%COLS)+COLS)%COLS] === 1){
       G.tiros.splice(i,1); continue;
     }
-    if(Math.hypot(t.x-p.x, t.y-p.y) < TILE*0.55 && p.invuln <= 0 && p.faseT <= 0){
-      p.lento = 2.6; G.tiros.splice(i,1);
+    // acerta o primeiro jogador que estiver no caminho
+    for(const p of G.players){
+      if(p.fora || p.morto > 0 || p.invuln > 0 || p.faseT > 0) continue;
+      if(Math.hypot(t.x-p.x, t.y-p.y) >= TILE*0.55) continue;
+      p.lento = 2.6;
+      G.tiros.splice(i,1);
       explodir(t.x, t.y, '#b46bff', 8);
-      toast('LENTIDÃO!');
+      if(p.local) toast('LENTIDÃO!');
       beep(140,.2,'sine',.05);
+      break;
     }
   }
-
-  /* --- colisões com mobs --- */
-  for(const m of G.mobs){
-    if(m.estado === 'olhos' || m.saida > 0) continue;
-    const d = Math.hypot(m.x-p.x, m.y-p.y);
-    if(d > TILE*0.72) continue;
-
-    if(m.estado === 'assustado'){
-      if(devorarMob(m)) break;         // a lista foi alterada: sai do laço
-    }else if(m.stun > 0){
-      // ATORDOADO: o corpo não machuca — dá pra atravessar
-      if(Math.random() < .25) explodir(m.x, m.y, '#ffd23f', 1);
-    }else if(p.invuln <= 0 && p.faseT <= 0){
-      if(temBuff('casco')){
-        consumirBuff('casco');
-        p.invuln = 1.8;
-        pulsoOnda(TILE*4.5, false);
-        toast('✜ CASCO ABSORVEU');
-        beep(240,.32,'triangle',.07);
-      }else if(p.escudo > 0){
-        p.escudo--; p.escudoT = 0; p.invuln = 1.6;
-        pulsoOnda(TILE*4, false);
-        toast('ESCUDO ABSORVEU');
-        beep(200,.3,'triangle',.07);
-      }else{
-        perderVida();
-        return;
-      }
-    }
-  }
-
-  atualizarParticulas(dt);
-
-  /* --- fim de fase --- */
-  if(G.restantes <= 0) concluirFase();
 }
 
 function coletar(p, a){
-  const alcance = a.ima + (temBuff('vortice') ? 2.5 : 0);
-  const mult = temBuff('prisma') ? 2 : 1;
+  const alcance = a.ima + (temBuff(p, 'vortice') ? 2.5 : 0);
+  const mult = temBuff(p, 'prisma') ? 2 : 1;
   const ptx = tileDe(p.x), pty = tileDe(p.y);
   const r = Math.max(0, Math.ceil(alcance));
   for(let y = pty-r; y <= pty+r; y++){
@@ -1471,33 +1577,38 @@ function coletar(p, a){
 
       G.pellets[y][x] = 0; G.restantes--;
       if(tipo === 1){
-        G.score += 10*mult; ganharXp(1*mult); G.carga = Math.min(100, G.carga + 2*mult);
-        sfx('pellet');
+        p.score += 10*mult; p.carga = Math.min(100, p.carga + 2*mult);
+        if(p.local){ ganharXp(1*mult); sfx('pellet'); }
         if(Math.random() < .35) explodir(cxp, cyp, mult > 1 ? '#39e0ff' : G.paleta, 2);
       }else{
-        G.score += 50*mult; ganharXp(5*mult); G.carga = Math.min(100, G.carga + 12);
+        p.score += 50*mult; p.carga = Math.min(100, p.carga + 12);
+        if(p.local) ganharXp(5*mult);
+        // o super-núcleo assusta os mobs pra TODO MUNDO: é do mapa, não do jogador
         G.devorar = attr().devorar; G.combo = 0;
         G.mobs.forEach(mm => { if(mm.estado === 'normal') mm.estado = 'assustado'; });
         explodir(cxp, cyp, '#ffd23f', 18);
-        G.shake = 0.5; sfx('power'); toast('DEVORAR!');
+        G.shake = 0.5; sfx('power');
+        toast(G.players.length > 1 ? p.nome + ' ATIVOU DEVORAR!' : 'DEVORAR!');
       }
     }
   }
 }
 
-function devorarMob(m){
+function devorarMob(m, p){
   G.combo++;
   const pts = 200 * Math.pow(2, Math.min(4, G.combo-1));
-  G.score += pts;
-  ganharXp(MOBS[m.tipo].xp);
-  save.coins += 5; G.ganhosFase.coins += 5;
+  p.score += pts;
+  if(p.local){
+    ganharXp(MOBS[m.tipo].xp);
+    save.coins += 5; G.ganhosFase.coins += 5;
+  }
   explodir(m.x, m.y, m.cor, 20);
   G.shake = 0.45; sfx('eat');
 
-  // pontos flutuantes + essência da espécie devorada
+  // pontos flutuantes + essência da espécie devorada (de quem comeu)
   G.parts.push({texto:'+'+pts, x:m.x, y:m.y, vida:1, vidaMax:1, cor:'#ffd23f'});
   G.parts.push({onda:true, x:m.x, y:m.y, r:0, rMax:TILE*3, vida:.45, vidaMax:.45, cor:m.cor});
-  ganharBuff(ESSENCIA_DE[m.tipo]);
+  ganharBuff(p, ESSENCIA_DE[m.tipo]);
 
   if(m.tipo === 'divisor' && !m.mini){
     // racha em dois mini-divisores — herdam o estado atual para não matar de graça
@@ -1516,17 +1627,29 @@ function devorarMob(m){
   return false;
 }
 
-function perderVida(){
-  G.vidas--;
-  G.player.morto = 1.4;
+function perderVida(p){
+  p.vidas--;
+  p.morto = 1.4;
+  p.buffs = {};                       // perde as essências
   G.shake = 1;
   sfx('hit');
-  explodir(G.player.x, G.player.y, '#ff3b6b', 30);
+  explodir(p.x, p.y, '#ff3b6b', 30);
+  if(G.players.length > 1) toast(p.nome + ' CAIU');
   atualizarHud();
 }
 
+// volta pro spawn depois de morrer, sem reiniciar a fase inteira
+function renascer(p){
+  const off = [[0,0],[1,0],[0,1],[1,1]][p.idx % 4];
+  p.x = centro(G.spawn.x + off[0]);
+  p.y = centro(G.spawn.y + off[1]);
+  p.dir = DIRS.none; p.quer = DIRS.none; p.lastTile = '';
+  p.invuln = 2.2; p.faseT = 0; p.lento = 0; p.morto = 0;
+}
+
 function atirar(m){
-  const p = G.player;
+  const p = maisProximo(m.x, m.y) || G.players[0];
+  if(!p) return;
   const dx = p.x - m.x, dy = p.y - m.y;
   let d;
   if(Math.abs(dx) > Math.abs(dy)) d = {x: Math.sign(dx), y:0};
@@ -1537,11 +1660,11 @@ function atirar(m){
 }
 
 /* ------------------------------ HABILIDADES ---------------------------- */
-function usarDash(){
-  const p = G.player;
-  if(p.dashCd > 0 || p.morto > 0) return;
+function usarDash(p){
+  p = p || euJogador();
+  if(!p || p.fora || p.dashCd > 0 || p.morto > 0) return;
   if(!(p.dir.x || p.dir.y)) return;
-  const turbo = temBuff('impulso');
+  const turbo = temBuff(p, 'impulso');
   const alcance = turbo ? 6 : 4;
   let tx = tileDe(p.x), ty = tileDe(p.y), andou = 0;
   for(let i=0;i<alcance;i++){
@@ -1551,7 +1674,7 @@ function usarDash(){
   }
   if(!andou) return;
   for(let i=0;i<10;i++)
-    explodir(p.x + (centro(tx)-p.x)*i/10, p.y + (centro(ty)-p.y)*i/10, corAtual()[0], 1);
+    explodir(p.x + (centro(tx)-p.x)*i/10, p.y + (centro(ty)-p.y)*i/10, p.par[0], 1);
   p.x = centro(tx); p.y = centro(ty); p.lastTile = '';
   p.dashCd = turbo ? 0.45 : attr().dashCd;
   p.invuln = Math.max(p.invuln, turbo ? 0.6 : 0.45);
@@ -1559,22 +1682,24 @@ function usarDash(){
   sfx('dash');
 }
 
-function usarPulso(){
-  const p = G.player;
+function usarPulso(p){
+  p = p || euJogador();
   const a = attr();
-  if(!temPulso() || p.pulsoCd > 0 || p.morto > 0) return;
-  const gratis = temBuff('sobrecarga');
-  if(!gratis && G.carga < a.pulsoCusto){ toast('CARGA INSUFICIENTE'); return; }
-  if(!gratis) G.carga -= a.pulsoCusto;
+  if(!p || p.fora || !temPulso() || p.pulsoCd > 0 || p.morto > 0) return;
+  const gratis = temBuff(p, 'sobrecarga');
+  if(!gratis && p.carga < a.pulsoCusto){
+    if(p.local) toast('CARGA INSUFICIENTE');
+    return;
+  }
+  if(!gratis) p.carga -= a.pulsoCusto;
   p.pulsoCd = 1.2;
-  pulsoOnda(a.pulsoR * TILE, true);
+  pulsoOnda(p, a.pulsoR * TILE, true);
   G.shake = 0.6;
   sfx('pulse');
 }
 
-function pulsoOnda(raio, stun){
-  const p = G.player;
-  G.parts.push({onda:true, x:p.x, y:p.y, r:0, rMax:raio, vida:0.5, vidaMax:0.5, cor:corAtual()[1]});
+function pulsoOnda(p, raio, stun){
+  G.parts.push({onda:true, x:p.x, y:p.y, r:0, rMax:raio, vida:0.5, vidaMax:0.5, cor:p.par[1]});
   if(!stun) return;
   let n = 0;
   for(const m of G.mobs){
@@ -1584,17 +1709,21 @@ function pulsoOnda(raio, stun){
       explodir(m.x, m.y, '#ffffff', 6);
     }
   }
-  if(n) toast(n + ' ATORDOADO' + (n>1?'S':''));
+  if(n && p.local) toast(n + ' ATORDOADO' + (n>1?'S':''));
 }
 
-function usarFase(){
-  const p = G.player;
-  if(!temFase() || p.faseCd > 0 || p.morto > 0) return;
-  const gratis = temBuff('sobrecarga');
-  if(!gratis && G.carga < 50){ toast('CARGA INSUFICIENTE'); return; }
-  if(!gratis) G.carga -= 50;
+function usarFase(p){
+  p = p || euJogador();
+  if(!p || p.fora || !temFase() || p.faseCd > 0 || p.morto > 0) return;
+  const gratis = temBuff(p, 'sobrecarga');
+  if(!gratis && p.carga < 50){
+    if(p.local) toast('CARGA INSUFICIENTE');
+    return;
+  }
+  if(!gratis) p.carga -= 50;
   p.faseT = 2.5; p.faseCd = gratis ? 2.5 : 8;
-  sfx('phase'); toast('MODO FASE');
+  sfx('phase');
+  if(p.local) toast('MODO FASE');
 }
 
 /* ------------------------------ PARTÍCULAS ----------------------------- */
@@ -1636,7 +1765,9 @@ function ganharXp(v){
 }
 
 function concluirFase(){
-  G.score += 500 + G.fase*150;
+  const bonus = 500 + G.fase*150;
+  G.players.forEach(p => { if(!p.fora) p.score += bonus; });
+  G.score = euJogador() ? euJogador().score : 0;
   ganharXp(100);
   const moedas = 40 + G.fase*15;
   save.coins += moedas; G.ganhosFase.coins += moedas;
@@ -2410,7 +2541,7 @@ function desenhar(){
   for(const m of G.mobs) desenharMob(m);
 
   // player
-  if(G.player) desenharPlayer();
+  for(const p of G.players) if(!p.fora) desenharPlayer(p);
 
   desenharModificadores();
   ctx.restore();
@@ -2462,8 +2593,8 @@ function desenharModificadores(){
   }
 
   // --- BLECAUTE: escurece tudo menos um círculo em volta do jogador ---
-  if(mod === 'escuro' && G.player && G.player.morto <= 0){
-    const p = G.player;
+  if(mod === 'escuro' && euJogador() && euJogador().morto <= 0){
+    const p = euJogador();
     const raio = 108 + (G.devorar > 0 ? 40 : 0) + Math.sin(G.tempo*3)*4;
     const g = ctx.createRadialGradient(p.x, p.y, raio*0.35, p.x, p.y, raio);
     g.addColorStop(0, 'rgba(3,5,12,0)');
@@ -2487,9 +2618,9 @@ function desenharModificadores(){
   }
 }
 
-function desenharPlayer(){
-  const p = G.player, sk = skinAtual(), par = corAtual(sk);
-  const cor = par[0], glow = par[1];
+function desenharPlayer(p){
+  const sk = SKINS.find(s => s.id === p.skin) || SKINS[0];
+  const cor = p.par[0], glow = p.par[1];
   if(p.morto > 0){
     // animação de morte: círculo fechando
     const t = 1 - p.morto/1.4;
@@ -2527,7 +2658,7 @@ function desenharPlayer(){
     ctx.shadowBlur = QUALIDADE*0; ctx.globalAlpha = 1;
   }
   // anéis das essências ativas (um por buff, girando)
-  const ativos = Object.keys(G.buffs);
+  const ativos = Object.keys(p.buffs);
   if(ativos.length){
     ctx.save();
     ativos.forEach((id, i) => {
@@ -2569,6 +2700,23 @@ function desenharPlayer(){
     r: raio, t: G.tempo, ang, boca: p.boca, giro: p.giro,
     mov: !!(p.dir.x || p.dir.y), cor, glow
   });
+
+  // com mais de um jogador, etiqueta em cima pra saber quem é quem
+  if(G.players.length > 1){
+    ctx.globalAlpha = 1;
+    ctx.font = 'bold 9px "Segoe UI",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = p.local ? '#fff' : cor;
+    ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.lineWidth = 3;
+    ctx.strokeText(p.nome, 0, -raio - 7);
+    ctx.fillText(p.nome, 0, -raio - 7);
+    if(p.local){                      // seta indicando quem é você
+      ctx.fillStyle = cor;
+      ctx.beginPath();
+      ctx.moveTo(0, -raio - 11); ctx.lineTo(-4, -raio - 17); ctx.lineTo(4, -raio - 17);
+      ctx.closePath(); ctx.fill();
+    }
+  }
   ctx.restore();
 }
 
@@ -2861,26 +3009,45 @@ function desenharMob(m){
 const el = id => document.getElementById(id);
 
 function atualizarHud(){
-  el('hScore').textContent = G.score;
+  const meu = euJogador();
+  el('hScore').textContent = meu ? meu.score : G.score;
   el('hLevel').textContent = G.fase;
   if(G.bioma){
     const b = el('hBioma');
     b.textContent = 'Fase · ' + G.bioma.nome;
     b.style.color = G.bioma.cor;
   }
-  el('hLives').textContent = '♥'.repeat(Math.max(0, G.vidas)) || '—';
+  el('hLives').textContent = meu ? ('♥'.repeat(Math.max(0, meu.vidas)) || '—') : '—';
   el('hCoins').textContent = save.coins;
   el('hChar').textContent = save.charLevel;
   const alvo = xpNecessario(save.charLevel);
   el('hXp').style.width = Math.min(100, (save.xp/alvo)*100) + '%';
-  el('hChg').style.width = G.carga + '%';
+  el('hChg').style.width = (meu ? meu.carga : 0) + '%';
+  renderPlacarTime();
 
   renderBuffs();
 
-  const p = G.player, a = attr();
+  const p = meu, a = attr();
   atualizarAb('abDash',  true,        p ? p.dashCd : 0,  a.dashCd);
-  atualizarAb('abPulse', temPulso(),  p ? p.pulsoCd : 0, 1.2, G.carga < a.pulsoCusto);
-  atualizarAb('abPhase', temFase(),   p ? p.faseCd : 0,  8,   G.carga < 50);
+  atualizarAb('abPulse', temPulso(),  p ? p.pulsoCd : 0, 1.2, !p || p.carga < a.pulsoCusto);
+  atualizarAb('abPhase', temFase(),   p ? p.faseCd : 0,  8,   !p || p.carga < 50);
+}
+
+/* placar do time: só aparece quando tem mais de um jogador */
+function renderPlacarTime(){
+  const n = el('placarTime');
+  if(!n) return;
+  if(G.players.length < 2){ n.style.display = 'none'; return; }
+  n.style.display = 'flex';
+  const ordem = G.players.slice().sort((a,b) => b.score - a.score);
+  n.innerHTML = ordem.map(p => {
+    const lider = G.modo === 'versus' && p === ordem[0] && p.score > 0;
+    return `<div class="jog${p.fora ? ' morto' : ''}" style="border-color:${p.par[0]}">
+      <b style="color:${p.par[0]}">${lider ? '👑 ' : ''}${p.nome}</b>
+      <span>${p.score}</span>
+      <i>${p.fora ? 'fora' : '♥'.repeat(Math.max(0, p.vidas))}</i>
+    </div>`;
+  }).join('');
 }
 function atualizarAb(id, desbloq, cd, cdMax, semCarga){
   const n = el(id);
@@ -2892,7 +3059,8 @@ function atualizarAb(id, desbloq, cd, cdMax, semCarga){
 // só reconstrói o HTML quando o conjunto de essências muda (senão a animação reinicia)
 let assinaturaBuffs = '';
 function renderBuffs(){
-  const ids = Object.keys(G.buffs);
+  const meu = euJogador();
+  const ids = meu ? Object.keys(meu.buffs) : [];
   const cont = el('hBuffs');
   const assin = ids.join('|');
   if(assin !== assinaturaBuffs){
@@ -2904,7 +3072,7 @@ function renderBuffs(){
     }).join('');
   }
   for(const n of cont.children){
-    const b = G.buffs[n.dataset.id];
+    const b = meu && meu.buffs[n.dataset.id];
     if(b) n.querySelector('u').style.width = Math.min(100, (b.t/BUFFS[n.dataset.id].dur)*100) + '%';
   }
 }
@@ -2919,7 +3087,7 @@ function toast(txt){
 }
 
 function mostrar(id){
-  ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovNome','ovRank']
+  ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovNome','ovRank','ovDupla']
     .forEach(o => el(o).classList.toggle('on', o === id));
   if(id === 'ovMenu') renderMiniRanking();   // sempre com os dados frescos
 }
@@ -2953,10 +3121,10 @@ function renderUpgrades(){
         sfx('up');
         renderUpgrades();
         // reflete na hora os talentos que mexem no player
-        if(G.player){
-          G.player.escudo = attr().escudos;
-          G.player.escudoT = 0;
-        }
+        G.players.forEach(pl => {
+          pl.escudo = attr().escudos;
+          pl.escudoT = 0;
+        });
       };
     }
     grid.appendChild(d);
@@ -3149,9 +3317,26 @@ montarBestiario();
 /* ==========================================================================
    CONTROLE DE JOGO
    ========================================================================== */
-function novoJogo(){
+/* Monta o time conforme o modo escolhido. 'solo' = só você;
+   'coop'/'versus' locais = 2 no mesmo teclado. */
+function montarTime(){
+  const vidas = attr().vidas;
+  const cfgs = [{controles:'wasd', nome: save.ultimoNome || 'P1'}];
+  if(G.modo === 'coop' || G.modo === 'versus'){
+    const sk2 = SKINS[2];                            // Cyber, pra distinguir
+    cfgs.push({controles:'setas', nome:'P2', skin:sk2.id, cor:0});
+  }
+  G.players = cfgs.map((c, i) => criarPlayer(i, c));
+  G.players.forEach(p => p.vidas = vidas);
+  G.eu = 0;
+  G.player = euJogador();
+}
+
+function novoJogo(modo){
+  G.modo = modo || 'solo';
   G.fase = 1; G.score = 0;
-  G.vidas = attr().vidas;
+  G.players = [];
+  montarTime();
   G.ganhosFase = {xp:0, coins:0, pontos:0};
   montarFase();
   G.estado = 'jogando';
@@ -3160,7 +3345,8 @@ function novoJogo(){
 }
 
 function proximaFase(){
-  G.vidas = Math.min(G.vidas + 1, attr().vidas + 2);
+  const teto = attr().vidas + 2;
+  G.players.forEach(p => { p.vidas = Math.min(p.vidas + 1, teto); p.fora = false; });
   montarFase();
   G.estado = 'jogando';
   esconderTudo();
@@ -3179,8 +3365,16 @@ function retomar(){
 }
 
 /* -------------------------------- BOTÕES ------------------------------- */
-el('btnPlay').onclick   = () => { if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } novoJogo(); };
+function destravarAudio(){
+  if(AC) return;
+  try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+}
+el('btnPlay').onclick   = () => { destravarAudio(); novoJogo('solo'); };
 el('btnSkins').onclick  = () => { renderSkins(); mostrar('ovSkins'); };
+el('btnDupla').onclick  = () => mostrar('ovDupla');
+el('btnDuplaBack').onclick = () => mostrar('ovMenu');
+el('cardCoop').onclick   = () => { destravarAudio(); novoJogo('coop'); };
+el('cardVersus').onclick = () => { destravarAudio(); novoJogo('versus'); };
 el('btnSkinsBack').onclick = () => mostrar('ovMenu');
 el('btnReset').onclick  = () => {
   if(confirm('Apagar todo o progresso (nível, talentos, skins e créditos)?')){
@@ -3190,7 +3384,7 @@ el('btnReset').onclick  = () => {
 el('btnNext').onclick   = proximaFase;
 el('btnResume').onclick = retomar;
 el('btnQuit').onclick   = () => { G.estado = 'menu'; gravarSave(); mostrar('ovMenu'); };
-el('btnRetry').onclick  = novoJogo;
+el('btnRetry').onclick  = () => novoJogo(G.modo);
 el('btnMenu').onclick   = () => { G.estado = 'menu'; mostrar('ovMenu'); };
 el('btnNomeOk').onclick = confirmarNome;
 el('btnVerRank').onclick = abrirRanking;
@@ -3198,22 +3392,51 @@ el('btnVerMais').onclick = abrirRanking;
 el('btnRankBack').onclick = () => { G.estado = 'menu'; mostrar('ovMenu'); };
 
 /* -------------------------------- INPUT -------------------------------- */
-const MAPA = {
-  ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down',
-  ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right'
+/* Dois conjuntos de teclas: no modo de 1 jogador ambos controlam você;
+   com 2 jogadores, WASD é o P1 e as setas são o P2. */
+const TECLAS = {
+  wasd:  {KeyW:'up', KeyS:'down', KeyA:'left', KeyD:'right',
+          acoes:{Space:'dash', ShiftLeft:'pulso', KeyE:'fase'}},
+  setas: {ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
+          acoes:{Numpad0:'dash', ControlRight:'pulso', NumpadDecimal:'fase',
+                 ShiftRight:'pulso', Enter:'dash'}}
 };
+const MAPA = Object.assign({}, TECLAS.wasd, TECLAS.setas);
+delete MAPA.acoes;
+
+// devolve o jogador local que responde por esse esquema de teclas
+function donoDoTeclado(esquema){
+  const locais = G.players.filter(p => p.local);
+  if(locais.length < 2) return locais[0];          // 1 jogador: tudo controla ele
+  return locais.find(p => p.controles === esquema) || locais[0];
+}
 window.addEventListener('keydown', e => {
   if(G.estado === 'nome'){ teclaNome(e); return; }   // digitando as iniciais
-  if(MAPA[e.code]){
+
+  // direção: descobre de qual esquema veio e entrega ao dono dele
+  for(const esquema of ['wasd','setas']){
+    const dir = TECLAS[esquema][e.code];
+    if(!dir) continue;
     e.preventDefault();
-    if(G.player) G.player.quer = DIRS[MAPA[e.code]];
+    const p = donoDoTeclado(esquema);
+    if(p && !p.fora) p.quer = DIRS[dir];
     return;
   }
+  // habilidades: mesma lógica
+  for(const esquema of ['wasd','setas']){
+    const acao = TECLAS[esquema].acoes[e.code];
+    if(!acao) continue;
+    if(e.code === 'Space') e.preventDefault();
+    if(G.estado !== 'jogando') break;
+    const p = donoDoTeclado(esquema);
+    if(!p) break;
+    if(acao === 'dash')  usarDash(p);
+    if(acao === 'pulso') usarPulso(p);
+    if(acao === 'fase')  usarFase(p);
+    return;
+  }
+
   switch(e.code){
-    case 'Space':      e.preventDefault(); if(G.estado==='jogando') usarDash(); break;
-    case 'ShiftLeft':
-    case 'ShiftRight': if(G.estado==='jogando') usarPulso(); break;
-    case 'KeyE':       if(G.estado==='jogando') usarFase(); break;
     case 'KeyP':
     case 'Escape':     G.estado === 'jogando' ? pausar() : retomar(); break;
     case 'KeyM':
@@ -3233,13 +3456,14 @@ cv.addEventListener('touchstart', e => {
 }, {passive:false});
 
 cv.addEventListener('touchmove', e => {
-  if(!tI || !G.player) return;
+  if(!tI || !euJogador()) return;
   e.preventDefault();
   const t = e.touches[0];
   const dx = t.clientX - tI.x, dy = t.clientY - tI.y;
   if(Math.hypot(dx, dy) < 22) return;              // zona morta
-  if(Math.abs(dx) > Math.abs(dy)) G.player.quer = dx > 0 ? DIRS.right : DIRS.left;
-  else                            G.player.quer = dy > 0 ? DIRS.down  : DIRS.up;
+  const alvo = euJogador();
+  if(Math.abs(dx) > Math.abs(dy)) alvo.quer = dx > 0 ? DIRS.right : DIRS.left;
+  else                            alvo.quer = dy > 0 ? DIRS.down  : DIRS.up;
   tI.x = t.clientX; tI.y = t.clientY;              // reancora: dá pra virar em sequência
   tI.virou = true;
 }, {passive:false});
