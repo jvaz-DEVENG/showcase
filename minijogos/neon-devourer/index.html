@@ -204,6 +204,16 @@
   .mrvazio{font-size:10px;color:var(--dim);text-align:center;padding:8px;
            border:1px dashed var(--line);border-radius:8px}
 
+  /* ---------- ABAS DO RANKING ---------- */
+  .abas{display:flex;gap:5px;justify-content:center;margin-bottom:4px}
+  .aba{
+    padding:4px 14px;font-size:10px;letter-spacing:1.5px;border-radius:7px;
+    border:1px solid var(--line);color:var(--dim);background:transparent;
+  }
+  .aba.at{border-color:var(--neon);color:var(--neon);background:rgba(57,224,255,.1)}
+  .selo{font-size:8px;letter-spacing:1px;padding:1px 5px;border-radius:4px;
+        border:1px solid currentColor;margin-left:5px;vertical-align:middle}
+
   /* ---------- RANKING ARCADE ---------- */
   .rank{display:flex;flex-direction:column;gap:3px;width:100%;max-width:430px}
   .rk{
@@ -319,7 +329,7 @@
 
       <div class="mrwrap">
         <div class="mrhead">
-          <span>PONTUAÇÃO ACUMULADA</span>
+          <span>PONTUAÇÃO ACUMULADA <b id="mrSelo" class="selo">este aparelho</b></span>
           <button class="mini" id="btnVerMais">VER MAIS ›</button>
         </div>
         <div class="mrlist" id="miniRank"></div>
@@ -536,7 +546,7 @@ let save = carregarSave();
 function saveBase(){
   return {charLevel:1, xp:0, pontos:0, coins:0, skin:'plasma',
           skins:['plasma'], cores:{}, up:{}, recorde:0, faseMax:1, som:true,
-          ranking:[], ultimoNome:'AAA'};
+          ranking:[], ultimoNome:'AAA', pendentes:[]};
 }
 function carregarSave(){
   try{
@@ -1652,6 +1662,76 @@ function fimDeJogo(){
 }
 
 /* ==========================================================================
+   RANKING GLOBAL (Supabase)
+   Fala com a API REST via fetch — sem SDK, sem CDN, o arquivo segue único.
+   A chave abaixo é a PUBLICÁVEL: ela só consegue ler o placar e chamar a
+   função que SOMA uma partida. Apagar ou adulterar linha é negado por RLS.
+   ========================================================================== */
+const NUVEM = {
+  url:  'https://eygdmaxrwlxsupzzbnlm.supabase.co',
+  chave:'sb_publishable_T3Vus16g9xVHighUGd9y0Q_n4BMcXEl',
+  jogo: 'neon-devourer'
+};
+const cabecalhos = () => ({
+  'apikey': NUVEM.chave,
+  'Authorization': 'Bearer ' + NUVEM.chave,
+  'Content-Type': 'application/json'
+});
+
+G.online = { lista: [], estado: 'nunca', erro: '' };   // nunca|carregando|ok|falha
+G.aba = 'global';                                       // aba do ranking
+
+async function buscarRankingGlobal(){
+  G.online.estado = 'carregando';
+  try{
+    const r = await fetch(
+      `${NUVEM.url}/rest/v1/jogo_ranking?jogo=eq.${NUVEM.jogo}` +
+      `&select=nome,score,partidas,melhor,fase,nivel,skin,cor&order=score.desc&limit=50`,
+      {headers: cabecalhos()}
+    );
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    G.online.lista = await r.json();
+    G.online.estado = 'ok';
+  }catch(e){
+    G.online.estado = 'falha';
+    G.online.erro = e.message;
+  }
+  return G.online.estado === 'ok';
+}
+
+async function enviarPartida(nome, pontos, fase, nivel, skin, cor){
+  const corpo = JSON.stringify({
+    p_jogo: NUVEM.jogo, p_nome: nome, p_pontos: pontos,
+    p_fase: fase, p_nivel: nivel, p_skin: skin, p_cor: cor
+  });
+  try{
+    const r = await fetch(`${NUVEM.url}/rest/v1/rpc/jogo_registrar_partida`,
+                          {method:'POST', headers: cabecalhos(), body: corpo});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return true;
+  }catch(e){
+    // sem internet: guarda pra mandar na próxima vez que abrir
+    save.pendentes = (save.pendentes || []).slice(-20);
+    save.pendentes.push({nome, pontos, fase, nivel, skin, cor});
+    gravarSave();
+    return false;
+  }
+}
+
+// reenvia o que ficou preso offline
+async function enviarPendentes(){
+  const fila = save.pendentes || [];
+  if(!fila.length) return;
+  save.pendentes = [];
+  gravarSave();
+  let ok = 0;
+  for(const p of fila){
+    if(await enviarPartida(p.nome, p.pontos, p.fase, p.nivel, p.skin, p.cor)) ok++;
+  }
+  if(ok) toast(ok + ' PARTIDA(S) ENVIADA(S)');
+}
+
+/* ==========================================================================
    RANKING ARCADE
    ========================================================================== */
 const RANK_MOSTRA = 10;    // quantos aparecem na tela cheia de ranking
@@ -1768,7 +1848,16 @@ function confirmarNome(){
   save.ranking = save.ranking.slice(0, RANK_GUARDA);
   gravarSave();
   sfx('level');
+
+  // manda pro placar global e reabre já com o resultado
+  G.aba = 'global';
   abrirRanking();
+  enviarPartida(nome, G.score, G.fase, save.charLevel, sk.id, cor)
+    .then(ok => {
+      if(!ok) toast('SEM CONEXÃO — ENVIO NA PRÓXIMA');
+      return buscarRankingGlobal();
+    })
+    .then(() => { if(G.estado === 'ranking') renderRanking(); });
 }
 
 let rankPreviews = [];
@@ -1776,6 +1865,8 @@ function abrirRanking(){
   G.estado = 'ranking';
   renderRanking();
   mostrar('ovRank');
+  if(G.aba === 'global' && G.online.estado !== 'carregando')
+    buscarRankingGlobal().then(() => { if(G.estado === 'ranking') renderRanking(); });
 }
 
 function renderRanking(){
@@ -1783,16 +1874,53 @@ function renderRanking(){
   cont.innerHTML = '';
   rankPreviews = [];
 
-  if(!save.ranking.length){
-    cont.innerHTML = '<p class="sub">Nenhuma pontuação registrada ainda.</p>';
-    return;
+  // abas: placar de todo mundo x só deste aparelho
+  const abas = document.createElement('div');
+  abas.className = 'abas';
+  [['global','🌎 GLOBAL'], ['local','ESTE APARELHO']].forEach(([id, txt]) => {
+    const b = document.createElement('button');
+    b.className = 'aba' + (G.aba === id ? ' at' : '');
+    b.textContent = txt;
+    b.onclick = () => {
+      G.aba = id;
+      renderRanking();
+      if(id === 'global' && G.online.estado !== 'ok')
+        buscarRankingGlobal().then(() => { if(G.estado === 'ranking') renderRanking(); });
+    };
+    abas.appendChild(b);
+  });
+  cont.appendChild(abas);
+
+  const global = G.aba === 'global';
+  const lista = global ? G.online.lista : save.ranking;
+
+  if(global && G.online.estado === 'carregando'){
+    const p = document.createElement('p');
+    p.className = 'sub'; p.textContent = 'buscando o placar...';
+    cont.appendChild(p); return;
+  }
+  if(global && G.online.estado === 'falha'){
+    const p = document.createElement('p');
+    p.className = 'sub';
+    p.innerHTML = 'não deu para falar com o servidor.<br>' +
+                  '<span style="font-size:10px">suas partidas ficam salvas e sobem depois</span>';
+    cont.appendChild(p); return;
+  }
+  if(!lista.length){
+    const p = document.createElement('p');
+    p.className = 'sub';
+    p.textContent = global ? 'ninguém pontuou ainda — seja o primeiro'
+                           : 'nenhuma pontuação neste aparelho';
+    cont.appendChild(p); return;
   }
 
-  save.ranking.slice(0, RANK_MOSTRA).forEach((r, i) => {
+  lista.slice(0, RANK_MOSTRA).forEach((r, i) => {
     const sk = SKINS.find(s => s.id === r.skin) || SKINS[0];
     const par = sk.cores[(r.cor || 0) % sk.cores.length];
+    const eu = chaveNome(r.nome) === chaveNome(save.ultimoNome);
     const d = document.createElement('div');
-    d.className = 'rk' + (i < 3 ? ' p' + (i+1) : '') + (r.novo ? ' novo' : '');
+    d.className = 'rk' + (i < 3 ? ' p' + (i+1) : '') +
+                  (r.novo || (global && eu) ? ' novo' : '');
 
     const pos = document.createElement('b');
     pos.className = 'pos'; pos.textContent = (i+1) + 'º';
@@ -1852,7 +1980,17 @@ function renderMiniRanking(){
   cont.innerHTML = '';
   miniPreviews = [];
 
-  if(!save.ranking.length){
+  // mostra o global quando disponível; cai pro local se estiver offline
+  const usaGlobal = G.online.estado === 'ok' && G.online.lista.length > 0;
+  const lista = usaGlobal ? G.online.lista : save.ranking;
+  const selo = el('mrSelo');
+  if(selo){
+    selo.textContent = usaGlobal ? '🌎 GLOBAL'
+      : (G.online.estado === 'carregando' ? 'buscando...' : 'este aparelho');
+    selo.style.color = usaGlobal ? 'var(--ok)' : 'var(--dim)';
+  }
+
+  if(!lista.length){
     const v = document.createElement('div');
     v.className = 'mrvazio';
     v.textContent = 'nenhuma pontuação ainda — jogue para entrar no ranking';
@@ -1860,7 +1998,7 @@ function renderMiniRanking(){
     return;
   }
 
-  save.ranking.slice(0, 5).forEach((r, i) => {
+  lista.slice(0, 5).forEach((r, i) => {
     const sk = SKINS.find(s => s.id === r.skin) || SKINS[0];
     const par = sk.cores[(r.cor || 0) % sk.cores.length];
     const d = document.createElement('div');
@@ -3211,6 +3349,12 @@ G.estado = 'menu';
 renderMiniRanking();          // o menu já abre com o top 5 preenchido
 atualizarHud();
 ajustarAltura();
+
+// busca o placar global e reenvia o que ficou preso offline
+buscarRankingGlobal().then(() => {
+  renderMiniRanking();
+  enviarPendentes();
+});
 requestAnimationFrame(loop);
 </script>
 </body>
