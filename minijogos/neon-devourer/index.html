@@ -82,6 +82,9 @@
     font-size:8px;letter-spacing:.5px;color:var(--dim);
   }
   .ab b{font-size:13px;color:var(--neon);line-height:1}
+  /* a tecla no próprio botão: PULSO no SHIFT não era óbvio pra ninguém */
+  .ab i{font-style:normal;font-size:6px;letter-spacing:.2px;color:var(--dim);opacity:.6;line-height:1;margin-top:2px}
+  @media (hover:none){ .ab i{display:none} }   /* no toque não existe tecla */
   .ab.locked{opacity:.32}
   .ab.tela{border-style:dashed}
   .ab.tela b{color:var(--dim);font-size:15px}
@@ -347,9 +350,9 @@
       <div class="stat"><b id="hCoins">0</b><span>Créditos</span></div>
       <div class="grow"></div>
       <div class="abilities">
-        <div class="ab" id="abDash"><b>⚡</b>DASH<div class="cd"></div></div>
-        <div class="ab" id="abPulse"><b>◎</b>PULSO<div class="cd"></div></div>
-        <div class="ab" id="abPhase"><b>◇</b>FASE<div class="cd"></div></div>
+        <div class="ab" id="abDash"  title="Dash (ESPAÇO)"><b>⚡</b>DASH<i>ESPAÇO</i><div class="cd"></div></div>
+        <div class="ab" id="abPulse" title="Pulso: atordoa os mobs (SHIFT)"><b>◎</b>PULSO<i>SHIFT</i><div class="cd"></div></div>
+        <div class="ab" id="abPhase" title="Atravessar paredes (E)"><b>◇</b>FASE<i>E</i><div class="cd"></div></div>
         <div class="ab tela" id="btnTela" title="Tela cheia (F)"><b>⛶</b>TELA</div>
         <div class="ab tela" id="btnPausa" title="Pausa / info da sala (P)"><b>❚❚</b>MENU</div>
       </div>
@@ -992,8 +995,43 @@ function attr(){
     vidas:    3 + Math.min(3, Math.floor(save.charLevel/4))
   };
 }
-const temPulso = () => save.charLevel >= 3;
-const temFase  = () => save.charLevel >= 6;
+/* O nível é POR JOGADOR. No online quem executa a habilidade é sempre o host,
+   e antes ele consultava o PRÓPRIO save: um convidado nível 10 ficava sem
+   pulso se o host fosse nível 1, e um convidado nível 1 ganhava o pulso de
+   graça se o host fosse alto. O nível de cada um viaja no 'ola'. */
+const nivelDe  = p => (p && p.nivel) || save.charLevel;
+const temPulso = p => nivelDe(p) >= 3;
+const temFase  = p => nivelDe(p) >= 6;
+const vidasDe  = p => 3 + Math.min(3, Math.floor(nivelDe(p)/4));
+
+// o que o convidado precisa mandar pro host simular ele com os números dele
+function meusAtributos(){
+  const a = attr();
+  return {nv:save.charLevel, vl:a.vel, dc:a.dashCd,
+          pr:a.pulsoR, pc:a.pulsoCusto, es:a.escudos};
+}
+// lado do host: grava no jogador remoto o que ele mandou (também na reconexão)
+function aplicarAtributos(p, d){
+  if(!p || !d) return;
+  if(d.nv != null) p.nivel      = d.nv;
+  if(d.vl != null) p.velBase    = d.vl;
+  if(d.dc != null) p.dashEspera = d.dc;
+  if(d.pr != null) p.pulsoR     = d.pr;
+  if(d.pc != null) p.pulsoCusto = d.pc;
+  if(d.es != null) p.escudos    = d.es;
+}
+/* Talento escolhido no meio da corrida muda os números na hora. Os jogadores
+   LOCAIS releem do save; os remotos mantêm o que veio pela rede. */
+function sincronizarAtributosLocais(){
+  const a = attr();
+  for(const p of (G.players || [])){
+    if(!p.local) continue;
+    p.nivel = save.charLevel;
+    p.velBase = a.vel;      p.dashEspera = a.dashCd;
+    p.pulsoR  = a.pulsoR;   p.pulsoCusto = a.pulsoCusto;
+    p.escudos = a.escudos;
+  }
+}
 
 /* --------------------------- ESSÊNCIAS: API ----------------------------
    Cada jogador tem as suas: no co-op, a essência é de quem devorou o mob. */
@@ -1051,11 +1089,18 @@ function criarPlayer(idx, cfg){
     par,                                   // [cor, brilho] já resolvido
     local: cfg.local !== false,            // false = controlado por outro aparelho
     controles: cfg.controles || 'wasd',
+    // atributos PRÓPRIOS: o host simula o convidado com os números do convidado
+    nivel:      cfg.nivel      != null ? cfg.nivel      : save.charLevel,
+    dashEspera: cfg.dashEspera != null ? cfg.dashEspera : a.dashCd,
+    pulsoR:     cfg.pulsoR     != null ? cfg.pulsoR     : a.pulsoR,
+    pulsoCusto: cfg.pulsoCusto != null ? cfg.pulsoCusto : a.pulsoCusto,
+    escudos:    cfg.escudos    != null ? cfg.escudos    : a.escudos,
+    velBase:    cfg.vel        != null ? cfg.vel        : a.vel,
     x: centro(G.spawn.x + off[0]), y: centro(G.spawn.y + off[1]),
     dir: DIRS.none, quer: DIRS.none,
-    vel: a.vel, boca: 0, lastTile:'',
+    vel: cfg.vel != null ? cfg.vel : a.vel, boca: 0, lastTile:'',
     invuln: 2, dashCd: 0, faseT: 0, faseCd: 0, pulsoCd: 0,
-    lento: 0, escudo: a.escudos, escudoT: 0, morto: 0,
+    lento: 0, escudo: cfg.escudos != null ? cfg.escudos : a.escudos, escudoT: 0, morto: 0,
     giro: 0, angAnterior: 0,
     buffs: {}, carga: 0, score: 0,
     vidas: 3, fora: false                  // fora = perdeu todas as vidas
@@ -1350,10 +1395,11 @@ function montarFase(){
 
   // reposiciona os jogadores existentes; cria o time se ainda não houver
   if(!G.players.length) montarTime();
+  sincronizarAtributosLocais();
   G.players.forEach(p => {
     renascer(p);
     p.buffs = {}; p.carga = 0; p.fora = false;
-    p.escudo = attr().escudos; p.escudoT = 0;
+    p.escudo = p.escudos != null ? p.escudos : attr().escudos; p.escudoT = 0;
   });
   G.player = euJogador();
 
@@ -1593,7 +1639,7 @@ function atualizarJogador(p, dt, a){
   /* --- movimento do jogador --- */
   const atravessa = p.faseT > 0;
   const mod = G.bioma ? G.bioma.mod : null;
-  p.vel = a.vel
+  p.vel = (p.velBase || a.vel)
         * (p.lento > 0 ? 0.55 : 1)
         * (G.devorar > 0 ? 1.06 : 1)
         * (temBuff(p, 'furia') ? 1.35 : 1)
@@ -1877,7 +1923,7 @@ function usarDash(p){
   for(let i=0;i<10;i++)
     explodir(p.x + (centro(tx)-p.x)*i/10, p.y + (centro(ty)-p.y)*i/10, p.par[0], 1);
   p.x = centro(tx); p.y = centro(ty); p.lastTile = '';
-  p.dashCd = turbo ? 0.45 : attr().dashCd;
+  p.dashCd = turbo ? 0.45 : (p.dashEspera || attr().dashCd);
   p.invuln = Math.max(p.invuln, turbo ? 0.6 : 0.45);
   G.shake = 0.25;
   sfx('dash');
@@ -1891,15 +1937,16 @@ function usarPulso(p){
     return;
   }
   const a = attr();
-  if(!p || p.fora || !temPulso() || p.pulsoCd > 0 || p.morto > 0) return;
+  if(!p || p.fora || !temPulso(p) || p.pulsoCd > 0 || p.morto > 0) return;
+  const custo = p.pulsoCusto || a.pulsoCusto;
   const gratis = temBuff(p, 'sobrecarga');
-  if(!gratis && p.carga < a.pulsoCusto){
+  if(!gratis && p.carga < custo){
     if(p.local) toast('CARGA INSUFICIENTE');
     return;
   }
-  if(!gratis) p.carga -= a.pulsoCusto;
+  if(!gratis) p.carga -= custo;
   p.pulsoCd = 1.2;
-  pulsoOnda(p, a.pulsoR * TILE, true);
+  pulsoOnda(p, (p.pulsoR || a.pulsoR) * TILE, true);
   G.shake = 0.6;
   sfx('pulse');
 }
@@ -1925,7 +1972,7 @@ function usarFase(p){
     (G.acoesPendentes || (G.acoesPendentes = [])).push('fase');
     return;
   }
-  if(!p || p.fora || !temFase() || p.faseCd > 0 || p.morto > 0) return;
+  if(!p || p.fora || !temFase(p) || p.faseCd > 0 || p.morto > 0) return;
   const gratis = temBuff(p, 'sobrecarga');
   if(!gratis && p.carga < 50){
     if(p.local) toast('CARGA INSUFICIENTE');
@@ -1961,7 +2008,7 @@ function atualizarParticulas(dt){
 /* ------------------------------- XP / FASE ----------------------------- */
 function ganharXp(v){
   save.xp += v; G.ganhosFase.xp += v;
-  let alvo = xpNecessario(save.charLevel);
+  let alvo = xpNecessario(save.charLevel), subiu = false;
   while(save.xp >= alvo){
     save.xp -= alvo;
     save.charLevel++;
@@ -1972,6 +2019,16 @@ function ganharXp(v){
     if(save.charLevel === 3) toast('PULSO DESBLOQUEADO (SHIFT)');
     if(save.charLevel === 6) toast('FASE DESBLOQUEADA (E)');
     alvo = xpNecessario(save.charLevel);
+    subiu = true;
+  }
+  if(!subiu) return;
+  sincronizarAtributosLocais();
+  // no online o host simula você: avise que seus números mudaram
+  if(ONLINE() && !SOU_HOST()){
+    const sk = skinAtual();
+    RT.enviar('ola', Object.assign({u:RT.uid, n:nomeDoJogador(),
+                                    s:sk.id, c:save.cores[sk.id]||0},
+                                   meusAtributos()));
   }
 }
 
@@ -2174,7 +2231,9 @@ const RT = {
           if(papel === 'guest'){
             const sk = skinAtual();
             // o host reconhece o uid e devolve o mesmo lugar
-            this.enviar('ola', {u:this.uid, n:nomeDoJogador(), s:sk.id, c:save.cores[sk.id]||0});
+            this.enviar('ola', Object.assign({u:this.uid, n:nomeDoJogador(),
+                                              s:sk.id, c:save.cores[sk.id]||0},
+                                             meusAtributos()));
           }else{
             enviarTime();
             if(G.grid) this.enviar('mapa', serializarMapa());
@@ -2390,7 +2449,7 @@ function receberDaRede(evento, d){
         conhecido.visto = agoraSeg();
         conhecido.voltou = true;
         const vp = G.players[conhecido.idx];
-        if(vp){ vp.fora = false; vp.nome = d.n || vp.nome; }
+        if(vp){ vp.fora = false; vp.nome = d.n || vp.nome; aplicarAtributos(vp, d); }
         enviarTime();
         if(G.grid && G.estado === 'jogando') RT.enviar('mapa', serializarMapa());
         return;
@@ -2398,8 +2457,10 @@ function receberDaRede(evento, d){
       if(G.players.length >= 4){ RT.enviar('cheio', {u:d.u}); return; }
       const idx = G.players.length;
       RT.pares.push({uid:d.u, idx, nome:d.n, visto:agoraSeg()});
-      const np = criarPlayer(idx, {nome:d.n, skin:d.s, cor:d.c, local:false, controles:'rede'});
-      np.vidas = attr().vidas;
+      const np = criarPlayer(idx, {nome:d.n, skin:d.s, cor:d.c, local:false, controles:'rede',
+                                   nivel:d.nv, vel:d.vl, dashEspera:d.dc,
+                                   pulsoR:d.pr, pulsoCusto:d.pc});
+      np.vidas = 3 + Math.min(3, Math.floor(nivelDe(np)/4));
       G.players.push(np);
       toast((d.n || 'JOGADOR') + ' ENTROU NA SALA');
       enviarTime();
@@ -2601,7 +2662,7 @@ function atualizarConvidado(dt){
     eu.dashCd  = Math.max(0, eu.dashCd - dt);
     eu.pulsoCd = Math.max(0, eu.pulsoCd - dt);
     eu.faseCd  = Math.max(0, eu.faseCd - dt);
-    eu.vel = a.vel * (temBuff(eu,'furia') ? 1.35 : 1) * (G.devorar > 0 ? 1.06 : 1);
+    eu.vel = (eu.velBase || a.vel) * (temBuff(eu,'furia') ? 1.35 : 1) * (G.devorar > 0 ? 1.06 : 1);
     eu.derrapa = Math.max(0, (eu.derrapa||0) - dt);
     mover(eu, dt, eu.faseT > 0, escolhaPlayer);
     const and = !!(eu.dir.x || eu.dir.y);
@@ -3761,9 +3822,10 @@ function atualizarHud(){
   renderBuffs();
 
   const p = meu, a = attr();
-  atualizarAb('abDash',  true,        p ? p.dashCd : 0,  a.dashCd);
-  atualizarAb('abPulse', temPulso(),  p ? p.pulsoCd : 0, 1.2, !p || p.carga < a.pulsoCusto);
-  atualizarAb('abPhase', temFase(),   p ? p.faseCd : 0,  8,   !p || p.carga < 50);
+  const custoP = (p && p.pulsoCusto) || a.pulsoCusto;
+  atualizarAb('abDash',  true,        p ? p.dashCd : 0,  (p && p.dashEspera) || a.dashCd);
+  atualizarAb('abPulse', temPulso(p), p ? p.pulsoCd : 0, 1.2, !p || p.carga < custoP);
+  atualizarAb('abPhase', temFase(p),  p ? p.faseCd : 0,  8,   !p || p.carga < 50);
 }
 
 /* placar do time: só aparece quando tem mais de um jogador */
@@ -3854,10 +3916,9 @@ function renderUpgrades(){
         sfx('up');
         renderUpgrades();
         // reflete na hora os talentos que mexem no player
-        G.players.forEach(pl => {
-          pl.escudo = attr().escudos;
-          pl.escudoT = 0;
-        });
+        // só nos LOCAIS: o talento é seu, não do convidado do outro aparelho
+        sincronizarAtributosLocais();
+        G.players.forEach(pl => { if(pl.local){ pl.escudo = pl.escudos; pl.escudoT = 0; } });
       };
     }
     grid.appendChild(d);
@@ -4292,8 +4353,9 @@ async function entrarNaSala(codigo){
     // reenvia ate o host confirmar: uma unica mensagem perdida nao pode expulsar
     let tentativasOla = 0;
     const mandarOla = () => {
-      RT.enviar('ola', {u: RT.uid, n: nomeDoJogador(),
-                        s: sk.id, c: save.cores[sk.id] || 0});
+      RT.enviar('ola', Object.assign({u: RT.uid, n: nomeDoJogador(),
+                                      s: sk.id, c: save.cores[sk.id] || 0},
+                                     meusAtributos()));
       tentativasOla++;
       if(G.players.length || tentativasOla >= 6){
         if(!G.players.length && G.estado === 'sala'){
@@ -4348,7 +4410,7 @@ function renderSala(){
 function comecarOnline(){
   if(!SOU_HOST()) return;
   G.fase = 1;
-  G.players.forEach(p => { p.score = 0; p.vidas = attr().vidas; p.fora = false; });
+  G.players.forEach(p => { p.score = 0; p.vidas = vidasDe(p); p.fora = false; });
   G.ganhosFase = {xp:0, coins:0, pontos:0};
   enviarTime();
   montarFase();                     // já transmite o mapa
