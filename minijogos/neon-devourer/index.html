@@ -353,6 +353,9 @@
       <div class="stat"><b id="hScore">0</b><span>Pontos</span></div>
       <div class="stat"><b id="hLevel">1</b><span id="hBioma">Fase</span></div>
       <div class="stat"><b id="hLives">♥♥♥</b><span>Vidas</span></div>
+      <!-- G.restantes já existia e nunca aparecia: sem ele o jogador não
+           sabe se está no começo ou no fim da fase -->
+      <div class="stat"><b id="hCores">0</b><span>Núcleos</span></div>
       <div class="stat"><b id="hCoins">0</b><span>Créditos</span></div>
       <div class="grow"></div>
       <div class="abilities">
@@ -390,6 +393,9 @@
       Devore os mobs pra roubar a <b style="color:var(--accent)">essência</b> deles.</p>
       <div class="row" style="justify-content:center">
         <button id="btnPlay">CAMPANHA</button>
+        <!-- save.faseMax era gravado e nunca lido: toda partida recomeçava na
+             fase 1, refazendo 8 fases triviais com o personagem já forte -->
+        <button id="btnContinuar" style="display:none">CONTINUAR</button>
         <button class="ghost" id="btnMulti">MULTIPLAYER</button>
         <button class="ghost" id="btnPerfil">PERFIL</button>
         <button class="ghost" id="btnSkins">SKINS</button>
@@ -585,13 +591,13 @@
 /* ---------------------------- CONFIGURAÇÃO ---------------------------- */
 /* O labirinto nasce no formato da tela: em pé no celular, deitado no PC.
    COLS e ROWS precisam ser ÍMPARES (o gerador espelha a metade esquerda). */
-const RETRATO = window.innerHeight > window.innerWidth * 1.15;
+const emRetrato = () => window.innerHeight > window.innerWidth * 1.15;
 const TILE = 22;                       // tamanho do tile em px
 /* MUTÁVEIS de propósito: no online o convidado adota a grade do host.
    Sem isso, PC (25x21) hospedando e celular (19x27) entrando liam a mesma
    string de mapa com passos diferentes — o labirinto chegava embaralhado. */
-let COLS = RETRATO ? 19 : 25;          // largura do labirinto (ímpar)
-let ROWS = RETRATO ? 27 : 21;          // altura do labirinto (ímpar)
+let COLS = emRetrato() ? 19 : 25;      // largura do labirinto (ímpar)
+let ROWS = emRetrato() ? 27 : 21;      // altura do labirinto (ímpar)
 let W = COLS * TILE, H = ROWS * TILE;
 
 function ajustarGrade(cols, rows){
@@ -601,6 +607,18 @@ function ajustarGrade(cols, rows){
   cv.width = W; cv.height = H;
   fundoCache = null;                   // o gradiente do fundo tinha o tamanho antigo
   if(typeof ajustarAltura === 'function') ajustarAltura();
+}
+
+/* Girar o aparelho não refazia nada: quem abria o link deitado ficava com um
+   labirinto 25x21 espremido no topo da tela em pé, para sempre.
+   Fora de partida é seguro trocar; dentro dela a grade é do host/do mapa. */
+function reavaliarGrade(){
+  if(ONLINE()) return;                               // a grade é a do anfitrião
+  if(G.estado === 'jogando' || G.estado === 'pausado') return;
+  const cols = emRetrato() ? 19 : 25, rows = emRetrato() ? 27 : 21;
+  if(cols === COLS) return;
+  ajustarGrade(cols, rows);
+  if(G.grid) montarFase();                           // remonta no novo formato
 }
 
 /* Aparelho fraco/touch: corta os efeitos caros (shadowBlur mata o FPS no
@@ -786,6 +804,41 @@ function sfx(nome){
     case 'level':  [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.14,'triangle',.06), i*90)); break;
     case 'up':     [660,880].forEach((f,i)=>setTimeout(()=>beep(f,.1,'sine',.05), i*80)); break;
   }
+}
+
+/* ------------------------------- TRILHA --------------------------------
+   Sem <audio> e sem arquivo: uma linha de baixo procedural no mesmo
+   oscilador dos efeitos, pra o arquivo continuar único. Cada bioma tem sua
+   escala; na janela de DEVORAR o andamento dobra e sobe uma oitava.
+   ---------------------------------------------------------------------- */
+const ESCALAS = {
+  circuito: [55.0, 65.4, 73.4, 87.3],      // lá menor
+  colmeia:  [61.7, 73.4, 82.4, 98.0],
+  criogenia:[58.3, 69.3, 77.8, 87.3],
+  fissura:  [51.9, 61.7, 69.3, 82.4],
+  blecaute: [49.0, 58.3, 65.4, 73.4],      // mais grave: pesa mais
+  corrente: [65.4, 73.4, 87.3, 98.0],
+  fornalha: [55.0, 61.7, 73.4, 92.5],
+  purga:    [46.2, 55.0, 61.7, 69.3]
+};
+const PADRAO = [0,0,2,0, 1,0,3,2, 0,0,2,3, 1,1,0,2];   // 16 semicolcheias
+const MUSICA = {t:0, passo:0, ligada:false};
+
+function tickMusica(dt){
+  if(!save.som || !AC || G.estado !== 'jogando'){ MUSICA.t = 0; return; }
+  const rapido = G.devorar > 0;
+  const intervalo = rapido ? 0.14 : 0.28;      // ~107 / ~54 bpm em semicolcheia
+  MUSICA.t -= dt;
+  if(MUSICA.t > 0) return;
+  MUSICA.t = intervalo;
+  const esc = ESCALAS[(G.bioma && G.bioma.id) || 'circuito'] || ESCALAS.circuito;
+  const i = MUSICA.passo % PADRAO.length;
+  const nota = esc[PADRAO[i]] * (rapido ? 2 : 1);
+  // tempo forte mais alto: dá pulso sem precisar de bateria
+  const forte = (i % 4) === 0;
+  beep(nota, forte ? 0.26 : 0.16, 'triangle', forte ? 0.045 : 0.026);
+  if(forte && rapido) beep(nota*2, 0.1, 'sine', 0.02);
+  MUSICA.passo++;
 }
 
 /* ==========================================================================
@@ -974,7 +1027,7 @@ const G = {
   bioma:null, portais:[], lasers:[], esteiras:null, purgaT:0,
   players:[], eu:0, modo:'solo',      // solo | coop | versus
   player:null, mobs:[], tiros:[], parts:[],
-  devorar:0, combo:0,
+  devorar:0, combo:0, congela:0,
   carga:0,
   buffs:{},                // id -> {t, max}
   shake:0, tempo:0,
@@ -995,7 +1048,8 @@ function attr(){
     dashCd:   4.5 * (1 - r*0.12),
     devorar:  7 + d*0.8,
     ima:      i*0.9,
-    pulsoR:   3.2 + p*0.7,
+    // era 3.2+p*0.7 = 6.7 tiles no máximo: ~30% da área do mapa num toque
+    pulsoR:   3.2 + p*0.4,
     pulsoCusto: Math.round(40 * (1 - p*0.06)),
     escudos:  e,
     vidas:    3 + Math.min(3, Math.floor(save.charLevel/4))
@@ -1008,6 +1062,7 @@ function attr(){
 const nivelDe  = p => (p && p.nivel) || save.charLevel;
 const temPulso = p => nivelDe(p) >= 3;
 const temFase  = p => nivelDe(p) >= 6;
+const CUSTO_FASE = 60;
 const vidasDe  = p => 3 + Math.min(3, Math.floor(nivelDe(p)/4));
 
 // o que o convidado precisa mandar pro host simular ele com os números dele
@@ -1168,15 +1223,22 @@ function maisProximo(x, y){
 function criarMob(tipo, idx, mini){
   const base = MOBS[tipo];
   const hx = (COLS-1)/2, hy = ((ROWS-1)/2)|0;
-  const off = [[0,0],[-1,0],[1,0],[-2,0],[2,0],[0,-1],[0,1],[-1,1]][idx % 8];
-  const escala = 4.5 + Math.min(10, G.fase) * 0.13;
+  // 12 posições: com 9-10 mobs os últimos nasciam EM CIMA dos primeiros
+  const off = [[0,0],[-1,0],[1,0],[-2,0],[2,0],[0,-1],[0,1],[-1,1],
+               [1,1],[-2,1],[2,1],[0,1]][idx % 12];
+  /* Sobe rápido até a fase 10 (como antes) e SEGUE subindo devagar depois.
+     O Math.min(10,...) antigo era um teto: da fase 11 em diante nada mudava. */
+  const f = G.fase;
+  const escala = 4.5 + Math.min(10, f)*0.13 + Math.max(0, Math.min(30, f) - 10)*0.022;
+  const ag = agressao();
   return {
     tipo, cor: base.cor,
     x: centro(hx + off[0]), y: centro(hy + off[1]),
     dir: DIRS.up, lastTile:'',
     velBase: escala * base.vel * (mini ? 1.25 : 1),
     estado:'normal',           // normal | assustado | olhos
-    stun: 0, saida: 0.6 + idx*0.55,
+    stun: 0, imunePulso: 0,
+    saida: (0.6 + idx*0.55) * (1 - 0.45*ag),   // fase alta: saem do ninho antes
     alvo: {x: 1, y: 1}, alvoT: 0, tiroT: 2 + Math.random()*3,
     mini: !!mini, raio: mini ? TILE*0.30 : TILE*0.42,
     semente: idx * 1.7, saiu: false,
@@ -1332,12 +1394,16 @@ function alvoDoMob(m){
     case 'cacador':
       return {x:ptx, y:pty};
     case 'emboscador':
-      return {x:ptx + p.dir.x*4, y:pty + p.dir.y*4};
+      // corta mais à frente conforme a fase sobe: o cerco fecha mais cedo
+      return {x:ptx + p.dir.x*(4 + Math.round(3*agressao())),
+              y:pty + p.dir.y*(4 + Math.round(3*agressao()))};
     case 'errante':
       return m.alvo;
     case 'guardiao': {
       const d = Math.hypot(ptx-tileDe(m.x), pty-tileDe(m.y));
-      return d < 6 ? {x: ptx < hx ? COLS-2 : 1, y: pty < hy ? ROWS-2 : 1} : {x:ptx, y:pty};
+      // em fase alta ele desiste menos: só recua se você chegar bem perto
+      const recuo = 6 - 3*agressao();
+      return d < recuo ? {x: ptx < hx ? COLS-2 : 1, y: pty < hy ? ROWS-2 : 1} : {x:ptx, y:pty};
     }
     case 'divisor':
       return {x:ptx, y:pty};
@@ -1360,8 +1426,15 @@ function tiposDaFase(n){
   if(n >= 5) l.push('sentinela');
   if(n >= 7) l.push('cacador');
   if(n >= 9) l.push('emboscador');
-  return l.slice(0, 8);
+  if(n >= 14) l.push('sentinela');    // a 2ª sentinela cobre outro eixo do mapa
+  if(n >= 20) l.push('guardiao');
+  return l.slice(0, 10);
 }
+
+/* AGRESSIVIDADE: 0 até a fase 8, 1 na 28. É o segundo eixo de dificuldade.
+   Antes só existia velocidade, e ela travava na fase 10 — da 11 em diante o
+   jogo era literalmente idêntico para sempre. */
+const agressao = () => Math.max(0, Math.min(1, (G.fase - 8) / 20));
 
 // conta tiles jogáveis (fora do ninho) para descartar labirintos apertados
 function contarLivres(g, casa){
@@ -1437,7 +1510,8 @@ function montarFase(){
   if(G.players.length > 2) lista.push('cacador');          // mais gente, mais caça
   G.mobs = lista.map((t,i) => criarMob(t,i,false));
   G.tiros = []; G.parts = [];
-  G.devorar = 0; G.combo = 0;
+  G.devorar = 0; G.congela = 0;
+  G.players.forEach(pl => pl.combo = 0);
   montarModificador();
   G.mazeCanvas = renderMaze();
   if(SOU_HOST()){ G.comidos = []; RT.enviar('mapa', serializarMapa()); }
@@ -1552,7 +1626,7 @@ function checarLasers(p){
     if(!L.ativo) continue;
     const pt = {x: tileDe(p.x), y: tileDe(p.y)};
     if((L.horiz && pt.y !== L.idx) || (!L.horiz && pt.x !== L.idx)) continue;
-    if(p.invuln > 0 || p.faseT > 0) continue;
+    if(p.invuln > 0) continue;    // Modo Fase atravessa parede, nao feixe
     let livreAte = true;
     if(L.horiz){ for(let x=1;x<pt.x;x++) if(G.grid[L.idx][x] === 1){ livreAte = false; break; } }
     else       { for(let y=1;y<pt.y;y++) if(G.grid[y][L.idx] === 1){ livreAte = false; break; } }
@@ -1609,7 +1683,7 @@ function atualizar(dt){
   if(G.devorar > 0){
     G.devorar -= dt;
     if(G.devorar <= 0){
-      G.combo = 0;
+      G.players.forEach(pl => pl.combo = 0);
       G.mobs.forEach(m => { if(m.estado === 'assustado') m.estado = 'normal'; });
     }
   }
@@ -1737,6 +1811,8 @@ function atualizarJogador(p, dt, a){
 
 function atualizarMobs(dt){
   for(const m of G.mobs){
+    // fora do 'continue' abaixo: a carência tem que correr durante o stun
+    if(m.imunePulso > 0) m.imunePulso -= dt;
     if(m.saida > 0){ m.saida -= dt; continue; }
     if(m.stun > 0){ m.stun -= dt; continue; }
 
@@ -1750,8 +1826,9 @@ function atualizarMobs(dt){
     if(m.tipo === 'sentinela' && m.estado === 'normal'){
       m.tiroT -= dt;
       if(m.tiroT <= 0){
-        m.tiroT = 3.2 + Math.random()*1.6;
-        atirar(m);
+        // sem corredor livre ele não gasta a recarga inteira: só espia de novo
+        const ag = agressao();
+        m.tiroT = atirar(m) ? (3.2 - 1.4*ag) + Math.random()*1.6 : 0.3;
       }
     }
 
@@ -1815,7 +1892,7 @@ function atualizarTiros(dt){
     }
     // acerta o primeiro jogador que estiver no caminho
     for(const p of G.players){
-      if(p.fora || p.morto > 0 || p.invuln > 0 || p.faseT > 0) continue;
+      if(p.fora || p.morto > 0 || p.invuln > 0) continue;
       if(distWrap(p.x, p.y, t.x, t.y) >= TILE*0.55) continue;
       p.lento = 2.6;
       G.tiros.splice(i,1);
@@ -1827,47 +1904,77 @@ function atualizarTiros(dt){
   }
 }
 
+/* Tiles alcançáveis A PÉ em até r passos, com wrap de túnel.
+   O ímã varria um quadrado e filtrava só por distância — sugava núcleos do
+   outro lado da parede. Com Vórtice o alcance chega a 5,2 tiles: dava pra
+   limpar corredores onde você nunca entrou. */
+function campoColeta(tx, ty, r){
+  const vis = new Set([ty*COLS + tx]);
+  let borda = [[tx, ty]];
+  for(let passo = 0; passo < r; passo++){
+    const prox = [];
+    for(const [x, y] of borda){
+      for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const ny = y + d[1];
+        if(ny < 0 || ny >= ROWS) continue;
+        const nx = ((x + d[0]) % COLS + COLS) % COLS;
+        if(G.grid[ny][nx] !== 0) continue;
+        const k = ny*COLS + nx;
+        if(vis.has(k)) continue;
+        vis.add(k); prox.push([nx, ny]);
+      }
+    }
+    borda = prox;
+    if(!borda.length) break;
+  }
+  return vis;
+}
+
 function coletar(p, a){
   const alcance = a.ima + (temBuff(p, 'vortice') ? 2.5 : 0);
   const mult = temBuff(p, 'prisma') ? 2 : 1;
-  const ptx = tileDe(p.x), pty = tileDe(p.y);
-  const r = Math.max(0, Math.ceil(alcance));
-  for(let y = pty-r; y <= pty+r; y++){
-    if(y < 0 || y >= ROWS) continue;
-    for(let dx = -r; dx <= r; dx++){
-      const x = ((ptx+dx) % COLS + COLS) % COLS;
-      const tipo = G.pellets[y][x];
-      if(!tipo) continue;
-      const cxp = centro(x), cyp = centro(y);
-      let ddx = cxp - p.x;                      // menor caminho, inclusive pelo túnel
-      if(ddx > W/2) ddx -= W; else if(ddx < -W/2) ddx += W;
-      const dist = Math.hypot(ddx, cyp-p.y) / TILE;
-      const limite = (dx === 0 && y === pty) ? 0.6 : alcance;
-      if(dist > Math.max(0.55, limite)) continue;
+  const ptx = ((tileDe(p.x) % COLS) + COLS) % COLS, pty = tileDe(p.y);
+  if(pty < 0 || pty >= ROWS || !G.grid[pty] || G.grid[pty][ptx] !== 0) return;
+  const r = Math.max(1, Math.ceil(alcance));
+  // o campo só muda quando o jogador troca de tile: refazer a cada quadro
+  // custaria uma busca em largura 60x por segundo à toa
+  const chave = ptx + ',' + pty + ',' + r + ',' + G.fase;
+  if(p.imaChave !== chave){ p.imaChave = chave; p.imaCampo = campoColeta(ptx, pty, r); }
 
-      G.pellets[y][x] = 0; G.restantes--;
-      if(SOU_HOST()) (G.comidos || (G.comidos = [])).push(y*COLS + x);
-      if(tipo === 1){
-        p.score += 10*mult; p.carga = Math.min(100, p.carga + 2*mult);
-        if(p.local){ ganharXp(1*mult); sfx('pellet'); }
-        if(Math.random() < .35) explodir(cxp, cyp, mult > 1 ? '#39e0ff' : G.paleta, 2);
-      }else{
-        p.score += 50*mult; p.carga = Math.min(100, p.carga + 12);
-        if(p.local) ganharXp(5*mult);
-        // o super-núcleo assusta os mobs pra TODO MUNDO: é do mapa, não do jogador
-        G.devorar = attr().devorar; G.combo = 0;
-        G.mobs.forEach(mm => { if(mm.estado === 'normal') mm.estado = 'assustado'; });
-        explodir(cxp, cyp, '#ffd23f', 18);
-        G.shake = 0.5; sfx('power');
-        toast(G.players.length > 1 ? p.nome + ' ATIVOU DEVORAR!' : 'DEVORAR!');
-      }
+  for(const k of p.imaCampo){
+    const y = (k / COLS) | 0, x = k % COLS;
+    const tipo = G.pellets[y][x];
+    if(!tipo) continue;
+    const cxp = centro(x), cyp = centro(y);
+    const dist = distWrap(p.x, p.y, cxp, cyp) / TILE;
+    const limite = (x === ptx && y === pty) ? 0.6 : alcance;
+    if(dist > Math.max(0.55, limite)) continue;
+
+    G.pellets[y][x] = 0; G.restantes--;
+    if(SOU_HOST()) (G.comidos || (G.comidos = [])).push(y*COLS + x);
+    if(tipo === 1){
+      p.score += 10*mult; p.carga = Math.min(100, p.carga + 2*mult);
+      if(p.local){ ganharXp(1*mult); sfx('pellet'); }
+      if(Math.random() < .35) explodir(cxp, cyp, mult > 1 ? '#39e0ff' : G.paleta, 2);
+    }else{
+      p.score += 50*mult; p.carga = Math.min(100, p.carga + 12*mult);
+      if(p.local) ganharXp(5*mult);
+      // o super-núcleo assusta os mobs pra TODO MUNDO: é do mapa, não do jogador
+      G.devorar = attr().devorar;
+      G.players.forEach(pl => pl.combo = 0);
+      G.mobs.forEach(mm => { if(mm.estado === 'normal') mm.estado = 'assustado'; });
+      explodir(cxp, cyp, '#ffd23f', 18);
+      G.shake = 0.5; sfx('power');
+      toast(G.players.length > 1 ? p.nome + ' ATIVOU DEVORAR!' : 'DEVORAR!');
     }
   }
 }
 
 function devorarMob(m, p){
-  G.combo++;
-  const pts = 200 * Math.pow(2, Math.min(4, G.combo-1));
+  /* O combo era GLOBAL: no competitivo, o adversario comendo aumentava o
+     valor do SEU proximo mob. Agora cada um tem o seu. */
+  p.combo = (p.combo || 0) + 1;
+  const pts = 200 * Math.pow(2, Math.min(4, p.combo - 1));
   p.score += pts;
   if(p.local){
     ganharXp(MOBS[m.tipo].xp);
@@ -1875,6 +1982,7 @@ function devorarMob(m, p){
   }
   explodir(m.x, m.y, m.cor, 20);
   G.shake = 0.45; sfx('eat');
+  G.congela = Math.max(G.congela, 0.075);   // a mordida pesa
 
   // pontos flutuantes + essência da espécie devorada (de quem comeu)
   G.parts.push({texto:'+'+pts, x:m.x, y:m.y, vida:1, vidaMax:1, cor:'#ffd23f'});
@@ -1904,6 +2012,7 @@ function perderVida(p){
   p.buffs = {};                       // perde as essências
   G.shake = 1;
   sfx('hit');
+  G.congela = Math.max(G.congela, 0.11);
   explodir(p.x, p.y, '#ff3b6b', 30);
   if(G.players.length > 1) toast(p.nome + ' CAIU');
   atualizarHud();
@@ -1916,18 +2025,39 @@ function renascer(p){
   p.y = centro(G.spawn.y + off[1]);
   p.dir = DIRS.none; p.quer = DIRS.none; p.lastTile = '';
   p.invuln = 2.2; p.faseT = 0; p.lento = 0; p.morto = 0;
+  p.imaChave = null;              // o labirinto pode ter mudado: refaz o campo
+}
+
+/* Corredor reto e livre entre o mob e o jogador, ou null.
+   A mira antiga era "eixo dominante" e ignorava parede: 91% dos tiros
+   morriam na primeira parede em 0,25s, andando 1,74 tile. A sentinela é o
+   mob de ataque à distância e não acertava nada. */
+const TIRO_ALCANCE = 11;
+function miraLivre(m){
+  const mx = ((tileDe(m.x) % COLS) + COLS) % COLS, my = tileDe(m.y);
+  if(my < 0 || my >= ROWS) return null;
+  for(const d of [DIRS.left, DIRS.right, DIRS.up, DIRS.down]){
+    let x = mx, y = my;
+    for(let i = 0; i < TIRO_ALCANCE; i++){
+      y += d.y;
+      x = ((x + d.x) % COLS + COLS) % COLS;
+      if(y < 0 || y >= ROWS || G.grid[y][x] === 1) break;   // bateu na parede
+      for(const p of G.players){
+        if(p.fora || p.morto > 0) continue;
+        if(((tileDe(p.x) % COLS) + COLS) % COLS === x && tileDe(p.y) === y) return d;
+      }
+    }
+  }
+  return null;
 }
 
 function atirar(m){
-  const p = maisProximo(m.x, m.y) || G.players[0];
-  if(!p) return;
-  const dx = p.x - m.x, dy = p.y - m.y;
-  let d;
-  if(Math.abs(dx) > Math.abs(dy)) d = {x: Math.sign(dx), y:0};
-  else d = {x:0, y: Math.sign(dy)};
-  const vel = 150;
+  const d = miraLivre(m);
+  if(!d) return false;                       // sem linha: não desperdiça o tiro
+  const vel = 190;
   G.tiros.push({x:m.x, y:m.y, dx:d.x*vel, dy:d.y*vel, vida:3});
   beep(300,.08,'sawtooth',.03);
+  return true;
 }
 
 /* ------------------------------ HABILIDADES ---------------------------- */
@@ -1986,8 +2116,13 @@ function pulsoOnda(p, raio, stun){
   let n = 0;
   for(const m of G.mobs){
     if(m.estado === 'olhos') continue;
+    /* Sem carência, o pulso seguinte renovava o atordoamento antes do
+       primeiro acabar: com Pulso 5 a recarga ficava menor que o stun e os
+       mobs simplesmente deixavam de existir. Cada mob só pode ser atordoado
+       de novo depois de STUN + 3s livre. */
+    if(m.stun > 0 || m.imunePulso > 0) continue;
     if(distWrap(p.x, p.y, m.x, m.y) <= raio){
-      m.stun = 2.6; m.lastTile = ''; n++;
+      m.stun = 2.6; m.imunePulso = 5.6; m.lastTile = ''; n++;
       explodir(m.x, m.y, '#ffffff', 6);
     }
   }
@@ -2003,12 +2138,15 @@ function usarFase(p){
   }
   if(!p || p.fora || !temFase(p) || p.faseCd > 0 || p.morto > 0) return;
   const gratis = temBuff(p, 'sobrecarga');
-  if(!gratis && p.carga < 50){
+  if(!gratis && p.carga < CUSTO_FASE){
     if(p.local) toast('CARGA INSUFICIENTE');
     return;
   }
-  if(!gratis) p.carga -= 50;
-  p.faseT = 2.5; p.faseCd = gratis ? 2.5 : 8;
+  if(!gratis) p.carga -= CUSTO_FASE;
+  /* Era 2,5s de duração com 2,5s de recarga na Sobrecarga: recarga IGUAL à
+     duração = invulnerabilidade sem intervalo. E fora dela, 2,5 em 8 já dava
+     31% da partida intocável. Agora a recarga nunca desce de 6s. */
+  p.faseT = 2.2; p.faseCd = gratis ? 6 : 10;
   sfx('phase');
   if(p.local) toast('MODO FASE');
 }
@@ -2090,7 +2228,7 @@ function fimDeJogo(){
   gravarSave();
   el('overStats').innerHTML =
     `Pontos: <b style="color:var(--accent)">${G.score}</b> &nbsp;·&nbsp; Fase ${G.fase} &nbsp;·&nbsp; Recorde ${save.recorde}<br>
-     Nível ${save.charLevel} &nbsp;·&nbsp; ${save.coins} créditos`;
+     Nível ${save.charLevel} &nbsp;·&nbsp; ${save.coins} créditos` + placarFinal();
 
   // toda partida conta e vai no nome do perfil; só pede se ainda não houver
   if(G.score > 0){
@@ -2100,6 +2238,34 @@ function fimDeJogo(){
   }
   G.estado = 'over';
   mostrar('ovOver');
+}
+
+/* Placar de encerramento com mais de um jogador. No COMPETITIVO ninguém era
+   declarado vencedor: a única diferença entre os dois modos no código inteiro
+   era uma coroa no placar lateral, e a tela final mostrava só o P1. */
+function placarFinal(){
+  if(G.players.length < 2) return '';
+  const ordem = G.players.slice().sort((a,b) => b.score - a.score);
+  const versus = G.modo === 'versus';
+  const empate = versus && ordem.length > 1 && ordem[0].score === ordem[1].score;
+  let h = '<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">';
+  if(versus){
+    h += empate
+      ? '<b style="color:var(--accent)">EMPATE!</b><br>'
+      : `<b style="color:#ffd23f">🏆 ${escaparHtml(ordem[0].nome)} VENCEU</b><br>`;
+  }else{
+    const total = G.players.reduce((s,p) => s + p.score, 0);
+    h += `<b style="color:var(--accent)">EQUIPE: ${total} pontos</b><br>`;
+  }
+  h += ordem.map((p,i) =>
+    `<span style="color:${p.par[0]}">${versus ? (i+1)+'º ' : ''}${escaparHtml(p.nome)}</span>` +
+    ` <b>${p.score}</b>`).join(' &nbsp;·&nbsp; ');
+  return h + '</div>';
+}
+// nomes já são sanitizados na entrada, mas quem monta HTML escapa de novo
+function escaparHtml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 /* ==========================================================================
@@ -3963,6 +4129,11 @@ function atualizarHud(){
     b.style.color = G.bioma.cor;
   }
   el('hLives').textContent = meu ? ('♥'.repeat(Math.max(0, meu.vidas)) || '—') : '—';
+  const faltam = Math.max(0, G.restantes | 0);
+  const nc = el('hCores');
+  nc.textContent = faltam;
+  // últimos 10: vira alerta, é quando o jogador precisa saber onde procurar
+  nc.style.color = faltam === 0 ? 'var(--dim)' : faltam <= 10 ? '#ffd23f' : '';
   el('hCoins').textContent = save.coins;
   el('hChar').textContent = save.charLevel;
   const alvo = xpNecessario(save.charLevel);
@@ -3976,7 +4147,7 @@ function atualizarHud(){
   const custoP = (p && p.pulsoCusto) || a.pulsoCusto;
   atualizarAb('abDash',  true,        p ? p.dashCd : 0,  (p && p.dashEspera) || a.dashCd);
   atualizarAb('abPulse', temPulso(p), p ? p.pulsoCd : 0, 1.2, !p || p.carga < custoP);
-  atualizarAb('abPhase', temFase(p),  p ? p.faseCd : 0,  8,   !p || p.carga < 50);
+  atualizarAb('abPhase', temFase(p),  p ? p.faseCd : 0,  10,  !p || p.carga < CUSTO_FASE);
 }
 
 /* placar do time: só aparece quando tem mais de um jogador */
@@ -4035,7 +4206,19 @@ function toast(txt){
 function mostrar(id){
   ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovRank','ovPerfil','ovDupla','ovOnline','ovSala','ovEspera','ovMulti']
     .forEach(o => el(o).classList.toggle('on', o === id));
-  if(id === 'ovMenu') renderMiniRanking();   // sempre com os dados frescos
+  if(id === 'ovMenu'){ renderMiniRanking(); atualizarContinuar(); }
+}
+/* Só oferece continuar quando vale a pena: abaixo da fase 4 o atalho pouparia
+   nada e ainda tiraria o aquecimento de quem está começando. */
+function faseDeRetomada(){
+  return save.faseMax >= 4 ? Math.max(1, save.faseMax - 1) : 0;
+}
+function atualizarContinuar(){
+  const b = el('btnContinuar');
+  if(!b) return;
+  const f = faseDeRetomada();
+  b.style.display = f ? '' : 'none';
+  b.textContent = 'CONTINUAR · FASE ' + f;
 }
 function esconderTudo(){ mostrar(''); }
 
@@ -4277,9 +4460,9 @@ function montarTime(){
   G.player = euJogador();
 }
 
-function novoJogo(modo){
+function novoJogo(modo, faseInicial){
   G.modo = modo || 'solo';
-  G.fase = 1; G.score = 0;
+  G.fase = Math.max(1, faseInicial || 1); G.score = 0;
   G.players = [];
   montarTime();
   G.ganhosFase = {xp:0, coins:0, pontos:0};
@@ -4590,6 +4773,7 @@ function destravarAudio(){
   try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
 }
 el('btnPlay').onclick   = () => { destravarAudio(); novoJogo('solo'); };
+el('btnContinuar').onclick = () => { destravarAudio(); novoJogo('solo', faseDeRetomada()); };
 el('btnSkins').onclick  = () => { renderSkins(); mostrar('ovSkins'); };
 el('btnPerfil').onclick = () => abrirPerfil();
 el('btnPerfilBack').onclick = () => {
@@ -4709,18 +4893,30 @@ window.addEventListener('keydown', e => {
   }
 });
 
-/* --- toque: arrasta pra dirigir (contínuo) e toque curto = dash --------- */
+/* --- toque: arrasta pra dirigir (contínuo) e toque curto = dash ---------
+   TUDO aqui olha só pro dedo que começou o arraste (tI.id). Antes usava
+   e.touches[0], que é sempre o PRIMEIRO da lista: encostar um segundo dedo
+   zerava a direção do primeiro, e soltar qualquer um dos dois disparava um
+   dash involuntário de 4 tiles pro lado errado. */
 let tI = null;
+const acharToque = (lista, id) => {
+  for(let i=0;i<lista.length;i++) if(lista[i].identifier === id) return lista[i];
+  return null;
+};
+
 cv.addEventListener('touchstart', e => {
-  const t = e.touches[0];
-  tI = {x:t.clientX, y:t.clientY, ox:t.clientX, oy:t.clientY, t:Date.now(), virou:false};
   e.preventDefault();
+  if(tI) return;                                   // já tem um dedo no comando
+  const t = e.changedTouches[0];
+  tI = {id:t.identifier, x:t.clientX, y:t.clientY,
+        ox:t.clientX, oy:t.clientY, t:Date.now(), virou:false};
 }, {passive:false});
 
 cv.addEventListener('touchmove', e => {
   if(!tI || !euJogador()) return;
+  const t = acharToque(e.touches, tI.id);
+  if(!t) return;                                   // mexeu outro dedo: ignora
   e.preventDefault();
-  const t = e.touches[0];
   const dx = t.clientX - tI.x, dy = t.clientY - tI.y;
   if(Math.hypot(dx, dy) < 22) return;              // zona morta
   const alvo = euJogador();
@@ -4731,14 +4927,19 @@ cv.addEventListener('touchmove', e => {
   tI.virou = true;
 }, {passive:false});
 
+cv.addEventListener('touchcancel', e => {
+  // chamada recebida, gesto do sistema: o dedo some sem touchend
+  if(tI && acharToque(e.changedTouches, tI.id)) tI = null;
+}, {passive:false});
+
 cv.addEventListener('touchend', e => {
   if(!tI) return;
+  const t = acharToque(e.changedTouches, tI.id);
+  if(!t) return;                                   // soltou outro dedo: não é o meu
   e.preventDefault();
   // toque curto e sem arrastar = dash
-  if(!tI.virou && Date.now() - tI.t < 300){
-    const t = e.changedTouches[0];
-    if(Math.hypot(t.clientX - tI.ox, t.clientY - tI.oy) < 24) usarDash();
-  }
+  if(!tI.virou && Date.now() - tI.t < 300 &&
+     Math.hypot(t.clientX - tI.ox, t.clientY - tI.oy) < 24) usarDash();
   tI = null;
 }, {passive:false});
 
@@ -4752,6 +4953,9 @@ function emTelaCheia(){
             document.mozFullScreenElement);
 }
 function travarRetrato(){
+  // só trava se o mapa REALMENTE for em pé: num tablet deitado isso forçava
+  // um labirinto 25x21 para uma tela vertical
+  if(ROWS <= COLS) return;
   try{
     const o = screen.orientation;
     if(o && o.lock){ const p = o.lock('portrait'); if(p && p.catch) p.catch(()=>{}); }
@@ -4771,10 +4975,11 @@ function alternarTelaCheia(){
     try{ if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); }catch(e){}
   }
 }
-document.addEventListener('fullscreenchange', () => {
-  const n = el('btnTela');
-  if(n) n.querySelector('b').textContent = emTelaCheia() ? '⤢' : '⛶';
-});
+['fullscreenchange','webkitfullscreenchange','mozfullscreenchange'].forEach(ev =>
+  document.addEventListener(ev, () => {
+    const n = el('btnTela');
+    if(n) n.querySelector('b').textContent = emTelaCheia() ? '⤢' : '⛶';
+  }));
 
 /* --- os ícones do HUD são botões de verdade (essencial no celular) ------ */
 function ligarBotao(id, acao){
@@ -4812,8 +5017,22 @@ function loop(agora){
   ultimo = agora;
 
   if(G.estado === 'jogando'){
+    /* HIT-STOP: congela a simulação por alguns quadros na mordida e na morte.
+       As partículas e o tremor continuam — é a pausa que dá peso ao impacto.
+       No online quem manda é o host, então o convidado não congela sozinho. */
+    if(G.congela > 0 && !(ONLINE() && !SOU_HOST())){
+      G.congela -= dt;
+      G.tempo += dt;
+      if(G.shake > 0) G.shake = Math.max(0, G.shake - dt*3);
+      atualizarParticulas(dt);
+      tickRede(dt);
+      desenhar();
+      requestAnimationFrame(loop);
+      return;
+    }
     if(ONLINE() && !SOU_HOST()) atualizarConvidado(dt);
     else atualizar(dt);
+    tickMusica(dt);
     tickRede(dt);
   }
   else if(G.estado === 'pausado' && ONLINE()){
@@ -4863,9 +5082,13 @@ function ajustarAltura(){
   const gaps = 26;
   app.style.setProperty('--fora', (hud + tips + gaps) + 'px');
 }
-window.addEventListener('resize', ajustarAltura);
-window.addEventListener('orientationchange', () => setTimeout(ajustarAltura, 250));
-document.addEventListener('fullscreenchange', () => setTimeout(ajustarAltura, 120));
+window.addEventListener('resize', () => { reavaliarGrade(); ajustarAltura(); });
+window.addEventListener('orientationchange',
+  () => setTimeout(() => { reavaliarGrade(); ajustarAltura(); }, 250));
+// os prefixados existem em WebView Android antiga e Safari de iPad: sem eles
+// o ícone do botão e a altura do palco ficavam desatualizados na tela cheia
+['fullscreenchange','webkitfullscreenchange','mozfullscreenchange'].forEach(ev =>
+  document.addEventListener(ev, () => setTimeout(ajustarAltura, 120)));
 
 /* O HUD muda de altura sozinho (chips de essência, número de pontos crescendo).
    Medir só no boot fazia o palco pular. Agora a medida acompanha. */
