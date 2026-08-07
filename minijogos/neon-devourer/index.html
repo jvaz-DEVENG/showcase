@@ -51,6 +51,12 @@
     .ab{width:52px;height:44px}      /* alvo de toque maior */
     .ab b{font-size:16px}
     #tips{font-size:9px;padding:0 6px}
+    /* dedo não é ponteiro: 44px é o mínimo pra não errar o botão */
+    button{min-height:44px;padding:11px 20px}
+    button.mini{min-height:32px;padding:6px 12px}
+    .aba{min-height:32px;padding:8px 14px}
+    /* o círculo continua pequeno; quem cresce é a área de toque */
+    .dots i{width:10px;height:10px;padding:7px;background-clip:content-box}
   }
 
   /* ---------- HUD ---------- */
@@ -481,7 +487,7 @@
       <div class="grid" style="max-width:400px">
         <div class="card" id="cardCriar">
           <h4>CRIAR SALA</h4>
-          <p>Gera um código de 4 letras. Passe pros seus amigos e eles entram.</p>
+          <p>Gera um código de 4 caracteres. Passe pros seus amigos e eles entram.</p>
         </div>
         <div class="card" id="cardEntrar">
           <h4>ENTRAR NUMA SALA</h4>
@@ -492,7 +498,7 @@
         <input id="codigoEntrada" class="codigo" maxlength="4"
                autocomplete="off" autocorrect="off" autocapitalize="characters"
                spellcheck="false" inputmode="text" placeholder="CÓDIGO">
-        <p class="sub" style="font-size:10px">as 4 letras que seu amigo te passou</p>
+        <p class="sub" style="font-size:10px">os 4 caracteres que seu amigo te passou</p>
         <button id="btnEntrarSala">ENTRAR</button>
       </div>
       <p class="sub" id="onlineAviso" style="color:var(--danger);min-height:14px"></p>
@@ -1011,14 +1017,22 @@ function meusAtributos(){
           pr:a.pulsoR, pc:a.pulsoCusto, es:a.escudos};
 }
 // lado do host: grava no jogador remoto o que ele mandou (também na reconexão)
+/* Tudo aqui veio de outro aparelho. Sem faixa, um cliente adulterado mandava
+   vl:1e6 (atravessava o mapa num quadro), pr:1e6 (atordoava tudo), pc:-999
+   (o pulso DAVA carga em vez de gastar) e nv:999 (destravava tudo). NaN/null
+   contaminavam p.x e propagavam NaN até o render do host. */
+const naFaixa = (v, min, max, padrao) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : padrao;
+};
 function aplicarAtributos(p, d){
   if(!p || !d) return;
-  if(d.nv != null) p.nivel      = d.nv;
-  if(d.vl != null) p.velBase    = d.vl;
-  if(d.dc != null) p.dashEspera = d.dc;
-  if(d.pr != null) p.pulsoR     = d.pr;
-  if(d.pc != null) p.pulsoCusto = d.pc;
-  if(d.es != null) p.escudos    = d.es;
+  if(d.nv != null) p.nivel      = Math.round(naFaixa(d.nv, 1, 99, 1));
+  if(d.vl != null) p.velBase    = naFaixa(d.vl, 3, 12, 5.6);
+  if(d.dc != null) p.dashEspera = naFaixa(d.dc, 0.4, 10, 4.5);
+  if(d.pr != null) p.pulsoR     = naFaixa(d.pr, 1, 8, 3.2);
+  if(d.pc != null) p.pulsoCusto = Math.round(naFaixa(d.pc, 10, 100, 40));
+  if(d.es != null) p.escudos    = Math.round(naFaixa(d.es, 0, 5, 0));
 }
 /* Talento escolhido no meio da corrida muda os números na hora. Os jogadores
    LOCAIS releem do save; os remotos mantêm o que veio pela rede. */
@@ -1066,6 +1080,16 @@ function tickBuffs(p, dt){
 function centro(t){ return t*TILE + TILE/2; }
 function tileDe(px){ return Math.floor(px/TILE); }
 
+/* Distância pelo caminho MAIS CURTO, contando o túnel. Sem isso, duas
+   entidades encostadas nas bordas opostas (1 tile de distância real) eram
+   lidas como meia tela: o mob te atravessava sem tirar vida, o pulso não o
+   atordoava e ele deixava de te ver como alvo mais próximo. */
+function distWrap(ax, ay, bx, by){
+  let dx = bx - ax;
+  if(dx > W/2) dx -= W; else if(dx < -W/2) dx += W;
+  return Math.hypot(dx, by - ay);
+}
+
 function livre(tx, ty, atravessa){
   if(ty < 0 || ty >= ROWS) return false;
   tx = ((tx % COLS) + COLS) % COLS;
@@ -1080,12 +1104,17 @@ function criarPlayer(idx, cfg){
   cfg = cfg || {};
   const off = [[0,0],[1,0],[0,1],[1,1]][idx % 4];
   const sk = cfg.skin ? (SKINS.find(s => s.id === cfg.skin) || SKINS[0]) : skinAtual();
-  const par = cfg.skin ? sk.cores[(cfg.cor || 0) % sk.cores.length] : corAtual(sk);
+  /* A cor vem da rede: -1 dava sk.cores[-1] === undefined, p.par ficava
+     undefined e o primeiro p.par[0] derrubava o render do host inteiro.
+     "x" e 1e400 faziam o mesmo via NaN. Módulo positivo resolve os três. */
+  const cn = Number(cfg.cor);
+  const ci = (((Number.isFinite(cn) ? Math.trunc(cn) : 0) % sk.cores.length) + sk.cores.length) % sk.cores.length;
+  const par = cfg.skin ? sk.cores[ci] : corAtual(sk);
   return {
     idx,
     nome:  cfg.nome  || save.ultimoNome || 'EU',
     skin:  sk.id,
-    cor:   cfg.cor != null ? cfg.cor : (save.cores[sk.id] || 0),
+    cor:   cfg.skin ? ci : (save.cores[sk.id] || 0),
     par,                                   // [cor, brilho] já resolvido
     local: cfg.local !== false,            // false = controlado por outro aparelho
     controles: cfg.controles || 'wasd',
@@ -1130,7 +1159,7 @@ function maisProximo(x, y){
   let melhor = null, md = Infinity;
   for(const p of G.players){
     if(p.fora || p.morto > 0) continue;
-    const d = Math.hypot(p.x - x, p.y - y);
+    const d = distWrap(x, y, p.x, p.y);
     if(d < md){ md = d; melhor = p; }
   }
   return melhor;
@@ -1679,7 +1708,7 @@ function atualizarJogador(p, dt, a){
   /* --- colisões com mobs --- */
   for(const m of G.mobs){
     if(m.estado === 'olhos' || m.saida > 0) continue;
-    if(Math.hypot(m.x-p.x, m.y-p.y) > TILE*0.72) continue;
+    if(distWrap(p.x, p.y, m.x, m.y) > TILE*0.72) continue;
 
     if(m.estado === 'assustado'){
       if(devorarMob(m, p)) break;      // a lista foi alterada: sai do laço
@@ -1787,7 +1816,7 @@ function atualizarTiros(dt){
     // acerta o primeiro jogador que estiver no caminho
     for(const p of G.players){
       if(p.fora || p.morto > 0 || p.invuln > 0 || p.faseT > 0) continue;
-      if(Math.hypot(t.x-p.x, t.y-p.y) >= TILE*0.55) continue;
+      if(distWrap(p.x, p.y, t.x, t.y) >= TILE*0.55) continue;
       p.lento = 2.6;
       G.tiros.splice(i,1);
       explodir(t.x, t.y, '#b46bff', 8);
@@ -1957,7 +1986,7 @@ function pulsoOnda(p, raio, stun){
   let n = 0;
   for(const m of G.mobs){
     if(m.estado === 'olhos') continue;
-    if(Math.hypot(m.x-p.x, m.y-p.y) <= raio){
+    if(distWrap(p.x, p.y, m.x, m.y) <= raio){
       m.stun = 2.6; m.lastTile = ''; n++;
       explodir(m.x, m.y, '#ffffff', 6);
     }
@@ -2044,13 +2073,19 @@ function concluirFase(){
   gravarSave();
   sfx('level');
   G.estado = 'upgrades';
-  if(SOU_HOST()) RT.enviar('espera', {f: G.fase - 1});
+  if(SOU_HOST()) RT.enviar('espera', {f: G.fase - 1, h: RT.uid});
   abrirUpgrades('FASE ' + (G.fase-1) + ' CONCLUÍDA');
 }
 
 function fimDeJogo(){
-  if(SOU_HOST() && ONLINE())
-    RT.enviar('acabou', {ps: G.players.map(p => p.score), f: G.fase});
+  if(SOU_HOST() && ONLINE()){
+    RT.enviar('acabou', {ps: G.players.map(p => p.score), f: G.fase, h: RT.uid});
+    /* O host também tem que largar a sala. Antes ele seguia hospedando de
+       dentro do menu: socket vivo, respondendo 'ola' de estranhos, e o
+       "jogar de novo" montava um co-op LOCAL com os pares remotos ainda
+       apontando pros bonecos — a entrada de um convidado dirigia o P2. */
+    setTimeout(() => { if(SOU_HOST()) RT.desligar(); }, 150);
+  }
   save.recorde = Math.max(save.recorde, G.score);
   gravarSave();
   el('overStats').innerHTML =
@@ -2162,7 +2197,7 @@ const RT = {
       const url = `${NUVEM.url.replace('https://','wss://')}/realtime/v1/websocket` +
                   `?apikey=${NUVEM.chave}&vsn=1.0.0`;
       let ws;
-      try{ ws = new WebSocket(url); }catch(e){ return reject(e); }
+      try{ ws = new WebSocket(url); }catch(e){ return reject(new Error('não deu para conectar')); }
       this.ws = ws;
 
       const limite = setTimeout(() => reject(new Error('tempo esgotado')), 12000);
@@ -2275,6 +2310,7 @@ const RT = {
     this.tentativas = 0;
     this.fechar();
     this.codigo = null; this.pares = []; this.pacote = 0;
+    this.hostUid = null; this.ultimoN = 0; this.semEstado = 0;
   }
 };
 
@@ -2295,6 +2331,7 @@ function serializarMapa(){
   for(let y=0;y<ROWS;y++)
     for(let x=0;x<COLS;x++){ g += G.grid[y][x]; pl += G.pellets[y][x]; }
   return {
+    h: RT.uid,                       // carimbo do host em TODA saída de mapa
     f: G.fase, b: G.bioma.id, g, pl,
     co: COLS, ro: ROWS,              // convidado adota a grade do host
     sx: G.spawn.x, sy: G.spawn.y,
@@ -2306,7 +2343,12 @@ function serializarMapa(){
 }
 
 function aplicarMapa(d){
-  ajustarGrade(d.co, d.ro);          // ANTES de ler as strings: o passo depende disso
+  /* Pacote truncado virava labirinto todo de parede: +'' dá NaN, livre()
+     só aceita 0, e o convidado ficava preso no spawn até a fase acabar. */
+  const cols = +d.co, rows = +d.ro, n = cols * rows;
+  if(!(cols > 0 && rows > 0) || typeof d.g !== 'string' || typeof d.pl !== 'string' ||
+     d.g.length < n || d.pl.length < n) return false;
+  ajustarGrade(cols, rows);          // ANTES de ler as strings: o passo depende disso
   G.fase  = d.f;
   G.modo  = d.mo || 'coop';
   G.bioma = BIOMAS.find(b => b.id === d.b) || BIOMAS[0];
@@ -2338,6 +2380,7 @@ function aplicarMapa(d){
   }
   G.tiros = []; G.parts = [];
   G.mazeCanvas = renderMaze();
+  return true;
 }
 
 /* ---- pacote de estado: só o essencial, arredondado pra caber ---- */
@@ -2349,8 +2392,12 @@ function montarEstado(){
   G.comidos = [];
   return {
     n: ++RT.pacote,
+    h: RT.uid,
     ps: G.players.map(p => [Math.round(p.x), Math.round(p.y), p.dir.x, p.dir.y,
-                            p.score, p.vidas, p.fora?1:0, p.morto>0?1:0, Math.round(p.carga)]),
+                            p.score, p.vidas, p.fora?1:0, p.morto>0?1:0, Math.round(p.carga),
+                            // flags de velocidade: sem isso o convidado previa
+                            // errado no gelo/esteira e o boneco borrachava
+                            (p.lento>0?1:0) | (temBuff(p,'furia')?2:0) | (p.derrapa>0?4:0)]),
     ms: G.mobs.map(m => [Math.round(m.x), Math.round(m.y), m.dir.x, m.dir.y,
                          EST_MOB[m.estado]||0, m.stun>0?1:0, m.tipo]),
     dv: Math.round(G.devorar*10),
@@ -2361,11 +2408,13 @@ function montarEstado(){
 }
 
 function aplicarEstado(d){
+  if(!Array.isArray(d.ps) || !Array.isArray(d.ms)) return;
   // jogadores: o meu tem correção suave; os outros vão direto
   d.ps.forEach((a, i) => {
     const p = G.players[i];
-    if(!p) return;
+    if(!p || !Array.isArray(a)) return;
     p.score = a[4]; p.vidas = a[5]; p.fora = !!a[6]; p.carga = a[8];
+    p.flags = a[9] | 0;
     const morto = !!a[7];
     p.morto = morto ? Math.max(p.morto, 0.5) : 0;
     if(i === G.eu){
@@ -2426,12 +2475,23 @@ function aplicarEntrada(d){
   par.visto = agoraSeg();
   const p = G.players[par.idx];
   if(!p) return;
-  if(p.fora){                       // voltou a dar sinal: readmite na partida
-    p.fora = false;
+  /* 'ausente' (sumiu da rede) e 'fora' (perdeu as vidas) são coisas
+     DIFERENTES. Misturar os dois ressuscitava o convidado morto a cada
+     pacote — e como ninguém ficava 'fora' pra sempre, o fim de jogo nunca
+     disparava numa sala online. */
+  if(p.ausente){
+    p.ausente = false;
     toast((par.nome || 'JOGADOR') + ' VOLTOU');
   }
-  p.quer = {x: d.d[0], y: d.d[1]};
-  for(const a of (d.a || [])){
+  if(p.fora && p.vidas > 0) p.fora = false;   // só readmite quem ainda tem vida
+  if(p.fora) return;                          // morto não anda nem usa habilidade
+
+  // NADA que vem da rede é confiável: direção só unitária e nunca diagonal
+  const dx = Math.sign(Number(d.d && d.d[0]) || 0);
+  const dy = Math.sign(Number(d.d && d.d[1]) || 0);
+  p.quer = (dx && dy) ? DIRS.none : {x: dx, y: dy};
+  const acoes = Array.isArray(d.a) ? d.a.slice(0, 3) : [];
+  for(const a of acoes){
     if(a === 'dash')  usarDash(p);
     if(a === 'pulso') usarPulso(p);
     if(a === 'fase')  usarFase(p);
@@ -2439,55 +2499,78 @@ function aplicarEntrada(d){
 }
 
 /* ------------------------- ROTEADOR DE MENSAGENS ----------------------- */
+/* O broadcast do Realtime é aberto: TODO cliente do canal recebe e envia
+   tudo. Sem checar a origem, qualquer um mandava 'cheio' com o uid alheio e
+   expulsava a vítima, ou 'acabou'/'fim' e encerrava a partida de todos.
+   O host carimba 'h' com o próprio uid; o convidado fixa esse uid no
+   primeiro 'time' e ignora comando autoritativo que venha de outro. */
+const EVENTOS_DO_HOST = ['time','mapa','estado','espera','acabou','fim','cheio','vivo'];
+function doHost(evento, d){
+  if(!EVENTOS_DO_HOST.includes(evento)) return true;
+  if(!RT.hostUid) return true;                 // ainda não sei quem é: aceito o 1º
+  return d && d.h === RT.hostUid;
+}
+
 function receberDaRede(evento, d){
+  if(!d || typeof d !== 'object') return;
+  if(!SOU_HOST() && !doHost(evento, d)) return;
   switch(evento){
     case 'ola': {                                // convidado se apresentando
       if(!SOU_HOST()) return;
+      /* O nome vem de outro aparelho e vai parar em innerHTML no lobby, no
+         placar e na pausa. Sem passar por limparNome, um convidado podia
+         mandar '<img src=x onerror=...>' e executar script na aba de todo
+         mundo — e um nome de 5000 letras inflava todo pacote de elenco. */
+      const nome = limparNome(d.n) || 'JOGADOR';
       const conhecido = RT.pares.find(p => p.uid === d.u);
       if(conhecido){
         // é reconexão: devolve o MESMO lugar em vez de criar outro slot
         conhecido.visto = agoraSeg();
         conhecido.voltou = true;
+        conhecido.nome = nome;
         const vp = G.players[conhecido.idx];
-        if(vp){ vp.fora = false; vp.nome = d.n || vp.nome; aplicarAtributos(vp, d); }
+        if(vp){ vp.ausente = false; vp.nome = nome; aplicarAtributos(vp, d); }
         enviarTime();
-        if(G.grid && G.estado === 'jogando') RT.enviar('mapa', serializarMapa());
+        if(G.grid && G.estado === 'jogando') enviarMapaPara(d.u);
         return;
       }
-      if(G.players.length >= 4){ RT.enviar('cheio', {u:d.u}); return; }
+      if(G.players.length >= 4){ RT.enviar('cheio', {u:d.u, h:RT.uid}); return; }
       const idx = G.players.length;
-      RT.pares.push({uid:d.u, idx, nome:d.n, visto:agoraSeg()});
-      const np = criarPlayer(idx, {nome:d.n, skin:d.s, cor:d.c, local:false, controles:'rede',
-                                   nivel:d.nv, vel:d.vl, dashEspera:d.dc,
-                                   pulsoR:d.pr, pulsoCusto:d.pc});
-      np.vidas = 3 + Math.min(3, Math.floor(nivelDe(np)/4));
+      RT.pares.push({uid:d.u, idx, nome, visto:agoraSeg()});
+      const np = criarPlayer(idx, {nome, skin:d.s, cor:d.c, local:false, controles:'rede'});
+      aplicarAtributos(np, d);
+      np.vidas = vidasDe(np);
       G.players.push(np);
-      toast((d.n || 'JOGADOR') + ' ENTROU NA SALA');
+      toast(nome + ' ENTROU NA SALA');
       enviarTime();
-      // entrou com a partida rolando: manda o mapa pra ele não ficar na tela vazia
-      if(G.grid && G.estado === 'jogando') RT.enviar('mapa', serializarMapa());
+      // entrou com a partida rolando: manda o mapa só PRA ELE. Num broadcast,
+      // todo mundo renascia no spawn e perdia as essências
+      if(G.grid && G.estado === 'jogando') enviarMapaPara(d.u);
       break;
     }
 
     case 'time': {                               // host anunciando o elenco
       if(SOU_HOST()) return;
+      const js = Array.isArray(d.js) ? d.js : [];
+      if(!js.length) return;                  // 'time' malformado derrubava o convidado
+      if(!RT.hostUid && d.h) RT.hostUid = d.h;  // a partir daqui só aceito ele
       if(RT.esperaOla){ clearTimeout(RT.esperaOla); RT.esperaOla = null; }
-      const meu = (d.js || []).findIndex(j => j.u === RT.uid);
+      const meu = js.findIndex(j => j.u === RT.uid);
       if(meu < 0 && G.players.length){
         // meu uid sumiu da lista: NÃO assumir o índice 0 (viraria o boneco do host)
         return;
       }
-      G.modo = d.mo || 'coop';
+      G.modo = d.mo === 'versus' ? 'versus' : 'coop';
       // merge por uid: preserva posição, buffs e interpolação de quem já existe
       const antigos = G.players.slice();
-      G.players = d.js.map((j, i) => {
+      G.players = js.map((j, i) => {
         const velho = antigos.find(p => p.uid === j.u) || antigos[i];
         const p = velho && velho.uid === j.u ? velho
                 : criarPlayer(i, {nome:j.n, skin:j.s, cor:j.c,
                                   local: j.u === RT.uid, controles:'wasd'});
         p.uid   = j.u;
         p.idx   = i;
-        p.nome  = j.n;
+        p.nome  = limparNome(j.n) || 'JOGADOR';   // nome alheio nunca entra cru
         p.local = j.u === RT.uid;
         if(j.v != null) p.vidas = j.v;
         return p;
@@ -2500,14 +2583,20 @@ function receberDaRede(evento, d){
 
     case 'mapa':                                 // fase nova chegando
       if(SOU_HOST()) return;
-      aplicarMapa(d);
+      if(d.para && d.para !== RT.uid) return;    // mapa endereçado a outro
+      if(!aplicarMapa(d)) return;                // pacote truncado: ignora
       G.players.forEach(pl => { pl.buffs = {}; pl.carga = 0; renascer(pl); });
       G.estado = 'jogando';
+      RT.semEstado = 0;
       esconderTudo();
       break;
 
     case 'estado':
       if(SOU_HOST()) return;
+      // pacote atrasado que chega depois de um mais novo rebobinava tudo
+      if(d.n != null && d.n <= (RT.ultimoN || 0)) return;
+      if(d.n != null) RT.ultimoN = d.n;
+      RT.semEstado = 0;
       aplicarEstado(d);
       break;
 
@@ -2557,6 +2646,7 @@ function receberDaRede(evento, d){
       break;
 
     case 'vivo':          // batida do host fora da partida; presença já registrada
+      RT.semEstado = 0;
       break;
 
     case 'fim':
@@ -2565,8 +2655,14 @@ function receberDaRede(evento, d){
   }
 }
 
+// mapa endereçado: só quem pediu aplica. Broadcast fazia todo mundo renascer.
+function enviarMapaPara(uid){
+  RT.enviar('mapa', Object.assign(serializarMapa(), {para: uid, h: RT.uid}));
+}
+
 function enviarTime(){
   RT.enviar('time', {
+    h: RT.uid,                        // carimbo do host: convidado ignora forjados
     mo: G.modo,
     js: G.players.map((p, i) => ({
       u: i === 0 ? RT.uid : (RT.pares.find(x => x.idx === i) || {}).uid,
@@ -2586,18 +2682,31 @@ function enviarTime(){
    Total típico: ~40/s, com folga de 60% até o teto. */
 const HZ_ESTADO = 10;
 const HZ_KEEPALIVE = 1;
+const HZ_ENTRADA_MAX = 10;    // teto do convidado: ver comentário abaixo
 
-const ESTADOS_CONECTADO = ['jogando', 'pausado', 'espera', 'sala'];
+const ESTADOS_CONECTADO = ['jogando', 'pausado', 'espera', 'sala', 'upgrades'];
 
 function tickRede(dt){
   if(!ONLINE()) return;
   if(!ESTADOS_CONECTADO.includes(G.estado)) return;
   const agora = agoraSeg();
 
+  // quanto tempo faz que o host não fala (só o convidado usa)
+  if(!SOU_HOST()) RT.semEstado = (RT.semEstado || 0) + dt;
+
   // detecta silêncio do outro lado e reconecta antes que o jogo pareça travado
   if(RT.entrou && RT.visto && G.estado !== 'sala' && agora - RT.visto > 8){
     RT.visto = agora;                       // não redispara em rajada
-    RT.caiu('silêncio de ' + 6 + 's');
+    RT.caiu('silêncio de 8s');
+    return;
+  }
+
+  /* Reconectar num canal sem host dá 'entrou = true' e nada mais: o convidado
+     ficava num jogo-zumbi eterno, caindo e reconectando a cada 8s. Depois de
+     25s sem UMA palavra do host, desiste e avisa. */
+  if(!SOU_HOST() && RT.semEstado > 25){
+    toast('O ANFITRIÃO CAIU — SALA ENCERRADA');
+    sairDaSala();
     return;
   }
 
@@ -2608,8 +2717,10 @@ function tickRede(dt){
       // convidado interpretaria o silêncio como queda e se desconectaria
       if(agora - RT.ultimoEstado >= 1/HZ_KEEPALIVE){
         RT.ultimoEstado = agora;
-        RT.enviar('vivo', {t: Math.round(agora)});
+        RT.enviar('vivo', {t: Math.round(agora), h: RT.uid});
       }
+      // presença do convidado continua contando fora da partida
+      expirarAusentes(agora);
       return;
     }
     if(agora - RT.ultimoEstado >= 1/HZ_ESTADO){
@@ -2628,22 +2739,41 @@ function tickRede(dt){
   const mudou = assinatura !== RT.ultimaAssinatura;
   const venceu = agora - RT.ultimaEntrada >= 1/HZ_KEEPALIVE;
   if(!mudou && !venceu) return;
+  /* "só quando muda" não é teto nenhum: arrastando o dedo, o touchmove
+     reancora a cada quadro e a direção muda 60x/s -> 180/s de fan-out,
+     sozinho acima do limite de 100. Um convidado nunca passa de 10/s. */
+  if(!venceu && agora - RT.ultimaEntrada < 1/HZ_ENTRADA_MAX) return;
   RT.ultimaAssinatura = assinatura;
   RT.ultimaEntrada = agora;
   RT.enviar('entrada', e);
 }
 
-// host: convidado que não dá sinal há 8s é marcado como ausente
+// host: convidado que não dá sinal há 12s vira ausente; há 45s, perde o lugar
 function expirarAusentes(agora){
-  for(const par of RT.pares){
+  for(let i = RT.pares.length - 1; i >= 0; i--){
+    const par = RT.pares[i];
     if(!par.visto) par.visto = agora;
     const p = G.players[par.idx];
     if(!p) continue;
+    const calado = agora - par.visto;
     // 12s é folgado de propósito: o convidado só fala quando muda de direção,
     // então um jogador parado numa esquina passa segundos legitimamente calado
-    if(agora - par.visto > 12 && !p.fora){
-      p.fora = true;
+    if(calado > 12 && !p.ausente){
+      p.ausente = true;
       toast((par.nome || 'JOGADOR') + ' PERDEU A CONEXÃO');
+    }
+    /* Libera o lugar de quem sumiu de vez. Sem isto o slot ficava preso: o
+       'saiu' do pagehide não sai quando a rede cai ou o app é morto, e
+       depois de 3 travadas a sala recusava todo mundo com 'SALA CHEIA'. */
+    if(calado > 45 && G.estado !== 'jogando'){
+      toast((par.nome || 'JOGADOR') + ' SAIU (SEM RESPOSTA)');
+      G.players.splice(par.idx, 1);
+      RT.pares.splice(i, 1);
+      RT.pares.forEach(x => { if(x.idx > par.idx) x.idx--; });
+      G.players.forEach((pl, k) => pl.idx = k);
+      if(G.eu > par.idx) G.eu--;
+      G.player = euJogador();
+      enviarTime();
     }
   }
 }
@@ -2662,7 +2792,14 @@ function atualizarConvidado(dt){
     eu.dashCd  = Math.max(0, eu.dashCd - dt);
     eu.pulsoCd = Math.max(0, eu.pulsoCd - dt);
     eu.faseCd  = Math.max(0, eu.faseCd - dt);
-    eu.vel = (eu.velBase || a.vel) * (temBuff(eu,'furia') ? 1.35 : 1) * (G.devorar > 0 ? 1.06 : 1);
+    // flags vindas do host: lento(1) fúria(2) derrapando(4)
+    const fl = eu.flags | 0;
+    const mod = G.bioma ? G.bioma.mod : null;
+    eu.vel = (eu.velBase || a.vel)
+           * ((fl & 1) ? 0.55 : 1)
+           * ((fl & 2) || temBuff(eu,'furia') ? 1.35 : 1)
+           * (G.devorar > 0 ? 1.06 : 1)
+           * (mod === 'gelo' ? 1.18 : 1);
     eu.derrapa = Math.max(0, (eu.derrapa||0) - dt);
     mover(eu, dt, eu.faseT > 0, escolhaPlayer);
     const and = !!(eu.dir.x || eu.dir.y);
@@ -2673,8 +2810,12 @@ function atualizarConvidado(dt){
   /* Entre dois pacotes (100ms a 10Hz) o alvo ficaria congelado e o boneco
      remoto arrastaria atrás. Como sabemos a direção de cada um, seguimos
      estimando o movimento até o próximo pacote corrigir. */
+  /* ...mas com prazo de validade. Se o host sumiu, extrapolar para sempre
+     fazia os bonecos atravessarem o mapa inteiro (26 tiles em 5s no teste).
+     Sem pacote há mais de 0,6s, congela em vez de inventar. */
+  const parado = RT.semEstado > 0.6;
   const suave = Math.min(1, dt * 14);
-  const passoP = a.vel * TILE * dt;
+  const passoP = parado ? 0 : a.vel * TILE * dt;
   for(const p of G.players){
     if(p === eu || p.alvoX === undefined) continue;
     p.alvoX += p.dir.x * passoP;
@@ -2686,7 +2827,7 @@ function atualizarConvidado(dt){
   }
   for(const m of G.mobs){
     if(m.alvoX === undefined) continue;
-    const passoM = (m.velBase || 5) * TILE * dt *
+    const passoM = parado ? 0 : (m.velBase || 5) * TILE * dt *
                    (m.estado === 'assustado' ? 0.55 : m.estado === 'olhos' ? 2.4 : 1);
     m.alvoX += m.dir.x * passoM;
     m.alvoY += m.dir.y * passoM;
@@ -3253,27 +3394,37 @@ function desenhar(){
 
   if(G.mazeCanvas) ctx.drawImage(G.mazeCanvas, 0, 0);
 
-  // pellets
+  /* Núcleos comuns num caminho só: eram ~230 beginPath+fill por quadro, todos
+     com a MESMA cor — quase metade dos desenhos do quadro, e nenhum deles se
+     mexe. Agora é 1 fill. Os super continuam à parte (cor e brilho próprios). */
   const pulso = 0.5 + Math.sin(G.tempo*4)*0.5;
+  const supers = [];
+  ctx.fillStyle = '#cfe4ff';
+  ctx.globalAlpha = .85;
+  ctx.beginPath();
   for(let y=0;y<ROWS;y++){
+    const linha = G.pellets[y];
     for(let x=0;x<COLS;x++){
-      const t = G.pellets[y][x];
+      const t = linha[x];
       if(!t) continue;
-      const px = centro(x), py = centro(y);
       if(t === 1){
-        ctx.fillStyle = '#cfe4ff';
-        ctx.globalAlpha = .85;
-        ctx.beginPath(); ctx.arc(px, py, 2.1, 0, 7); ctx.fill();
-      }else{
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = '#ffd23f';
-        ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = QUALIDADE*14 + pulso*10;
-        ctx.beginPath(); ctx.arc(px, py, 4.5 + pulso*1.6, 0, 7); ctx.fill();
-        ctx.shadowBlur = QUALIDADE*0;
-      }
+        const px = centro(x), py = centro(y);
+        ctx.moveTo(px + 2.1, py);          // sem isto os círculos se ligam
+        ctx.arc(px, py, 2.1, 0, 7);
+      }else supers.push([centro(x), centro(y)]);
     }
   }
+  ctx.fill();
   ctx.globalAlpha = 1;
+  if(supers.length){
+    ctx.fillStyle = '#ffd23f';
+    ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = QUALIDADE*(14 + pulso*10);
+    const r = 4.5 + pulso*1.6;
+    ctx.beginPath();
+    for(const s of supers){ ctx.moveTo(s[0] + r, s[1]); ctx.arc(s[0], s[1], r, 0, 7); }
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
 
   // partículas
   for(const q of G.parts){
@@ -3390,7 +3541,7 @@ function desenharModificadores(){
     // radar: mobs fora da luz viram um ponto fraco
     for(const m of G.mobs){
       if(m.estado === 'olhos') continue;
-      if(Math.hypot(m.x-p.x, m.y-p.y) < raio) continue;
+      if(distWrap(p.x, p.y, m.x, m.y) < raio) continue;
       ctx.globalAlpha = .35 + Math.sin(G.tempo*6)*0.15;
       ctx.fillStyle = m.estado === 'assustado' ? '#2b5bff' : m.cor;
       ctx.beginPath(); ctx.arc(m.x, m.y, 3, 0, 7); ctx.fill();
@@ -4318,7 +4469,7 @@ function aoDigitarCodigo(){
 function tentarEntrar(){
   const cod = normalizarCodigo(el('codigoEntrada').value);
   if(cod.length < 4){
-    el('onlineAviso').textContent = 'o código tem 4 letras';
+    el('onlineAviso').textContent = 'o código tem 4 caracteres';
     return;
   }
   entrarNaSala(cod);
@@ -4350,6 +4501,12 @@ async function entrarNaSala(codigo){
   try{
     await RT.conectar(codigo, 'guest');
     const sk = skinAtual();
+    /* Zerar o elenco ANTES de mandar o 'ola'. Quem vinha de um co-op local
+       chegava com G.players.length === 2, então a 1ª tentativa se dava por
+       respondida, não agendava retry, e se aquele único 'ola' se perdesse o
+       jogador ficava preso em "conectando..." sem host e sem mensagem. */
+    G.estado = 'sala';
+    G.players = [];
     // reenvia ate o host confirmar: uma unica mensagem perdida nao pode expulsar
     let tentativasOla = 0;
     const mandarOla = () => {
@@ -4367,8 +4524,6 @@ async function entrarNaSala(codigo){
       RT.esperaOla = setTimeout(mandarOla, 1600);
     };
     mandarOla();
-    G.estado = 'sala';
-    G.players = [];
     el('onlineAviso').textContent = '';
     renderSala();
     mostrar('ovSala');
@@ -4489,8 +4644,12 @@ el('btnSkinsBack').onclick = () => mostrar('ovMenu');
 el('btnNext').onclick   = proximaFase;
 el('btnResume').onclick = retomar;
 el('btnQuit').onclick   = () => { gravarSave(); if(ONLINE()) sairDaSala(); else { G.estado='menu'; mostrar('ovMenu'); } };
-el('btnRetry').onclick  = () => novoJogo(G.modo);
-el('btnMenu').onclick   = () => { G.estado = 'menu'; mostrar('ovMenu'); };
+// depois do fim de jogo a sala já morreu: nunca recomeçar "dentro" dela
+el('btnRetry').onclick  = () => { if(ONLINE()) sairDaSala(); novoJogo('solo'); };
+el('btnMenu').onclick   = () => {
+  if(ONLINE()) sairDaSala();
+  G.estado = 'menu'; mostrar('ovMenu');
+};
 el('btnVerRank').onclick = abrirRanking;
 el('btnVerMais').onclick = abrirRanking;
 el('btnRankBack').onclick = () => { G.estado = 'menu'; mostrar('ovMenu'); };
@@ -4664,7 +4823,13 @@ function loop(agora){
     else atualizarConvidado(dt);
     tickRede(dt);
   }
-  else if(G.grid) { atualizarParticulas(dt); G.tempo += dt; }
+  else {
+    if(G.grid){ atualizarParticulas(dt); G.tempo += dt; }
+    /* ESSENCIAL no online: sem isto a rede parava na tela de talentos e no
+       lobby. O host ficava 40s calado escolhendo upgrade e, ao voltar,
+       marcava TODOS os convidados como desconectados. */
+    if(ONLINE()) tickRede(dt);
+  }
 
   desenhar();
 
@@ -4683,8 +4848,11 @@ function loop(agora){
 
 /* Fechar a aba sem avisar deixava o jogador como fantasma na sala do host.
    pagehide cobre fechar, recarregar e trocar de app no celular. */
-window.addEventListener('pagehide', () => {
-  if(ONLINE()) { try{ RT.enviar(SOU_HOST() ? 'fim' : 'saiu', {u: RT.uid}); }catch(e){} }
+window.addEventListener('pagehide', ev => {
+  // persisted = foi só pro bfcache (trocou de aba/app). O host que atendia
+  // uma ligação transmitia 'fim' e expulsava a sala inteira.
+  if(ev && ev.persisted) return;
+  if(ONLINE()) { try{ RT.enviar(SOU_HOST() ? 'fim' : 'saiu', {u: RT.uid, h: RT.uid}); }catch(e){} }
 });
 
 /* --- mede HUD + dicas pra o mapa ocupar exatamente o resto da tela ------ */
