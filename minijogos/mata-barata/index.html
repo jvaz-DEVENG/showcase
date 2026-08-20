@@ -194,7 +194,31 @@
   footer a{ color:var(--accent); text-decoration:none; }
   footer a:hover{ text-decoration:underline; }
   footer .ver{ color:var(--muted); font-weight:600; }
+
+  /* modo vitrine: o portfolio da raiz embute o jogo num iframe reduzido e ele
+     se joga sozinho. Sem ?attract=1 nada disso vale. */
+  body.attract{ padding:4px; gap:6px; }
+  body.attract h1,
+  body.attract .subtitle,
+  body.attract footer{ display:none; }
 </style>
+<script>
+/* Modo vitrine (?attract=1): a pagina de portfolio embute este jogo e um bot
+   joga sozinho. Sem isto, o bot gravaria recorde/progresso por cima do de
+   quem joga de verdade. Precisa vir antes do script do jogo. */
+if(/[?&]attract=1(&|$)/.test(location.search)){
+  Storage.prototype.setItem = function(){};
+  // o portfolio precisa saber o tamanho real desta pagina para enquadrar o
+  // card sem cortar embaixo; sob file:// ele nao consegue ler o iframe, entao
+  // quem informa e o proprio jogo
+  var avisa = function(){
+    try{ parent.postMessage({__vitrine:1,
+      w: document.documentElement.scrollWidth,
+      h: document.documentElement.scrollHeight}, '*'); }catch(e){}
+  };
+  addEventListener('load', function(){ avisa(); setInterval(avisa, 2000); });
+}
+</script>
 </head>
 <body>
 
@@ -384,6 +408,40 @@
       if(btn) btn.click();
     }
   });
+})();
+</script>
+
+<script>
+/* ---------- modo vitrine (?attract=1) ----------
+   Pilota o jogo de fora, so com eventos de ponteiro: nao depende de nada
+   interno e por isso nao quebra quando o jogo muda. */
+(function(){
+  if(!/[?&]attract=1(&|$)/.test(location.search)) return;
+  document.body.classList.add('attract');
+
+  const tap = el => el.dispatchEvent(
+    new PointerEvent('pointerdown', {bubbles:true, cancelable:true}));
+
+  function step(){
+    let wait;
+    const restart = document.getElementById('restart-btn');
+    const start   = document.getElementById('start-btn');
+    if(restart){
+      restart.click();
+      wait = 900;                       // deixa a tela de placar respirar
+    } else if(start){
+      start.click();
+      wait = 700;
+    } else {
+      // prioriza a dourada, que e o que da graca de assistir
+      const alvo = document.querySelector('#board .hole.up.golden')
+                || document.querySelector('#board .hole.up');
+      if(alvo) tap(alvo);
+      wait = 300 + Math.random()*380;   // reflexo humano, nao robotico
+    }
+    setTimeout(step, wait);
+  }
+  setTimeout(step, 800);
 })();
 </script>
 </body>

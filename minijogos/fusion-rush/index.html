@@ -143,7 +143,32 @@
   footer a{ color:var(--accent); text-decoration:none; }
   footer a:hover{ text-decoration:underline; }
   footer .ver{ color:var(--muted); font-weight:600; }
+
+  /* modo vitrine: o portfolio da raiz embute o jogo num iframe reduzido e ele
+     se joga sozinho. Sem ?attract=1 nada disso vale. */
+  body.attract{ padding:4px; gap:6px; }
+  body.attract h1,
+  body.attract .subtitle,
+  body.attract .day-tag,
+  body.attract footer{ display:none; }
 </style>
+<script>
+/* Modo vitrine (?attract=1): a pagina de portfolio embute este jogo e um bot
+   joga sozinho. Sem isto, o bot gravaria recorde/progresso por cima do de
+   quem joga de verdade. Precisa vir antes do script do jogo. */
+if(/[?&]attract=1(&|$)/.test(location.search)){
+  Storage.prototype.setItem = function(){};
+  // o portfolio precisa saber o tamanho real desta pagina para enquadrar o
+  // card sem cortar embaixo; sob file:// ele nao consegue ler o iframe, entao
+  // quem informa e o proprio jogo
+  var avisa = function(){
+    try{ parent.postMessage({__vitrine:1,
+      w: document.documentElement.scrollWidth,
+      h: document.documentElement.scrollHeight}, '*'); }catch(e){}
+  };
+  addEventListener('load', function(){ avisa(); setInterval(avisa, 2000); });
+}
+</script>
 </head>
 <body>
 
@@ -965,6 +990,47 @@
 
   document.getElementById('start-btn').addEventListener('click', startGame);
   render();
+})();
+</script>
+
+<script>
+/* ---------- modo vitrine (?attract=1) ----------
+   Pilota o jogo de fora, so com eventos de ponteiro sobre o canvas: mira
+   num x e solta. Nao toca em nada interno do jogo. */
+(function(){
+  if(!/[?&]attract=1(&|$)/.test(location.search)) return;
+  document.body.classList.add('attract');
+
+  const arena = document.getElementById('arena');
+
+  function solta(){
+    const r = arena.getBoundingClientRect();
+    // evita as bordas: bola encostada na parede quase nunca funde
+    const x = r.left + r.width*(0.18 + Math.random()*0.64);
+    const y = r.top + r.height*0.25;
+    const ev = t => arena.dispatchEvent(
+      new PointerEvent(t, {bubbles:true, cancelable:true, clientX:x, clientY:y}));
+    ev('pointermove');
+    setTimeout(() => ev('pointerdown'), 260);   // mira antes de soltar
+  }
+
+  function step(){
+    let wait;
+    const restart = document.getElementById('restart-btn');
+    const start   = document.getElementById('start-btn');
+    if(restart){
+      restart.click();
+      wait = 900;                      // deixa a tela de placar respirar
+    } else if(start){
+      start.click();
+      wait = 900;
+    } else {
+      solta();
+      wait = 780 + Math.random()*520;  // tempo de ver a bola cair e fundir
+    }
+    setTimeout(step, wait);
+  }
+  setTimeout(step, 800);
 })();
 </script>
 </body>

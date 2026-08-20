@@ -342,7 +342,29 @@
     .legend{grid-template-columns:repeat(2,1fr)}
     h1{font-size:26px;letter-spacing:4px}
   }
+
+  /* modo vitrine: o portfolio da raiz embute o jogo num iframe reduzido e ele
+     se joga sozinho. Sem ?attract=1 nada disso vale. */
+  body.attract #tips,
+  body.attract h1{display:none}
 </style>
+<script>
+/* Modo vitrine (?attract=1): a pagina de portfolio embute este jogo e um bot
+   joga sozinho. Sem isto, o bot gravaria recorde/progresso por cima do de
+   quem joga de verdade. Precisa vir antes do script do jogo. */
+if(/[?&]attract=1(&|$)/.test(location.search)){
+  Storage.prototype.setItem = function(){};
+  // o portfolio precisa saber o tamanho real desta pagina para enquadrar o
+  // card sem cortar embaixo; sob file:// ele nao consegue ler o iframe, entao
+  // quem informa e o proprio jogo
+  var avisa = function(){
+    try{ parent.postMessage({__vitrine:1,
+      w: document.documentElement.scrollWidth,
+      h: document.documentElement.scrollHeight}, '*'); }catch(e){}
+  };
+  addEventListener('load', function(){ avisa(); setInterval(avisa, 2000); });
+}
+</script>
 </head>
 <body>
 <div id="app">
@@ -5118,6 +5140,53 @@ buscarRankingGlobal().then(() => {
   enviarPendentes();
 });
 requestAnimationFrame(loop);
+
+/* ---------- modo vitrine (?attract=1) ----------
+   Nao tenta ser bom jogador: escolhe direcao com vies de seguir reto e nunca
+   da meia-volta, que e o que faz o movimento parecer intencional. O proprio
+   jogo ja bufferiza `quer` e so vira quando o corredor permite. */
+(function(){
+  if(!/[?&]attract=1(&|$)/.test(location.search)) return;
+  document.body.classList.add('attract');
+
+  const NOMES = ['up','down','left','right'];
+  const oposta = d => !d ? null
+    : (d.x === 0 ? (d.y > 0 ? DIRS.up : d.y < 0 ? DIRS.down : null)
+                 : (d.x > 0 ? DIRS.left : DIRS.right));
+
+  const clicar = ids => {
+    for(const id of ids){
+      const b = document.getElementById(id);
+      if(b && b.offsetParent !== null){ b.click(); return true; }
+    }
+    return false;
+  };
+
+  function passo(){
+    let espera = 420;
+    if(typeof G !== 'undefined' && G.estado === 'jogando'){
+      const p = G.players && G.players.find(j => j.local && !j.fora);
+      if(p && p.morto <= 0){
+        if(Math.random() < 0.55 && p.dir !== DIRS.none){
+          espera = 260;                     // segue reto: mantem o embalo
+        } else {
+          const proibida = oposta(p.dir);
+          const opcoes = NOMES.map(n => DIRS[n]).filter(d => d !== proibida);
+          p.quer = opcoes[(Math.random()*opcoes.length)|0];
+          p.querT = G.tempo;
+          espera = 300 + Math.random()*320;
+        }
+        if(Math.random() < 0.05 && typeof usarDash === 'function') usarDash(p);
+      }
+    } else {
+      // menu, fim de fase ou game over: segue para a proxima partida
+      clicar(['btnNext','btnContinuar','btnPlay']);
+      espera = 1200;
+    }
+    setTimeout(passo, espera);
+  }
+  setTimeout(passo, 1000);
+})();
 </script>
 </body>
 </html>
