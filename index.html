@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Showcase — Minijogos</title>
+<meta name="description" content="Portfólio de minijogos em HTML, CSS e JavaScript puro. Cada capa é o jogo de verdade rodando sozinho — passe o mouse e clique para jogar." />
+<meta name="theme-color" content="#0b0e14">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230b0e14'/><circle cx='34' cy='40' r='13' fill='%235eead4'/><circle cx='66' cy='40' r='13' fill='%23a78bfa'/><rect x='24' y='62' width='52' height='12' rx='6' fill='%2338bdf8'/></svg>">
+<style>
+  :root{
+    --bg-0:#0b0e14;
+    --bg-1:#121722;
+    --panel:#161c29;
+    --line:#232c3f;
+    --text:#e8ecf4;
+    --muted:#8b93a7;
+    --accent:#5eead4;
+    --accent-2:#a78bfa;
+    --cyan:#38bdf8;
+    --ok:#34d399;
+    --ring:rgba(94,234,212,.35);
+    --btn-ink:#08131a;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg-0:#eef1f6;
+      --bg-1:#e4e9f2;
+      --panel:#ffffff;
+      --line:#d8dfeb;
+      --text:#131722;
+      --muted:#5b6478;
+      --accent:#0d9488;
+      --accent-2:#7c3aed;
+      --cyan:#0369a1;
+      --ok:#059669;
+      --ring:rgba(13,148,136,.25);
+      --btn-ink:#ffffff;
+    }
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, var(--bg-1), transparent),
+      radial-gradient(1200px 600px at 100% 110%, var(--bg-1), transparent),
+      var(--bg-0);
+    color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    padding:28px 20px 40px;
+  }
+  .shell{ max-width:1120px; margin:0 auto; }
+
+  header{ text-align:center; margin-bottom:26px; }
+  h1{
+    margin:0;
+    font-size:clamp(26px,5vw,40px);
+    letter-spacing:.5px;
+  }
+  h1 span{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .tagline{
+    margin:8px auto 0;
+    max-width:560px;
+    color:var(--muted);
+    font-size:14.5px;
+    line-height:1.55;
+  }
+  .tagline b{ color:var(--text); }
+
+  /* ---------- faixa de categoria ---------- */
+  .row{ margin-top:30px; }
+  .row-head{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 14px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    margin-bottom:14px;
+  }
+  .row-head .ico{ font-size:18px; line-height:1; }
+  .row-head h2{
+    margin:0;
+    font-size:clamp(12px,2.4vw,14px);
+    font-weight:600;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .row-head h2 b{ color:var(--text); font-weight:800; }
+  .row-head .count{
+    margin-left:auto;
+    font-size:11px; color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(268px, 1fr));
+    gap:16px;
+  }
+
+  /* ---------- card ---------- */
+  .card{
+    display:block;
+    text-decoration:none;
+    color:inherit;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .card:hover, .card:focus-visible{
+    transform:translateY(-4px);
+    border-color:var(--accent);
+    box-shadow:0 18px 34px -18px rgba(0,0,0,.75);
+    outline:none;
+  }
+  .card:focus-visible{ box-shadow:0 0 0 3px var(--ring), 0 18px 34px -18px rgba(0,0,0,.75); }
+
+  .preview{
+    position:relative;
+    width:100%;
+    aspect-ratio:4/3;
+    overflow:hidden;
+    background:var(--bg-0);
+  }
+  .preview img.poster{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  /* o jogo roda no tamanho natural e e reduzido por transform: assim ele nao
+     precisa saber que esta dentro de um card */
+  .preview iframe{
+    /* ancorado embaixo: quando o jogo e mais alto que o card, o corte sai do
+       topo (que e HUD) e nao do rodape (que e onde a acao acontece) */
+    position:absolute; bottom:0; left:50%;
+    width:var(--w,640px); height:var(--h,480px);
+    border:0;
+    transform-origin:bottom center;
+    transform:translateX(-50%) scale(var(--s,1));
+    pointer-events:none;      /* o clique pertence ao card, nao ao jogo */
+    opacity:0;
+    transition:opacity .35s ease;
+  }
+  .card.vivo iframe{ opacity:1; }
+
+  /* selo de ao vivo */
+  .live{
+    position:absolute; top:8px; left:8px;
+    display:none; align-items:center; gap:6px;
+    padding:4px 9px;
+    border-radius:999px;
+    background:rgba(9,12,18,.72);
+    color:#fff;
+    font-size:10px; font-weight:700;
+    letter-spacing:.08em; text-transform:uppercase;
+    backdrop-filter:blur(4px);
+  }
+  .card.vivo .live{ display:flex; }
+  .live i{
+    width:6px; height:6px; border-radius:50%;
+    background:var(--ok);
+    animation:pulsa 1.6s ease-in-out infinite;
+  }
+  @keyframes pulsa{ 0%,100%{opacity:1} 50%{opacity:.25} }
+
+  /* botao de jogar, no hover */
+  .play{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:10px;
+    background:rgba(6,9,14,.62);
+    backdrop-filter:blur(2px);
+    opacity:0;
+    transition:opacity .18s ease;
+  }
+  .card:hover .play, .card:focus-visible .play{ opacity:1; }
+  .play .disc{
+    width:58px; height:58px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    color:#08131a;
+    font-size:22px;
+    padding-left:4px;                 /* centra o triangulo, que e otico */
+    box-shadow:0 10px 26px -8px rgba(0,0,0,.8);
+  }
+  .play b{
+    color:#fff;
+    font-size:12px; font-weight:800;
+    letter-spacing:.14em; text-transform:uppercase;
+  }
+  /* sem hover (celular) o botao fica sempre visivel, senao ninguem descobre */
+  @media (hover:none){
+    .play{ opacity:1; background:linear-gradient(180deg,transparent 45%,rgba(6,9,14,.82)); }
+    .play .disc{ width:46px; height:46px; font-size:18px; }
+  }
+
+  .meta{ padding:12px 14px 14px; }
+  .meta h3{
+    margin:0;
+    font-size:15px;
+    display:flex; align-items:center; gap:7px;
+  }
+  .meta p{
+    margin:5px 0 0;
+    font-size:12.5px;
+    line-height:1.5;
+    color:var(--muted);
+  }
+
+  footer{
+    margin-top:38px;
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.7;
+  }
+  footer a{ color:var(--accent); text-decoration:none; display:inline-block; padding:6px 8px; }
+  footer a:hover{ text-decoration:underline; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <h1>🎮 <span>Showcase</span></h1>
+    <p class="tagline">Minijogos em HTML, CSS e JavaScript puro — sem framework, sem instalação, sem servidor.
+      <b>As capas não são print: é o jogo de verdade rodando sozinho.</b> Clique para jogar.</p>
+  </header>
+
+  <section class="row">
+    <div class="row-head">
+      <span class="ico" aria-hidden="true">🧠</span>
+      <h2>Jogos de <b>Raciocínio</b></h2>
+      <span class="count">3 jogos</span>
+    </div>
+    <div class="grid">
+
+      <a class="card" href="minijogos/bubble-crane/index.html">
+        <div class="preview" data-src="minijogos/bubble-crane/index.html?attract=1">
+          <img class="poster" src="minijogos/bubble-crane/poster.png" alt="" loading="lazy">
+          <span class="live"><i></i>ao vivo</span>
+          <span class="play"><span class="disc">▶</span><b>Jogar</b></span>
+        </div>
+        <div class="meta">
+          <h3>🏗️ Bubble Crane</h3>
+          <p>Opere o guindaste, pegue um bloco e empurre até a esteira ficar em ordem — no mínimo de trocas.</p>
+        </div>
+      </a>
+
+      <a class="card" href="minijogos/cosmic-crush/index.html">
+        <div class="preview" data-src="minijogos/cosmic-crush/index.html?attract=1">
+          <img class="poster" src="minijogos/cosmic-crush/poster.png" alt="" loading="lazy">
+          <span class="live"><i></i>ao vivo</span>
+          <span class="play"><span class="disc">▶</span><b>Jogar</b></span>
+        </div>
+        <div class="meta">
+          <h3>🚀 Cosmic Crush</h3>
+          <p>Match-3 espacial com campanha, loja e conquistas. Combinações grandes viram foguete, supernova ou buraco negro.</p>
+        </div>
+      </a>
+
+      <a class="card" href="minijogos/fusion-rush/index.html">
+        <div class="preview" data-src="minijogos/fusion-rush/index.html?attract=1">
+          <img class="poster" src="minijogos/fusion-rush/poster.png" alt="" loading="lazy">
+          <span class="live"><i></i>ao vivo</span>
+          <span class="play"><span class="disc">▶</span><b>Jogar</b></span>
+        </div>
+        <div class="meta">
+          <h3>🫧 Fusion Rush</h3>
+          <p>Bolhas iguais se fundem numa maior. E tem um gato ativo tentando roubar as suas pelas laterais.</p>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <section class="row">
+    <div class="row-head">
+      <span class="ico" aria-hidden="true">⚡</span>
+      <h2>Jogos de <b>Reflexo</b></h2>
+      <span class="count">3 jogos</span>
+    </div>
+    <div class="grid">
+
+      <a class="card" href="minijogos/reflex-rush/index.html">
+        <div class="preview" data-src="minijogos/reflex-rush/index.html?attract=1">
+          <img class="poster" src="minijogos/reflex-rush/poster.png" alt="" loading="lazy">
+          <span class="live"><i></i>ao vivo</span>
+          <span class="play"><span class="disc">▶</span><b>Jogar</b></span>
+        </div>
+        <div class="meta">
+          <h3>⚡ Reflex Rush</h3>
+          <p>Acerte os alvos antes que sumam e monte combos. 30 segundos por rodada.</p>
+        </div>
+      </a>
+
+      <a class="card" href="minijogos/mata-barata/index.html">
+        <div class="preview" data-src="minijogos/mata-barata/index.html?attract=1">
+          <img class="poster" src="minijogos/mata-barata/poster.png" alt="" loading="lazy">
+          <span class="live"><i></i>ao vivo</span>
+          <span class="play"><span class="disc">▶</span><b>Jogar</b></span>
+        </div>
+        <div class="meta">
+          <h3>🪳 Mata Barata</h3>
+          <p>Esmague as baratas antes que fujam. Combo reseta se uma escapar; a dourada vale 5×.</p>
+        </div>
+      </a>
+
+      <a class="card" href="minijogos/neon-devourer/index.html">
+        <div class="preview" data-src="minijogos/neon-devourer/index.html?attract=1">
+          <img class="poster" src="minijogos/neon-devourer/poster.png" alt="" loading="lazy">
+          <span class="live"><i></i>ao vivo</span>
+          <span class="play"><span class="disc">▶</span><b>Jogar</b></span>
+        </div>
+        <div class="meta">
+          <h3>👾 Neon Devourer</h3>
+          <p>Arcade de labirinto com progressão, essências, 8 biomas e mapa gerado a cada fase.</p>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <footer>
+    Showcase <b>v1.0.0</b> — as prévias carregam o jogo real; só as visíveis rodam, para não fritar a máquina.<br>
+    Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> ·
+    <a href="https://github.com/jvaz-DEVENG/showcase" target="_blank" rel="noopener">código no GitHub</a>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // no maximo tres jogos rodando ao mesmo tempo: sao seis loops de canvas e
+  // requestAnimationFrame, deixar todos vivos derruba o desempenho da pagina
+  const MAX_VIVOS = 3;
+
+  const previews = [...document.querySelectorAll('.preview')];
+  const semMovimento = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // O jogo roda no tamanho natural dele e e reduzido para caber no card.
+  // Usa "cover": preenche o card inteiro e sobra um corte simetrico de poucos
+  // pixels, em vez de deixar tarja preta dos lados.
+  function escalar(box){
+    const w = +box.dataset.w || 640, h = +box.dataset.h || 480;
+    box.style.setProperty('--w', w + 'px');
+    box.style.setProperty('--h', h + 'px');
+    box.style.setProperty('--s',
+      Math.max(box.clientWidth / w, box.clientHeight / h).toFixed(4));
+  }
+  previews.forEach(escalar);
+  if(window.ResizeObserver){
+    const ro = new ResizeObserver(es => es.forEach(e => escalar(e.target)));
+    previews.forEach(b => ro.observe(b));
+  } else {
+    window.addEventListener('resize', () => previews.forEach(escalar));
+  }
+
+  function ligar(box){
+    if(box.querySelector('iframe')) return;
+    const f = document.createElement('iframe');
+    f.setAttribute('tabindex','-1');       // a navegacao por teclado e do card
+    f.setAttribute('aria-hidden','true');
+    f.setAttribute('scrolling','no');
+    f.setAttribute('title','');
+    f.src = box.dataset.src;
+    box.insertBefore(f, box.querySelector('.live'));
+    box.closest('.card').classList.add('vivo');
+  }
+
+  function desligar(box){
+    const f = box.querySelector('iframe');
+    if(!f) return;
+    f.remove();                            // remover mata o rAF de dentro dele
+    box.closest('.card').classList.remove('vivo');
+  }
+
+  // se a pessoa pediu menos movimento, fica so no poster
+  if(semMovimento.matches) return;
+
+  const aVista = new Set();
+
+  function reavaliar(){
+    if(document.hidden){ previews.forEach(desligar); return; }
+    const meio = window.innerHeight / 2;
+    const fila = [...aVista].sort((a,b) => {
+      const da = Math.abs(a.getBoundingClientRect().top + a.clientHeight/2 - meio);
+      const db = Math.abs(b.getBoundingClientRect().top + b.clientHeight/2 - meio);
+      return da - db;                      // quem esta mais perto do centro tem prioridade
+    });
+    const vivos = new Set(fila.slice(0, MAX_VIVOS));
+    previews.forEach(box => vivos.has(box) ? ligar(box) : desligar(box));
+  }
+
+  const io = new IntersectionObserver(entradas => {
+    entradas.forEach(e => e.isIntersecting ? aVista.add(e.target) : aVista.delete(e.target));
+    reavaliar();
+  }, { threshold:0.35 });
+  previews.forEach(b => io.observe(b));
+
+  // cada vitrine informa o proprio tamanho assim que carrega (ver o script de
+  // ?attract=1 dentro dos jogos): so assim da para enquadrar sem cortar
+  window.addEventListener('message', e => {
+    const d = e.data;
+    if(!d || !d.__vitrine) return;
+    const box = previews.find(b => {
+      const f = b.querySelector('iframe');
+      return f && f.contentWindow === e.source;
+    });
+    if(!box) return;
+    if(box.dataset.w == d.w && box.dataset.h == d.h) return;   // nada mudou
+    box.dataset.w = d.w;
+    box.dataset.h = d.h;
+    escalar(box);
+  });
+
+  // aba escondida nao precisa gastar bateria
+  document.addEventListener('visibilitychange', reavaliar);
+
+  let t;
+  window.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(reavaliar, 140); }, {passive:true});
+})();
+</script>
+</body>
+</html>
