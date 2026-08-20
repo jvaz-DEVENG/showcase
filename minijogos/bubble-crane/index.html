@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Bubble Crane</title>
+<meta name="description" content="Puzzle de ordenação: opere o guindaste, pegue um bloco e troque com o vizinho da esquerda ou da direita até ordenar a esteira — no orçamento mínimo de trocas. HTML/CSS/JS puro." />
+<meta name="theme-color" content="#0b0e14">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230b0e14'/><rect x='14' y='16' width='72' height='9' rx='4' fill='%235eead4'/><path d='M50 25 L34 62 L66 62 Z' fill='%2338bdf8' opacity='.45'/><rect x='28' y='62' width='20' height='20' rx='4' fill='%23a78bfa'/><rect x='54' y='54' width='20' height='28' rx='4' fill='%2334d399'/></svg>">
+<style>
+  :root{
+    --bg-0:#0b0e14;
+    --bg-1:#121722;
+    --panel:#161c29;
+    --line:#232c3f;
+    --text:#e8ecf4;
+    --muted:#8b93a7;
+    --accent:#5eead4;
+    --accent-2:#a78bfa;
+    --cyan:#38bdf8;
+    --ok:#34d399;
+    --danger:#f87171;
+    --ring:rgba(94,234,212,.35);
+    --glow:rgba(56,189,248,.55);
+    --steel-1:#4a5573;
+    --steel-2:#2b3346;
+    /* botoes: gradiente + tinta, tokenizados para virarem no tema claro */
+    --btn-ink:#08131a;
+    --dir-1:#38bdf8;  --dir-2:#a78bfa;  --dir-ink:#03151f;
+    --grip-1:#5eead4; --grip-2:#8ef0dd; --grip-ink:#05231d;
+    --gold-1:#f8b84e; --gold-2:#f6d365; --gold-ink:#2b1a00;
+    --beam-1:#7dd3fc; --beam-2:#38bdf8;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg-0:#eef1f6;
+      --bg-1:#e4e9f2;
+      --panel:#ffffff;
+      --line:#d8dfeb;
+      --text:#131722;
+      --muted:#5b6478;
+      --accent:#0d9488;
+      --accent-2:#7c3aed;
+      --cyan:#0369a1;
+      --ok:#059669;
+      --danger:#dc2626;
+      --ring:rgba(13,148,136,.25);
+      --glow:rgba(2,132,199,.4);
+      --steel-1:#94a1bd;
+      --steel-2:#6b7896;
+      /* no claro os gradientes escurecem e a tinta vira branca: preto sobre
+         teal/roxo claros ficava em 3,3:1 */
+      --btn-ink:#ffffff;
+      --dir-1:#0369a1;  --dir-2:#6d28d9;  --dir-ink:#ffffff;
+      --grip-1:#115e59; --grip-2:#0f766e; --grip-ink:#ffffff;
+      --gold-1:#92400e; --gold-2:#b45309; --gold-ink:#ffffff;
+      --beam-1:#0ea5e9; --beam-2:#0369a1;
+    }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, var(--bg-1), transparent),
+      radial-gradient(1200px 600px at 100% 110%, var(--bg-1), transparent),
+      var(--bg-0);
+    color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    padding:20px;
+    overflow-x:hidden;
+    -webkit-user-select:none; user-select:none;
+  }
+  /* margin:auto centra sem cortar o topo quando a tela é baixa demais */
+  #wrap{
+    flex:none;
+    margin:auto;
+    width:min(600px,100%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+  }
+  #wrap > *{ flex:none; }
+  h1{ margin:0; font-size:clamp(22px,4vw,32px); letter-spacing:.5px; }
+  h1 span{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .subtitle{
+    margin:2px 0 0;
+    color:var(--muted);
+    font-size:14px;
+    text-align:center;
+    max-width:520px;
+  }
+
+  /* selos de complexidade, igual à ficha do algoritmo */
+  .badges{ display:flex; gap:8px; }
+  .badge{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11px;
+    letter-spacing:.04em;
+    padding:5px 12px;
+    border-radius:999px;
+    border:1px solid currentColor;
+    opacity:.85;
+  }
+  .badge.time{ color:var(--cyan); }
+  .badge.space{ color:var(--ok); }
+  .badge .lbl{ color:var(--muted); margin-right:6px; }
+
+  .hud{ width:100%; max-width:600px; display:flex; gap:8px; }
+  .stat{
+    flex:1;
+    background:var(--panel);
+    border-radius:14px;
+    padding:8px 6px;
+    text-align:center;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 20px -12px rgba(0,0,0,.5);
+  }
+  .stat b{ display:block; font-size:clamp(15px,3.4vw,20px); line-height:1.2; }
+  .stat span{
+    display:block;
+    font-size:10px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    margin-top:2px;
+  }
+  #score-stat b{ color:var(--accent); }
+  #moves-stat b{ color:var(--cyan); }
+  #moves-stat.low b{ color:var(--danger); }
+  #mess-stat b{ color:var(--accent-2); }
+  #mess-stat.zero b{ color:var(--ok); }
+  #lives-stat b{ font-size:15px; letter-spacing:1px; }
+
+  /* ---------- palco do guindaste ---------- */
+  .stage{
+    position:relative;
+    width:100%; max-width:600px;
+    height:clamp(220px,34vh,285px);
+    background:var(--panel);
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 40px -20px rgba(0,0,0,.6);
+    touch-action:manipulation;
+  }
+  .stage::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(128,140,168,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(128,140,168,.07) 1px, transparent 1px);
+    background-size:28px 28px;
+    pointer-events:none;
+  }
+  .beam-top{
+    position:absolute; top:10px; left:14px; right:14px; height:11px;
+    border-radius:5px;
+    background:linear-gradient(180deg,var(--steel-1),var(--steel-2));
+  }
+  .leg{
+    position:absolute; top:14px; bottom:18px; width:9px;
+    border-radius:4px;
+    background:linear-gradient(90deg,var(--steel-1),var(--steel-2));
+    opacity:.9;
+  }
+  .leg.l{ left:14px; }
+  .leg.r{ right:14px; }
+  .platform{
+    position:absolute; left:8px; right:8px; bottom:0; height:18px;
+    border-radius:8px;
+    background:linear-gradient(180deg,var(--steel-1),var(--steel-2));
+  }
+
+  .trolley{
+    position:absolute; top:6px; left:0;
+    width:42px; margin-left:-21px;
+    display:flex; flex-direction:column; align-items:center;
+    transition:transform .26s cubic-bezier(.4,.9,.3,1);
+    z-index:5;
+  }
+  .trolley .cab{
+    width:26px; height:15px; border-radius:4px;
+    background:linear-gradient(180deg,var(--steel-1),var(--steel-2));
+    border:1px solid rgba(255,255,255,.14);
+  }
+  .trolley .rope{ width:2px; height:12px; background:var(--steel-1); }
+  .trolley .hook{
+    width:18px; height:7px; border-radius:3px;
+    background:var(--cyan);
+    box-shadow:0 0 14px var(--glow);
+    transition:background .18s ease, width .18s ease;
+  }
+  .trolley.holding .hook{ background:var(--accent); width:26px; }
+
+  svg.beams{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    pointer-events:none;
+    opacity:0;
+    transition:opacity .18s ease;
+    z-index:1;
+  }
+  svg.beams.on{ opacity:1; }
+
+  .track{ position:absolute; bottom:18px; height:0; z-index:2; }
+  .box{
+    position:absolute; bottom:0; left:0;
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700;
+    color:#e9eefb;
+    background:linear-gradient(180deg,#3c465f,#2a3145);
+    border:1px solid rgba(255,255,255,.1);
+    box-shadow:0 1px 0 rgba(255,255,255,.18) inset, 0 10px 18px -12px rgba(0,0,0,.8);
+    transition:transform .28s cubic-bezier(.4,.9,.3,1), background .2s ease, box-shadow .2s ease, border-color .2s ease;
+    transform-origin:bottom;
+    cursor:pointer;
+  }
+  /* estende o alvo de toque sem mexer no desenho do bloco */
+  .box::after{
+    content:"";
+    position:absolute;
+    left:-2px; right:-2px; top:-14px; bottom:-14px;
+  }
+  .box i{
+    position:absolute; top:-15px; left:50%;
+    margin-left:-7px;
+    font-style:normal; font-size:9px; color:var(--muted);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    width:14px; text-align:center;
+  }
+  /* bloco já no lugar certo (valor v pertence ao slot v-1) */
+  .box.ok{
+    background:linear-gradient(180deg,#34d399,#199e6f);
+    border-color:rgba(190,255,230,.45);
+    color:#04231a;
+  }
+  .box.ok i{ color:var(--ok); }
+  /* bloco sob a garra */
+  .box.sel{
+    border-color:rgba(160,225,255,.75);
+    box-shadow:0 1px 0 rgba(255,255,255,.3) inset, 0 0 20px var(--glow);
+  }
+  /* bloco preso na garra */
+  .box.held{
+    z-index:6;
+    background:linear-gradient(180deg,#1f74a8,#123f5c);
+    border-color:rgba(190,240,255,.9);
+    box-shadow:0 1px 0 rgba(255,255,255,.35) inset, 0 0 26px var(--glow);
+    color:#e9f8ff;
+  }
+  .box.land{ animation:squash .28s ease-out; }
+  @keyframes squash{
+    0%{ scale:1 1; }
+    40%{ scale:1.12 .86; }
+    100%{ scale:1 1; }
+  }
+  .box.nudge{ animation:nudge .3s ease; }
+  @keyframes nudge{
+    0%,100%{ filter:none; }
+    50%{ filter:brightness(1.6); }
+  }
+  @media (prefers-color-scheme: light){
+    .box{ background:linear-gradient(180deg,#5d688a,#3d4866); }
+  }
+
+  .stage.shake{ animation:shake .38s ease; }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    20%{ transform:translateX(-7px); }
+    45%{ transform:translateX(6px); }
+    70%{ transform:translateX(-3px); }
+  }
+
+  .flash{
+    position:absolute; left:50%; top:36%;
+    font-size:20px; font-weight:800;
+    pointer-events:none;
+    animation:rise .82s ease-out forwards;
+    z-index:8;
+  }
+  .flash.ok{ color:var(--ok); }
+  .flash.bad{ color:var(--danger); }
+  @keyframes rise{
+    from{ opacity:0; transform:translate(-50%,10px) scale(.8); }
+    25%{ opacity:1; transform:translate(-50%,-4px) scale(1.05); }
+    to{ opacity:0; transform:translate(-50%,-44px) scale(1); }
+  }
+
+  .banner{
+    position:absolute; left:0; right:0; top:32%;
+    text-align:center;
+    pointer-events:none;
+    animation:pop .3s ease-out;
+    z-index:8;
+    padding:0 12px;
+  }
+  /* pílula opaca: o aviso precisa ser legível por cima dos blocos */
+  .banner span{
+    display:inline-block;
+    max-width:100%;
+    padding:8px 16px;
+    border-radius:999px;
+    font-size:clamp(15px,3.8vw,22px); font-weight:800;
+    color:var(--ok);
+    background:rgba(9,12,18,.86);
+    border:1px solid rgba(52,211,153,.35);
+    box-shadow:0 12px 30px -14px rgba(0,0,0,.9);
+  }
+  .banner.bad span{ color:var(--danger); border-color:rgba(248,113,113,.4); }
+  @media (prefers-color-scheme: light){
+    .banner span{ background:rgba(255,255,255,.94); border-color:rgba(5,150,105,.35); }
+    .banner.bad span{ border-color:rgba(220,38,38,.4); }
+  }
+  @keyframes pop{ from{ opacity:0; transform:scale(.7); } to{ opacity:1; transform:scale(1); } }
+
+  .overlay{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:11px;
+    background:rgba(10,12,18,.66);
+    backdrop-filter:blur(6px);
+    text-align:center;
+    padding:16px;
+    overflow-y:auto;
+    z-index:10;
+  }
+  @media (prefers-color-scheme: light){ .overlay{ background:rgba(240,242,247,.78); } }
+  .overlay.hide{ display:none; }
+  .overlay h2{ margin:0; font-size:clamp(18px,4.2vw,24px); }
+  .overlay p{ margin:0; color:var(--muted); font-size:13px; max-width:420px; line-height:1.5; }
+  .overlay p b{ color:var(--text); }
+  .big-score{ font-size:38px; font-weight:800; color:var(--accent); line-height:1; }
+  .best-line{ font-size:13px; color:var(--muted); }
+  .best-line b{ color:var(--accent-2); }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; width:100%; }
+
+  button{
+    appearance:none; border:none; cursor:pointer;
+    padding:12px 26px;
+    border-radius:999px;
+    font-size:15px; font-weight:600;
+    color:var(--btn-ink);
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    box-shadow:0 10px 24px -10px var(--ring);
+    transition:transform .12s ease, opacity .2s ease;
+    /* 44px e o minimo de alvo de toque; o flex mantem o rotulo centrado */
+    min-height:44px;
+    display:inline-flex; flex-direction:column;
+    align-items:center; justify-content:center;
+  }
+  button:active{ transform:scale(.96); }
+  /* no claro o gradiente teal->roxo e claro demais: branco em cima dava 3,7:1.
+     escurecer as duas paradas leva o par para 5,4:1 e 7,1:1 */
+  @media (prefers-color-scheme: light){
+    button{ background:linear-gradient(90deg,#0f766e,#6d28d9); }
+  }
+  button.ghost{
+    background:transparent;
+    color:var(--muted);
+    border:1px solid var(--line);
+    box-shadow:none;
+    font-weight:600;
+  }
+
+  /* ---------- painel de comando ---------- */
+  .deck{
+    width:100%; max-width:600px;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .status{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:clamp(12px,3vw,15px);
+    color:var(--cyan);
+    letter-spacing:.02em;
+    /* duas linhas reservadas: o texto muda de tamanho e não pode empurrar o layout.
+       precisa continuar block — flex/grid transformariam o <b> em item e picotariam a frase */
+    display:block;
+    min-height:52px;
+    line-height:1.35;
+    text-align:center;
+    padding:2px 8px 0;
+  }
+  .status b{ color:var(--accent); }
+  .status.idle{ color:var(--muted); }
+  .bar{
+    width:min(340px,74vw); height:5px;
+    background:var(--line); border-radius:999px; overflow:hidden;
+  }
+  .bar i{
+    display:block; height:100%; width:100%;
+    background:linear-gradient(90deg,var(--accent),var(--cyan));
+    border-radius:999px;
+    transition:width .25s ease;
+  }
+  .bar i.low{ background:var(--danger); }
+
+  .pad{ display:flex; gap:8px; width:100%; max-width:600px; justify-content:center; }
+  .pad button{
+    flex:1; max-width:190px;
+    min-height:54px; padding:8px 10px;
+    font-size:clamp(12px,3vw,15px);
+    line-height:1.15;
+  }
+  .pad .dir{ background:linear-gradient(90deg,var(--dir-1),var(--dir-2)); color:var(--dir-ink); }
+  .pad .grip{ background:linear-gradient(90deg,var(--grip-1),var(--grip-2)); color:var(--grip-ink); }
+  .pad .grip.on{ background:linear-gradient(90deg,var(--gold-1),var(--gold-2)); color:var(--gold-ink); }
+  .pad .lb{ white-space:nowrap; }
+  .pad kbd{
+    display:block; font-size:9px; font-weight:600; opacity:.75;
+    font-family:inherit; letter-spacing:.05em; margin-top:3px;
+  }
+  .pad.off button{ opacity:.4; pointer-events:none; }
+
+
+  #beamGrad stop:first-child{ stop-color:var(--beam-1); }
+  #beamGrad stop:last-child{ stop-color:var(--beam-2); }
+
+  footer{
+    color:var(--muted);
+    font-size:12px;
+    text-align:center;
+    line-height:1.6;
+  }
+  footer a{ color:var(--accent); text-decoration:none; display:inline-block; padding:14px 8px; margin:-14px 0; }
+  footer a:hover{ text-decoration:underline; }
+  footer .ver{ color:var(--muted); font-weight:600; }
+
+  /* modo vitrine: o portfolio da raiz embute o jogo num iframe reduzido e ele
+     se joga sozinho. Sem ?attract=1 nada disso vale. */
+  body.attract{ padding:10px; }
+  body.attract #wrap{ gap:9px; }
+  /* na vitrine ninguem opera os controles: o palco fica com o espaco todo */
+  body.attract h1,
+  body.attract .subtitle,
+  body.attract .badges,
+  body.attract .pad,
+  body.attract .bar,
+  body.attract footer{ display:none; }
+
+  @media (max-height:760px){
+    body{ padding:12px; }
+    #wrap{ gap:9px; }
+    .subtitle{ display:none; }
+  }
+  /* a 360x640 o texto do overlay + a quebra da fileira de botoes estouravam
+     os 220px do palco e cortavam o h2 e o botao de demonstracao */
+  @media (max-height:700px){
+    .overlay{ gap:8px; padding:12px; }
+    .overlay p{ font-size:12px; line-height:1.4; }
+  }
+  @media (max-width:400px){
+    .overlay button{ padding:11px 16px; font-size:13.5px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
+  }
+</style>
+<script>
+/* Modo vitrine (?attract=1): a pagina de portfolio embute este jogo e um bot
+   joga sozinho. Sem isto, o bot gravaria recorde/progresso por cima do de
+   quem joga de verdade. Precisa vir antes do script do jogo. */
+if(/[?&]attract=1(&|$)/.test(location.search)){
+  Storage.prototype.setItem = function(){};
+  // o portfolio precisa saber o tamanho real desta pagina para enquadrar o
+  // card sem cortar embaixo; sob file:// ele nao consegue ler o iframe, entao
+  // quem informa e o proprio jogo
+  var avisa = function(){
+    try{ parent.postMessage({__vitrine:1,
+      w: document.documentElement.scrollWidth,
+      h: document.documentElement.scrollHeight}, '*'); }catch(e){}
+  };
+  addEventListener('load', function(){ avisa(); setInterval(avisa, 2000); });
+}
+</script>
+</head>
+<body>
+<div id="wrap">
+
+  <h1>🏗️ <span>Bubble Crane</span></h1>
+  <p class="subtitle">Você opera o guindaste: pegue um bloco e empurre pra esquerda ou pra direita até a esteira ficar em ordem crescente — gastando o mínimo de trocas.</p>
+
+  <div class="badges">
+    <div class="badge time"><span class="lbl">TIME</span><b>O(n²)</b></div>
+    <div class="badge space"><span class="lbl">SPACE</span><b>O(1)</b></div>
+  </div>
+
+  <div class="hud">
+    <div class="stat" id="score-stat"><b id="score-val">0</b><span>Pontos</span></div>
+    <div class="stat" id="moves-stat"><b id="moves-val">0</b><span>Trocas</span></div>
+    <div class="stat" id="mess-stat"><b id="mess-val">0</b><span>Desordem</span></div>
+    <div class="stat" id="lives-stat"><b id="lives-val">❤❤❤</b><span>Vidas</span></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="beam-top"></div>
+    <div class="leg l"></div>
+    <div class="leg r"></div>
+
+    <svg class="beams" id="beams" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="beamGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#7dd3fc" stop-opacity=".55"/>
+          <stop offset="100%" stop-color="#38bdf8" stop-opacity=".08"/>
+        </linearGradient>
+      </defs>
+      <polygon id="beamL" fill="url(#beamGrad)"/>
+      <polygon id="beamR" fill="url(#beamGrad)"/>
+    </svg>
+
+    <div class="trolley" id="trolley">
+      <div class="cab"></div>
+      <div class="rope"></div>
+      <div class="hook"></div>
+    </div>
+
+    <div class="track" id="track"></div>
+    <div class="platform"></div>
+
+    <div class="overlay" id="overlay"></div>
+  </div>
+
+  <div class="deck">
+    <div class="status idle" id="status">Guindaste parado.</div>
+    <div class="bar"><i id="bar-fill"></i></div>
+    <div class="pad off" id="pad">
+      <button class="dir" id="btn-left"><span class="lb">◀ <span id="lbl-left">MOVER</span></span><kbd>seta ←</kbd></button>
+      <button class="grip" id="btn-grip"><span class="lb"><span id="lbl-grip">PEGAR</span></span><kbd>espaço</kbd></button>
+      <button class="dir" id="btn-right"><span class="lb"><span id="lbl-right">MOVER</span> ▶</span><kbd>seta →</kbd></button>
+    </div>
+  </div>
+
+
+  <footer>Bubble Crane <span class="ver">v1.0.0</span> — puzzle de ordenação com guindaste, feito com HTML, CSS e JS puro, sem dependências.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const stage=$('stage'), track=$('track'), trolley=$('trolley');
+  const svg=$('beams'), beamL=$('beamL'), beamR=$('beamR');
+  const statusEl=$('status'), barFill=$('bar-fill'), pad=$('pad');
+  const btnLeft=$('btn-left'), btnRight=$('btn-right'), btnGrip=$('btn-grip');
+  const lblLeft=$('lbl-left'), lblRight=$('lbl-right'), lblGrip=$('lbl-grip');
+  const overlay=$('overlay');
+  const scoreVal=$('score-val'), movesVal=$('moves-val'),
+        messVal=$('mess-val'), livesVal=$('lives-val');
+  const movesStat=$('moves-stat'), messStat=$('mess-stat');
+
+  const ATTRACT=/[?&]attract=1(&|$)/.test(location.search);
+  const BEST_KEY='bubbleCraneBest';
+  const ABORT={abort:true};
+  const LIFT=48;
+
+  // estado da esteira
+  let A=[], boxes=[], n=0;
+  let claw=0, held=false, busy=false, playing=false;
+  let movesLeft=0, budget=0, minSwaps=0, used=0, levelT0=0;
+  // estado da partida
+  let level=1, score=0, lives=3;
+  let best=parseInt(localStorage.getItem(BEST_KEY)||'0',10) || 0;
+  let gen=0, demo=false, started=false;
+  let L={W:0,H:0,gap:8,bw:40,left:0};
+  let pendingLayout=false;
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function shuffled(k){
+    const a=Array.from({length:k},(_,x)=>x+1);
+    for(let i=a.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      const t=a[i]; a[i]=a[j]; a[j]=t;
+    }
+    if(inversions(a) < 2){ const t=a[0]; a[0]=a[1]; a[1]=t; }
+    return a;
+  }
+
+  // inversões = número mínimo de trocas entre vizinhos para ordenar
+  function inversions(arr){
+    let c=0;
+    for(let i=0;i<arr.length;i++)
+      for(let j=i+1;j<arr.length;j++)
+        if(arr[i]>arr[j]) c++;
+    return c;
+  }
+
+  const isSorted = () => A.every((v,i)=> i===0 || A[i-1]<=v);
+
+  // ---------- tabuleiro ----------
+  function buildBoard(){
+    track.innerHTML='';
+    boxes = A.map((v,k)=>{
+      const el=document.createElement('div');
+      el.className='box';
+      el.dataset.v=v;
+      el.innerHTML='<i>'+k+'</i><b>'+v+'</b>';
+      el.addEventListener('click',()=>onBoxClick(el));
+      track.appendChild(el);
+      return el;
+    });
+    layout();
+  }
+
+  function layout(){
+    if(busy){ pendingLayout=true; return; }
+    const W=stage.clientWidth, H=stage.clientHeight;
+    if(!W || !n) return;
+    svg.setAttribute('viewBox','0 0 '+W+' '+H);
+    const gap=Math.max(5, Math.min(11, Math.round(W/62)));
+    const bw=Math.max(20, Math.min(58, Math.floor((W-46-(n-1)*gap)/n)));
+    const trackW=n*bw+(n-1)*gap;
+    L={W:W,H:H,gap:gap,bw:bw,left:Math.round((W-trackW)/2)};
+    track.style.left=L.left+'px';
+    track.style.width=trackW+'px';
+    const maxV=Math.max.apply(null,A);
+    const maxH=H-104, minH=36;
+    boxes.forEach(el=>{
+      const v=+el.dataset.v;
+      el.style.width=bw+'px';
+      el.style.height=Math.round(minH+(maxH-minH)*(v/maxV))+'px';
+      el.style.fontSize=Math.max(11,Math.round(bw*0.42))+'px';
+    });
+    place(true);
+    paint();
+    moveTrolley(true);
+  }
+
+  const slotX = k => k*(L.bw+L.gap);
+
+  // posiciona cada bloco no seu slot; o que está na garra fica suspenso
+  function place(instant){
+    boxes.forEach((el,k)=>{
+      if(instant) el.style.transitionDuration='0s';
+      el.style.transform='translate('+slotX(k)+'px,'+((held && k===claw) ? -LIFT : 0)+'px)';
+      el.querySelector('i').textContent=k;
+      if(instant){ void el.offsetWidth; el.style.transitionDuration=''; }
+    });
+  }
+
+  function paint(){
+    boxes.forEach((el,k)=>{
+      el.classList.toggle('ok', +el.dataset.v === k+1);
+      el.classList.toggle('sel', k===claw && !held && playing);
+      el.classList.toggle('held', k===claw && held);
+    });
+    trolley.classList.toggle('holding', held);
+  }
+
+  function moveTrolley(instant){
+    if(instant) trolley.style.transitionDuration='0s';
+    trolley.style.transform='translateX('+(L.left+slotX(claw)+L.bw/2)+'px)';
+    if(instant){ void trolley.offsetWidth; trolley.style.transitionDuration=''; }
+    drawBeam();
+  }
+
+  // feixe de luz do gancho até o topo do bloco sob a garra
+  function drawBeam(){
+    if(!playing && !demo){ svg.classList.remove('on'); return; }
+    const hookY=48, hx=L.left+slotX(claw)+L.bw/2, base=L.H-18;
+    const el=boxes[claw];
+    if(!el) return;
+    const x1=L.left+slotX(claw), x2=x1+L.bw;
+    const y=base-el.offsetHeight-(held?LIFT:0);
+    beamL.setAttribute('points',
+      (hx-6)+','+hookY+' '+(hx+6)+','+hookY+' '+x2+','+y+' '+x1+','+y);
+    beamR.setAttribute('points','');
+    svg.classList.add('on');
+  }
+
+  // ---------- HUD ----------
+  function hud(){
+    // antes de começar a esteira do fundo é só enfeite: não mostrar número
+    // de trocas/desordem dela como se fosse estado de partida
+    scoreVal.textContent = started ? score : 0;
+    movesVal.textContent = started ? movesLeft : '—';
+    movesStat.classList.toggle('low', started && movesLeft<=2);
+    const inv=inversions(A);
+    messVal.textContent = started ? inv : '—';
+    messStat.classList.toggle('zero', started && inv===0);
+    livesVal.textContent = lives>0 ? '❤'.repeat(lives) : '—';
+    barFill.style.width = budget ? Math.max(0,(movesLeft/budget)*100)+'%' : '0%';
+    barFill.classList.toggle('low', movesLeft<=2);
+  }
+
+  function popup(cls, txt, ms, wrapped){
+    const el=document.createElement('div');
+    el.className=cls;
+    if(wrapped){
+      const s=document.createElement('span');
+      s.textContent=txt;
+      el.appendChild(s);
+    } else {
+      el.textContent=txt;
+    }
+    stage.appendChild(el);
+    setTimeout(()=>el.remove(), ms);
+  }
+  const flash  = (txt,kind) => popup('flash '+kind, txt, 840, false);
+  const banner = (txt,kind) => popup('banner'+(kind?' '+kind:''), txt, 1600, true);
+
+  function say(txt, idle){
+    statusEl.className='status'+(idle?' idle':'');
+    statusEl.innerHTML=txt;
+  }
+
+  function refreshPad(){
+    const on = playing && !busy;
+    pad.classList.toggle('off', !on);
+    lblLeft.textContent = held ? 'TROCAR' : 'MOVER';
+    lblRight.textContent = held ? 'TROCAR' : 'MOVER';
+    lblGrip.textContent = held ? 'SOLTAR' : 'PEGAR';
+    btnGrip.classList.toggle('on', held);
+    if(!playing) return;
+    if(held) say('Carregando <b>a['+claw+'] = '+A[claw]+'</b> — troque para a esquerda ou a direita.');
+    else say('Garra sobre <b>a['+claw+'] = '+A[claw]+'</b> — pegue o bloco.');
+  }
+
+  // ---------- comandos do jogador ----------
+  function onBoxClick(el){
+    if(!playing || busy) return;
+    const k=boxes.indexOf(el);
+    if(k<0) return;
+    if(held){
+      if(k===claw){ toggleGrip(); return; }        // clicou no que está preso: solta
+      if(k===claw-1){ doSwap(-1); return; }        // clicou no vizinho: troca
+      if(k===claw+1){ doSwap(1); return; }
+      held=false;                                   // longe: solta e pega o novo
+      place(); paint();
+    }
+    claw=k;
+    held=true;
+    place(); paint(); moveTrolley(); refreshPad(); hud();
+  }
+
+  function moveClaw(dir){
+    if(!playing || busy) return;
+    const k=claw+dir;
+    if(k<0 || k>=n){ bump(); return; }
+    claw=k;
+    paint(); moveTrolley(); refreshPad();
+  }
+
+  function toggleGrip(){
+    if(!playing || busy) return;
+    held=!held;
+    if(!held){
+      boxes[claw].classList.add('land');
+      setTimeout(()=>boxes[claw] && boxes[claw].classList.remove('land'),300);
+    }
+    place(); paint(); drawBeam(); refreshPad();
+  }
+
+  function bump(){
+    stage.classList.add('shake');
+    setTimeout(()=>stage.classList.remove('shake'),400);
+  }
+
+  async function doSwap(dir){
+    if(!playing || busy || !held) return;
+    const j=claw+dir;
+    if(j<0 || j>=n){ bump(); return; }
+
+    busy=true; refreshPad();
+    const inv0=inversions(A);
+
+    // o bloco carregado passa por cima; o vizinho desliza por baixo
+    const t=boxes[claw]; boxes[claw]=boxes[j]; boxes[j]=t;
+    const v=A[claw]; A[claw]=A[j]; A[j]=v;
+    const slid=boxes[claw];
+    claw=j;
+    used++; movesLeft--;
+
+    place(); paint(); moveTrolley();
+    await sleep(300);
+    slid.classList.add('land');
+    setTimeout(()=>slid.classList.remove('land'),300);
+
+    const inv1=inversions(A);
+    if(inv1<inv0) flash('−1 desordem','ok');
+    else flash('+1 desordem','bad');
+
+    busy=false;
+    if(pendingLayout){ pendingLayout=false; layout(); }
+    hud(); refreshPad();
+
+    if(isSorted()){ await levelWin(); return; }
+    if(movesLeft<=0){ await levelFail('Acabaram as trocas!'); return; }
+  }
+
+  // ---------- fim de nível ----------
+  async function levelWin(){
+    playing=false; busy=true;
+    held=false; place(); paint();
+    svg.classList.remove('on');
+    refreshPad();
+
+    const g=gen;
+    const spare=movesLeft;
+    const secs=(performance.now()-levelT0)/1000;
+    const timeBonus=Math.max(0, Math.round(500 - secs*18));
+    const perfect = used===minSwaps;
+    const gain = 400*level + 120*spare + timeBonus + (perfect?500:0);
+    score += gain;
+
+    say('Esteira ordenada em '+used+' trocas'+(perfect?' — o mínimo possível.':' (mínimo: '+minSwaps+').'), true);
+    banner(perfect ? 'Trocas mínimas! +'+gain : 'Ordenado! +'+gain);
+    hud();
+    await sleep(1600);
+    if(g!==gen) return;
+    level++;
+    startLevel();
+  }
+
+  async function levelFail(msg){
+    playing=false; busy=true;
+    held=false; place(); paint();
+    svg.classList.remove('on');
+    refreshPad();
+
+    const g=gen;
+    lives--;
+    hud();
+    say(msg+' Ainda faltavam '+inversions(A)+' trocas.', true);
+    banner(msg,'bad');
+    bump();
+    await sleep(1600);
+    if(g!==gen) return;
+    if(lives<=0){ gameOver(); return; }
+    startLevel();
+  }
+
+  // ---------- fluxo ----------
+  function stopAll(){ gen++; playing=false; demo=false; busy=false; pendingLayout=false; }
+
+  function startLevel(){
+    stopAll();
+    n=Math.min(5+Math.floor((level-1)/2), 10);
+    A=shuffled(n);
+    minSwaps=inversions(A);
+    const folga=Math.max(1, 5-Math.floor(level/2));
+    budget=minSwaps+folga;
+    movesLeft=budget;
+    used=0;
+    claw=0; held=false; busy=false;
+    playing=true;
+    levelT0=performance.now();
+    buildBoard();
+    hud(); refreshPad();
+    banner('Nível '+level+' · '+minSwaps+' trocas bastam');
+  }
+
+  function newGame(){
+    started=true;
+    level=1; score=0; lives=3;
+    overlay.classList.add('hide');
+    startLevel();
+  }
+
+  async function runDemo(){
+    stopAll();
+    const g=++gen;
+    started=false; demo=true;
+    overlay.classList.add('hide');
+    n=6; A=shuffled(6);
+    claw=0; held=false;
+    buildBoard();
+    say('Demonstração — o Bubble Sort resolve sozinho.', true);
+    hud();
+    refreshPad();
+
+    const w = async ms => { await sleep(ms); if(g!==gen) throw ABORT; };
+    try{
+      await w(420);
+      for(let p=0;p<n-1;p++){
+        let swapped=false;
+        await w(260);
+        for(let i=0;i<n-1-p;i++){
+          await w(150);
+          claw=i; moveTrolley(); paint();
+          await w(560);
+          if(A[i]>A[i+1]){
+            held=true; place(); paint(); drawBeam();
+            await w(260);
+            const t=boxes[i]; boxes[i]=boxes[i+1]; boxes[i+1]=t;
+            const v=A[i]; A[i]=A[i+1]; A[i+1]=v;
+            claw=i+1;
+            place(); paint(); moveTrolley();
+            await w(320);
+            held=false; place(); paint(); drawBeam();
+            await w(240);
+            swapped=true;
+            hud();
+          } else {
+            await w(180);
+          }
+        }
+        await w(320);
+        if(!swapped){ banner('Nenhuma troca — já está ordenado'); await w(1100); break; }
+      }
+      svg.classList.remove('on');
+      await w(500);
+      showStart();
+    }catch(e){ if(e!==ABORT) throw e; }
+  }
+
+  function showOverlay(html, primary){
+    overlay.innerHTML=html+
+      '<div class="btn-row">'+
+        '<button id="start-btn">'+primary+'</button>'+
+        '<button id="demo-btn" class="ghost">Ver demonstração</button>'+
+      '</div>';
+    overlay.classList.remove('hide');
+    overlay.querySelector('#start-btn').addEventListener('click', newGame);
+    overlay.querySelector('#demo-btn').addEventListener('click', runDemo);
+  }
+
+  function showStart(){
+    if(ATTRACT){ setTimeout(runDemo, 1200); return; }   // vitrine: emenda outra rodada
+    stopAll();
+    started=false;
+    svg.classList.remove('on');
+    say('Guindaste parado.', true);
+    refreshPad();
+    showOverlay(
+      '<h2>Opere o guindaste</h2>'+
+      '<p><b>Pegue</b> um bloco com a garra e <b>empurre</b> pra esquerda ou pra direita, '+
+      'trocando de lugar com o vizinho, até a esteira ficar em ordem crescente. '+
+      'Bloco no lugar certo fica verde. Você tem um orçamento de trocas — '+
+      'e <b>Desordem</b> mostra quantas trocas ainda faltam no mínimo.</p>'+
+      (best ? '<div class="best-line">Recorde: <b>'+best+'</b></div>' : ''),
+      'Começar'
+    );
+  }
+
+  function gameOver(){
+    const finalScore=score, finalLevel=level;
+    stopAll();
+    started=false;
+    svg.classList.remove('on');
+    say('Operação encerrada.', true);
+    refreshPad();
+    const rec = finalScore>best;
+    if(rec){
+      best=finalScore;
+      try{ localStorage.setItem(BEST_KEY,String(best)); }catch(e){}
+    }
+    showOverlay(
+      '<h2>'+(rec?'Novo recorde! 🏆':'Fim de operação')+'</h2>'+
+      '<div class="big-score">'+finalScore+'</div>'+
+      '<p>Você chegou ao nível '+finalLevel+'.</p>'+
+      '<div class="best-line">Recorde: <b>'+best+'</b></div>',
+      'Jogar de novo'
+    );
+  }
+
+  // ---------- entrada ----------
+  btnLeft.addEventListener('click', ()=> held ? doSwap(-1) : moveClaw(-1));
+  btnRight.addEventListener('click',()=> held ? doSwap(1)  : moveClaw(1));
+  btnGrip.addEventListener('click', toggleGrip);
+
+  document.addEventListener('keydown',e=>{
+    const k=e.key.toLowerCase();
+    if(playing && !busy){
+      if(k==='arrowleft'||k==='a'){ e.preventDefault(); held?doSwap(-1):moveClaw(-1); return; }
+      if(k==='arrowright'||k==='d'){ e.preventDefault(); held?doSwap(1):moveClaw(1); return; }
+      if(k===' '||k==='enter'){ e.preventDefault(); toggleGrip(); return; }
+    }
+    if(!overlay.classList.contains('hide') && (k==='enter'||k===' ')){
+      e.preventDefault(); newGame();
+    }
+  });
+
+  window.addEventListener('resize', layout);
+  if(window.ResizeObserver){ new ResizeObserver(layout).observe(stage); }
+
+  // ---------- boot ----------
+  n=6; A=shuffled(6); buildBoard();
+  hud();
+  if(ATTRACT){
+    document.body.classList.add('attract');
+    setTimeout(runDemo, 600);
+  } else {
+    showStart();
+  }
+})();
+</script>
+</body>
+</html>

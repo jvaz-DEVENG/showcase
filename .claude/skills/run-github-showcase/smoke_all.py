@@ -64,6 +64,36 @@ def smoke_fusion_rush():
     return errors
 
 
+def smoke_bubble_crane():
+    pw, browser, page, errors = open_page("minijogos/bubble-crane/index.html")
+    page.wait_for_selector("#start-btn")
+    page.click("#start-btn")
+    page.wait_for_timeout(400)
+    # pega o primeiro bloco fora de ordem com a garra e empurra pra direita
+    dom_index = page.evaluate(
+        """() => {
+            const bs = [...document.querySelectorAll('.box')];
+            const slot = {};
+            bs.forEach(b => { slot[+b.querySelector('i').textContent] = +b.querySelector('b').textContent; });
+            for (let i = 0; i < bs.length - 1; i++) {
+                if (slot[i] > slot[i + 1]) {
+                    return bs.findIndex(b => +b.querySelector('i').textContent === i);
+                }
+            }
+            return -1;
+        }"""
+    )
+    if dom_index >= 0:
+        page.locator(".box").nth(dom_index).click()
+        page.wait_for_timeout(350)
+        page.click("#btn-right")
+        page.wait_for_timeout(700)  # deixa a troca/animação do guindaste rodar
+    shot(page, OUT, "bubble-crane")
+    browser.close()
+    pw.stop()
+    return errors
+
+
 def smoke_gerador_titulo():
     pw, browser, page, errors = open_page("ferramentas/gerador-titulo-seo/index.html")
     page.fill("#produto", "Produto Teste")
@@ -108,6 +138,7 @@ CHECKS = {
     "reflex-rush": smoke_reflex_rush,
     "mata-barata": smoke_mata_barata,
     "fusion-rush": smoke_fusion_rush,
+    "bubble-crane": smoke_bubble_crane,
     "gerador-titulo-seo": smoke_gerador_titulo,
     "assinador-mtr": smoke_assinador_mtr,
     "gerador-relatorio-fotografico": smoke_gerador_relatorio,
