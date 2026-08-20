@@ -1,0 +1,2874 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Cosmic Crush</title>
+<meta name="description" content="Match-3 espacial completo: combina grupo conectado de 4+ peças em qualquer formato, 4 tipos de fase (coletar, gelo, resgate e pontuação), bloqueadores, combinações entre especiais, ignição final, mapa de fases, loja de poderes com moeda própria, conquistas, perfil e tutorial. HTML, CSS e JS puro, sem dependências." />
+<style>
+  :root{
+    --bg-0:#0b0e14;
+    --bg-1:#121722;
+    --panel:#161c29;
+    --text:#e8ecf4;
+    --muted:#8b93a7;
+    --accent:#5eead4;
+    --accent-2:#a78bfa;
+    --danger:#f87171;
+    --ring:rgba(94,234,212,.35);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg-0:#eef1f6;
+      --bg-1:#e4e9f2;
+      --panel:#ffffff;
+      --text:#131722;
+      --muted:#5b6478;
+      --accent:#0d9488;
+      --accent-2:#7c3aed;
+      --danger:#dc2626;
+      --ring:rgba(13,148,136,.25);
+    }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, var(--bg-1), transparent),
+      radial-gradient(1200px 600px at 100% 110%, var(--bg-1), transparent),
+      var(--bg-0);
+    color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    padding:20px;
+    overflow-x:hidden;
+  }
+  h1{ margin:0; font-size:clamp(22px,4vw,32px); letter-spacing:.5px; }
+  h1 span{
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .subtitle{ margin:2px 0 0; color:var(--muted); font-size:14px; text-align:center; max-width:54ch; }
+
+  .hud{
+    width:min(432px,92vw);
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .stat{
+    flex:1;
+    background:var(--panel);
+    border-radius:14px;
+    padding:8px 10px;
+    text-align:center;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 20px -12px rgba(0,0,0,.5);
+  }
+  .stat b{ display:block; font-size:18px; }
+  .stat span{ display:block; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  #moves-stat b{ color:var(--accent-2); }
+  #moves-stat.low b{ color:var(--danger); }
+
+  .goals{
+    width:min(432px,92vw);
+    display:flex;
+    gap:8px;
+    justify-content:center;
+    flex-wrap:wrap;
+  }
+  .goal{
+    display:flex; align-items:center; gap:7px;
+    background:var(--panel);
+    border-radius:999px;
+    padding:5px 13px 5px 9px;
+    font-size:13px; font-weight:600;
+    box-shadow:0 8px 20px -14px rgba(0,0,0,.6);
+  }
+  .goal .ico{ font-size:19px; line-height:1; }
+  .goal.done{ color:var(--accent); }
+  .goal.done::after{ content:"✓"; font-size:12px; }
+
+  .boosters{
+    width:min(432px,92vw);
+    display:flex; gap:8px; justify-content:center;
+  }
+  .bst{
+    position:relative; flex:1; max-width:104px;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    padding:9px 0; border-radius:14px;
+    background:var(--panel); color:var(--text);
+    font-size:19px; line-height:1;
+    box-shadow:0 8px 20px -14px rgba(0,0,0,.6);
+  }
+  .bst .n{ font-size:11px; font-weight:700; color:var(--muted); }
+  .bst.armed{ outline:2px solid var(--accent); background:var(--bg-1); }
+  .bst.armed .n{ color:var(--accent); }
+  .bst.empty{ opacity:.38; cursor:not-allowed; }
+  .hintbar{ height:15px; font-size:12px; color:var(--accent); text-align:center; }
+
+  .stage{ position:relative; width:min(432px,92vw); }
+  .arena{
+    display:block;
+    width:100%;
+    height:auto;
+    border-radius:20px;
+    touch-action:none;
+    background:#080a12;
+    box-shadow:0 24px 60px -30px rgba(0,0,0,.9), 0 0 0 1px rgba(148,163,184,.12);
+    cursor:pointer;
+  }
+
+  .overlay{
+    position:absolute; inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    background:rgba(10,12,18,.72);
+    backdrop-filter:blur(6px);
+    text-align:center;
+    padding:20px;
+    border-radius:20px;
+    color:#e8ecf4;
+  }
+  .overlay.hidden{ display:none; }
+  .overlay h2{ margin:0; font-size:22px; }
+  .overlay p{ margin:0; color:#9aa3b8; font-size:13px; max-width:300px; line-height:1.5; }
+  .overlay p b{ color:#e8ecf4; }
+  .big-score{ font-size:38px; font-weight:700; color:var(--accent); line-height:1; }
+  .stars-row{ font-size:34px; letter-spacing:6px; }
+  .stars-row i{ font-style:normal; color:#39405a; display:inline-block; }
+  .stars-row i.on{ color:#fbbf24; text-shadow:0 0 18px rgba(251,191,36,.6); }
+  /* as estrelas caem uma de cada vez, com repique */
+  .stars-row i.on{ animation:estrela .55s cubic-bezier(.2,1.7,.4,1) backwards; }
+  .stars-row i.on:nth-child(1){ animation-delay:.15s }
+  .stars-row i.on:nth-child(2){ animation-delay:.42s }
+  .stars-row i.on:nth-child(3){ animation-delay:.69s }
+  @keyframes estrela{
+    from{ transform:scale(2.6) rotate(-45deg); opacity:0 }
+    to  { transform:scale(1) rotate(0); opacity:1 }
+  }
+
+  /* telas entram deslizando */
+  .overlay:not(.hidden){ animation:telaEntra .22s ease-out; }
+  @keyframes telaEntra{ from{ opacity:0; transform:scale(.96) } to{ opacity:1; transform:scale(1) } }
+  .overlay h2{ animation:sobe .3s ease-out backwards; animation-delay:.05s; }
+  .big-score{ animation:sobe .35s cubic-bezier(.2,1.5,.4,1) backwards; animation-delay:.5s; }
+  @keyframes sobe{ from{ opacity:0; transform:translateY(9px) } to{ opacity:1; transform:none } }
+
+  /* linhas de loja/conquistas entram em cascata */
+  .sheet .row{ animation:sobe .3s ease-out backwards; }
+  .sheet .row:nth-child(1){ animation-delay:.04s } .sheet .row:nth-child(2){ animation-delay:.08s }
+  .sheet .row:nth-child(3){ animation-delay:.12s } .sheet .row:nth-child(4){ animation-delay:.16s }
+  .sheet .row:nth-child(5){ animation-delay:.20s } .sheet .row:nth-child(6){ animation-delay:.24s }
+  .sheet .row:nth-child(7){ animation-delay:.28s } .sheet .row:nth-child(8){ animation-delay:.32s }
+
+  .bst{ transition:transform .12s ease, outline-color .15s ease; }
+  .bst.armed{ animation:pulsa 1.1s ease-in-out infinite; }
+  @keyframes pulsa{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-3px) } }
+  .goal{ transition:transform .2s cubic-bezier(.2,1.6,.4,1), color .2s ease; }
+  .goal.done{ transform:scale(1.06); }
+
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+  }
+  .legend{
+    display:flex; flex-direction:column; gap:5px;
+    font-size:12px; color:#9aa3b8; text-align:left; max-width:296px;
+  }
+  .legend div b{ color:#e8ecf4; }
+
+  .overlay.map-mode{ padding:14px; gap:9px; }
+  .overlay.map-mode h2{ font-size:18px; }
+
+  .map-wrap{
+    width:100%; max-width:312px;
+    /* o palco é quadrado, então em tela estreita a altura disponível encolhe junto */
+    height:min(326px, calc(92vw - 132px));
+    overflow-y:auto; overflow-x:hidden;
+    border-radius:14px;
+    background:rgba(8,10,18,.45);
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.1);
+    scrollbar-width:thin;
+    scrollbar-color:rgba(148,163,184,.4) transparent;
+  }
+  .map-wrap::-webkit-scrollbar{ width:6px; }
+  .map-wrap::-webkit-scrollbar-thumb{ background:rgba(148,163,184,.4); border-radius:3px; }
+  .map-wrap::-webkit-scrollbar-track{ background:transparent; }
+  .map{ position:relative; width:300px; margin:0 auto; }
+  .map .trail{ position:absolute; left:0; top:0; width:100%; height:100%; }
+  .node{
+    position:absolute; width:52px; padding:0; margin:0;
+    background:none; box-shadow:none; border-radius:0;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+  }
+  .node .disc{
+    width:52px; height:52px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:19px; font-weight:800; color:#08131a;
+    background:linear-gradient(160deg,#5eead4,#a78bfa);
+    box-shadow:0 8px 18px -8px rgba(0,0,0,.85), inset 0 -3px 0 rgba(0,0,0,.16);
+  }
+  .node .disc small{ font-size:11px; font-weight:600; }
+  .node.done .disc{ background:linear-gradient(160deg,#fbbf24,#fb923c); }
+  .node.locked{ cursor:not-allowed; }
+  .node.locked .disc{ background:#212a3c; color:#5b6478; box-shadow:none; font-size:15px; }
+  .node.next .disc{ animation:bump 1.7s ease-in-out infinite; }
+  @keyframes bump{ 0%,100%{ transform:scale(1) } 50%{ transform:scale(1.1) } }
+  .node .st{ font-size:11px; letter-spacing:1px; line-height:1; height:12px; }
+  .node .st i{ font-style:normal; color:#39405a; }
+  .node .st i.on{ color:#fbbf24; }
+  .node .sc{ font-size:9px; color:#8b93a7; line-height:1; height:10px; }
+  .map-total{ font-size:12px; color:#9aa3b8; }
+  .map-total b{ color:#fbbf24; }
+
+  /* carteira */
+  .wallet{
+    display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+    font-size:13px; font-weight:700;
+  }
+  .wallet span{
+    background:var(--panel); border-radius:999px; padding:5px 14px;
+    box-shadow:0 8px 20px -14px rgba(0,0,0,.6);
+  }
+  .wallet .cr{ color:#67e8f9; }
+  .wallet .st{ color:#fbbf24; }
+
+  /* painel rolável das telas de conteúdo */
+  .sheet{
+    width:100%; max-width:326px;
+    height:min(300px, calc(92vw - 150px));
+    overflow-y:auto; overflow-x:hidden;
+    display:flex; flex-direction:column; gap:8px;
+    padding:2px 6px 2px 2px;
+    text-align:left;
+    scrollbar-width:thin;
+    scrollbar-color:rgba(148,163,184,.4) transparent;
+  }
+  .sheet::-webkit-scrollbar{ width:6px; }
+  .sheet::-webkit-scrollbar-thumb{ background:rgba(148,163,184,.4); border-radius:3px; }
+  .overlay.sheet-mode{ padding:14px; gap:9px; }
+  .overlay.sheet-mode h2{ font-size:18px; }
+
+  /* menu */
+  .menu-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; max-width:300px; }
+  .menu-grid button{ padding:10px 6px; font-size:13px; }
+  .menu-grid .wide{ grid-column:1 / -1; }
+
+  /* loja */
+  .row{
+    display:flex; align-items:center; gap:10px;
+    background:rgba(22,28,41,.9);
+    border-radius:14px; padding:9px 11px;
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.12);
+  }
+  .row .ic{ font-size:24px; line-height:1; }
+  .row .txt{ flex:1; min-width:0; }
+  .row .txt b{ display:block; font-size:13px; color:#e8ecf4; }
+  .row .txt small{ display:block; font-size:11px; color:#9aa3b8; }
+  .row .buy{
+    padding:7px 11px; border-radius:10px; font-size:12px; font-weight:700;
+    background:linear-gradient(90deg,#22d3ee,#a78bfa); color:#08131a;
+    box-shadow:none; white-space:nowrap;
+  }
+  .row .buy.off{ opacity:.4; cursor:not-allowed; }
+  .row.locked{ opacity:.5; }
+
+  /* perfil */
+  .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .cell{
+    background:rgba(22,28,41,.9); border-radius:12px; padding:8px 10px;
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.12);
+  }
+  .cell b{ display:block; font-size:17px; color:#5eead4; }
+  .cell span{ display:block; font-size:10px; color:#9aa3b8; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+
+  /* conquistas */
+  .bar{ height:5px; border-radius:3px; background:rgba(148,163,184,.2); overflow:hidden; margin-top:5px; }
+  .bar i{ display:block; height:100%; background:linear-gradient(90deg,#5eead4,#a78bfa); }
+  .row.got{ box-shadow:inset 0 0 0 1px rgba(251,191,36,.55); }
+  .row.got .txt b{ color:#fbbf24; }
+
+  /* tutorial */
+  .tut b{ color:#e8ecf4; font-size:13px; }
+  .tut .fig{
+    font-size:19px; letter-spacing:3px; line-height:1.35;
+    background:rgba(8,10,18,.6); border-radius:10px; padding:7px 10px; margin-top:5px;
+    white-space:pre; overflow-x:auto;
+  }
+
+  button{
+    appearance:none; border:none; cursor:pointer;
+    padding:11px 24px; border-radius:999px; font-size:14px; font-weight:600;
+    color:#08131a;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    box-shadow:0 10px 24px -10px var(--ring);
+    transition:transform .12s ease;
+  }
+  button.ghost{
+    color:#e8ecf4; background:transparent; border:1px solid rgba(148,163,184,.35); box-shadow:none;
+  }
+  button.small{ padding:8px 16px; font-size:13px; }
+  button:active{ transform:scale(.96); }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+
+  footer{ color:var(--muted); font-size:12px; text-align:center; }
+  footer a{ color:var(--accent); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+  footer .ver{ color:var(--muted); font-weight:600; }
+
+  /* modo vitrine: o portfolio da raiz embute o jogo num iframe reduzido e ele
+     se joga sozinho. Sem ?attract=1 nada disso vale. */
+  body.attract{ padding:4px; gap:6px; }
+  body.attract h1,
+  body.attract .subtitle,
+  body.attract #boosters,
+  body.attract #wallet,
+  body.attract footer{ display:none; }
+</style>
+<script>
+/* Modo vitrine (?attract=1): a pagina de portfolio embute este jogo e um bot
+   joga sozinho. Sem isto, o bot gravaria recorde/progresso por cima do de
+   quem joga de verdade. Precisa vir antes do script do jogo. */
+if(/[?&]attract=1(&|$)/.test(location.search)){
+  Storage.prototype.setItem = function(){};
+  // o portfolio precisa saber o tamanho real desta pagina para enquadrar o
+  // card sem cortar embaixo; sob file:// ele nao consegue ler o iframe, entao
+  // quem informa e o proprio jogo
+  var avisa = function(){
+    try{ parent.postMessage({__vitrine:1,
+      w: document.documentElement.scrollWidth,
+      h: document.documentElement.scrollHeight}, '*'); }catch(e){}
+  };
+  addEventListener('load', function(){ avisa(); setInterval(avisa, 2000); });
+}
+</script>
+</head>
+<body>
+
+  <h1>🪐 <span>Cosmic Crush</span></h1>
+  <p class="subtitle">Alinhe 3 corpos celestes iguais. Cada fase tem um objetivo próprio e um limite de movimentos — e combinações grandes viram foguete, supernova ou buraco negro.</p>
+
+  <div class="wallet" id="wallet"></div>
+
+  <div class="hud">
+    <div class="stat" id="level-stat"><b id="level-val">1</b><span>Fase</span></div>
+    <div class="stat" id="moves-stat"><b id="moves-val">0</b><span>Movimentos</span></div>
+    <div class="stat" id="score-stat"><b id="score-val">0</b><span>Pontos</span></div>
+  </div>
+
+  <div class="goals" id="goals"></div>
+
+  <div class="stage">
+    <canvas class="arena" id="arena" width="448" height="448"></canvas>
+    <div class="overlay" id="overlay"></div>
+  </div>
+
+  <div class="boosters" id="boosters"></div>
+  <div class="hintbar" id="hintbar"></div>
+
+  <footer>Cosmic Crush <span class="ver">v2.2.0</span> — match-3 com campanha, loja e conquistas, feito com HTML, CSS e JS puro, sem dependências.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- setup ----------
+  const canvas = document.getElementById('arena');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const goalsEl = document.getElementById('goals');
+  const boostersEl = document.getElementById('boosters');
+  const hintEl = document.getElementById('hintbar');
+  const levelVal = document.getElementById('level-val');
+  const movesVal = document.getElementById('moves-val');
+  const movesStat = document.getElementById('moves-stat');
+  const scoreVal = document.getElementById('score-val');
+  const walletEl = document.getElementById('wallet');
+
+  const COLS = 8, ROWS = 8, CELL = 56;
+  const BOARD = COLS * CELL;            // 448 — unidade lógica do canvas
+  const PAD = 4;                        // respiro interno de cada célula
+  const SAVE_KEY = 'cosmic-crush.v1';
+
+  // navegadores antigos não têm roundRect
+  if(!ctx.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r){
+      r = Math.min(r, w/2, h/2);
+      this.moveTo(x + r, y);
+      this.arcTo(x + w, y,     x + w, y + h, r);
+      this.arcTo(x + w, y + h, x,     y + h, r);
+      this.arcTo(x,     y + h, x,     y,     r);
+      this.arcTo(x,     y,     x + w, y,     r);
+      this.closePath();
+      return this;
+    };
+  }
+
+  const POP_MS = 0.19;                  // duração da animação de estouro
+  const SWAP_MS = 0.14;
+  const FALL_G = 3600;
+  const FINALE_STEP = 0.10;             // ritmo da ignição final
+
+  // ---------- peças ----------
+  // um matiz bem separado por tipo — a cor é o mecanismo do jogo, não pode ter duas parecidas
+  const TYPES = [
+    { name:'Planeta',   emoji:'🪐', color:'#fb923c', glow:'#ffedd5' },
+    { name:'Estrela',   emoji:'⭐', color:'#fbbf24', glow:'#fef3c7' },
+    { name:'Cometa',    emoji:'☄️', color:'#f87171', glow:'#fee2e2' },
+    { name:'Terra',     emoji:'🌍', color:'#38bdf8', glow:'#e0f2fe' },
+    { name:'Lua',       emoji:'🌑', color:'#a78bfa', glow:'#ede9fe' },
+    { name:'Asteroide', emoji:'🪨', color:'#e2e8f0', glow:'#f8fafc' }
+  ];
+  const NT = TYPES.length;
+  const CARGO = -2;                     // tipo da cápsula: nunca combina com nada
+  const CARGO_EMOJI = '🚀';
+  const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif';
+
+  function rgba(hex, a){
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + (n>>16 & 255) + ',' + (n>>8 & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  // elogios de cascata, no espírito do "Sweet!/Divine!" do Candy Crush
+  const CASCATA = [null, null, 'Bom!', 'Ótimo!', 'Incrível!', 'Estelar!', 'Cósmico!', 'Galáctico!', 'Big Bang!'];
+
+  // ---------- poderes ----------
+  const BOOSTERS = [
+    { key:'hammer', emoji:'🔨', name:'Martelo',       hint:'Martelo: toque numa peça, num gelo ou na matéria escura.' },
+    { key:'swap',   emoji:'🔄', name:'Troca livre',   hint:'Troca livre: toque em duas peças vizinhas.' },
+    { key:'moves',  emoji:'➕', name:'+5 movimentos', hint:'' },
+    { key:'bomb',   emoji:'💥', name:'Bomba de cor',  hint:'Bomba: toque numa peça para varrer toda aquela cor.' }
+  ];
+  const START_BOOSTERS = { hammer:2, swap:2, moves:1, bomb:1 };
+
+  // ---------- economia ----------
+  const PRECOS = { hammer:120, swap:150, moves:200, bomb:300 };
+  const PACOTE = 5, PACOTE_DESC = .8;              // 5 unidades por 80% do preço cheio
+
+  const STATS_ZERO = { fases:0, jogadas:0, pecas:0, especiais:0, combos:0,
+                       melhorCombo:0, melhorPontos:0, capsulas:0, gelos:0, cristaisGanhos:0 };
+
+  // ---------- conquistas ----------
+  const CONQUISTAS = [
+    { id:'primeira', emoji:'🎉', nome:'Decolagem',      desc:'Conclua a primeira fase',        alvo:1,     val:s => s.stats.fases },
+    { id:'dez',      emoji:'🚀', nome:'Explorador',     desc:'Conclua 10 fases',               alvo:10,    val:s => s.stats.fases },
+    { id:'estrelas', emoji:'🌟', nome:'Constelação',    desc:'Junte 25 estrelas',              alvo:25,    val:s => totalEstrelas() },
+    { id:'especial', emoji:'✨', nome:'Artesão',        desc:'Crie 50 peças especiais',        alvo:50,    val:s => s.stats.especiais },
+    { id:'combo',    emoji:'💫', nome:'Cósmico',        desc:'Faça uma cascata de 6',          alvo:6,     val:s => s.stats.melhorCombo },
+    { id:'fusao',    emoji:'🕳️', nome:'Fusão',          desc:'Combine 10 especiais entre si',  alvo:10,    val:s => s.stats.combos },
+    { id:'gelo',     emoji:'🧊', nome:'Derretedor',     desc:'Derreta 100 células de gelo',    alvo:100,   val:s => s.stats.gelos },
+    { id:'resgate',  emoji:'🛸', nome:'Salva-vidas',    desc:'Resgate 10 cápsulas',            alvo:10,    val:s => s.stats.capsulas },
+    { id:'pecas',    emoji:'💥', nome:'Pulverizador',   desc:'Estoure 2.000 peças',            alvo:2000,  val:s => s.stats.pecas },
+    { id:'recorde',  emoji:'🏆', nome:'Recordista',     desc:'Faça 30.000 pontos numa fase',   alvo:30000, val:s => s.stats.melhorPontos }
+  ];
+
+  // ---------- bloqueadores ----------
+  // desenhos de gelo por nome; cada um devolve [r,c] das células cobertas
+  const PADROES = {
+    centro:  () => cells(3,4, 2,5),
+    cantos:  () => [].concat(cells(0,1,0,1), cells(0,1,6,7), cells(6,7,0,1), cells(6,7,6,7)),
+    faixa:   () => cells(4,4, 0,7),
+    xis:     () => { const a=[]; for(let i=0;i<8;i++){ a.push([i,i]); if(i !== 7-i) a.push([i,7-i]); } return a; },
+    pilares: () => [].concat(cells(2,5, 2,2), cells(2,5, 5,5)),
+    xadrez:  () => { const a=[]; for(let r=2;r<=5;r++) for(let c=0;c<8;c++) if((r+c)%2===0) a.push([r,c]); return a; }
+  };
+  function cells(r0, r1, c0, c1){
+    const a = [];
+    for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++) a.push([r,c]);
+    return a;
+  }
+  const CORRENTES = {
+    linha:      () => cells(1,1, 0,7),
+    centro:     () => cells(3,4, 3,4),
+    espalhado:  () => [[1,1],[1,6],[3,0],[4,7],[6,2],[6,5]]
+  };
+
+  // ---------- fases ----------
+  // kind: collect (coletar peças) | ice (derreter todo o gelo) | cargo (resgatar cápsulas) | score (bater a pontuação)
+  // quantidades calibradas com uma sonda que joga cada fase 12 vezes com um bot mediano
+  const LEVELS = [
+    { kind:'collect', goals:[[1,34]],               moves:22 },
+    { kind:'collect', goals:[[0,32],[2,32]],        moves:24 },
+    { kind:'ice',     ice:'centro',  iceHp:1,       moves:12 },
+    { kind:'collect', goals:[[5,46]],               moves:24, ice:'cantos', iceHp:1 },
+    { kind:'score',   target:17000,                 moves:20 },
+    { kind:'cargo',   cargo:2,                      moves:21 },
+    { kind:'ice',     ice:'faixa',   iceHp:2,       moves:22 },
+    { kind:'collect', goals:[[3,36],[4,36]],        moves:26, locks:'linha' },
+    { kind:'cargo',   cargo:2,                      moves:23, ice:'pilares', iceHp:1 },
+    { kind:'ice',     ice:'xis',     iceHp:1,       moves:21, dark:1 },
+    { kind:'score',   target:22000,                 moves:26, locks:'centro' },
+    { kind:'collect', goals:[[1,38],[3,38],[5,38]], moves:32, dark:2 },
+    { kind:'cargo',   cargo:3,                      moves:30, ice:'centro', iceHp:2 },
+    { kind:'ice',     ice:'xadrez',  iceHp:1,       moves:21, dark:1 },
+    { kind:'collect', goals:[[0,46],[2,46],[4,46]], moves:34, ice:'cantos', iceHp:2, locks:'espalhado' }
+  ];
+
+  // PRNG determinístico para as fases geradas depois das feitas à mão — mesma fase pra todo mundo
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function levelConfig(n){
+    let base;
+    if(n <= LEVELS.length){
+      base = LEVELS[n-1];
+    } else {
+      const rnd = mulberry32(n * 7919);
+      const dif = n - LEVELS.length;
+      const kinds = ['collect','ice','cargo','score','collect','ice'];
+      const kind = kinds[Math.floor(rnd()*kinds.length)];
+      base = { kind, moves: 24 + Math.floor(rnd()*8) };
+
+      if(kind === 'collect'){
+        const pool = [0,1,2,3,4,5];
+        for(let i=pool.length-1;i>0;i--){ const j = Math.floor(rnd()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+        const quantos = 2 + (rnd() < .35 ? 1 : 0);
+        const qtd = 34 + Math.floor(dif*1.2);
+        base.goals = pool.slice(0, quantos).map(t => [t, qtd + Math.floor(rnd()*6)]);
+      } else if(kind === 'ice'){
+        const nomes = Object.keys(PADROES);
+        base.ice = nomes[Math.floor(rnd()*nomes.length)];
+        base.iceHp = rnd() < .35 ? 2 : 1;
+        base.moves += base.iceHp === 2 ? 4 : 1;
+      } else if(kind === 'cargo'){
+        base.cargo = 2 + Math.floor(dif/12);
+        base.moves += 2;
+      } else {
+        base.target = Math.round(base.moves * 780);
+      }
+      if(rnd() < .35){
+        const nomes = Object.keys(CORRENTES);
+        base.locks = nomes[Math.floor(rnd()*nomes.length)];
+      }
+      if(rnd() < .3) base.dark = 1 + (rnd() < .4 ? 1 : 0);
+    }
+
+    const cfg = {
+      n,
+      kind: base.kind,
+      moves: base.moves,
+      goals: (base.goals || []).map(g => [g[0], g[1]]),
+      target: base.target || 0,
+      cargo: base.cargo || 0,
+      ice: base.ice || null,
+      iceHp: base.iceHp || 1,
+      locks: base.locks || null,
+      dark: base.dark || 0
+    };
+    cfg.stars = cfg.kind === 'score'
+      ? [cfg.target, Math.round(cfg.target*1.45), Math.round(cfg.target*2)]
+      : [cfg.moves*300, cfg.moves*500, cfg.moves*750];
+    return cfg;
+  }
+
+  function levelTitle(c){
+    if(c.kind === 'ice')   return 'Derreta todo o gelo cósmico';
+    if(c.kind === 'cargo') return 'Leve as cápsulas até a base';
+    if(c.kind === 'score') return 'Faça ' + c.target + ' pontos';
+    return 'Colete as peças pedidas';
+  }
+
+  // ---------- progresso ----------
+  function loadSave(){
+    let raw = {};
+    try{ raw = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'); }catch(e){}
+    return {
+      unlocked: Math.max(1, raw.unlocked|0),
+      stars: raw.stars || {},
+      best: raw.best || {},
+      boosters: Object.assign({}, START_BOOSTERS, raw.boosters || {}),
+      cristais: raw.cristais == null ? 250 : raw.cristais|0,
+      stats: Object.assign({}, STATS_ZERO, raw.stats || {}),
+      conquistas: raw.conquistas || {}
+    };
+  }
+
+  function totalEstrelas(){
+    let n = 0;
+    for(const k in save.stars) n += save.stars[k] || 0;
+    return n;
+  }
+
+  // registra estatística e já checa se alguma conquista caiu
+  function stat(campo, valor, maximo){
+    const s = save.stats;
+    s[campo] = maximo ? Math.max(s[campo] || 0, valor) : (s[campo] || 0) + valor;
+  }
+
+  function checarConquistas(){
+    const novas = [];
+    CONQUISTAS.forEach(c => {
+      if(save.conquistas[c.id]) return;
+      if(c.val(save) >= c.alvo){
+        save.conquistas[c.id] = true;
+        novas.push(c);
+      }
+    });
+    if(novas.length){
+      persist();
+      novas.forEach((c,i) => popups.push({
+        x:BOARD/2, y:BOARD/2 + 40 + i*26, text:c.emoji + ' ' + c.nome,
+        life:2.2, max:2.2, color:'#fbbf24', size:18
+      }));
+    }
+    return novas;
+  }
+  function persist(){
+    try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){}
+  }
+  let save = loadSave();
+
+  // ---------- estado ----------
+  let board = [];               // board[r][c] = tile | null
+  let blocks = [];              // blocks[r][c] = null | {kind:'ice'|'dark', hp}
+  let idSeq = 1;
+  let level = 1, cfg = null;
+  let movesLeft = 0, score = 0, collected = [], cascade = 0;
+  let iceLeft = 0, iceInicial = 0, cargoDone = 0, cargoPending = 0;
+  let darkHitTurno = false, darkPending = false;
+  let phase = 'menu';           // menu | idle | swap | pop | fall | finale | over
+  let anim = null;              // animação de troca em andamento
+  let pendingResolve = null;    // troca aceita esperando o fim da animação
+  let popT = 0, popList = [];
+  let finaleT = 0, finaleUsed = false;
+  let selected = null;          // {r,c}
+  let dragFrom = null;
+  let armed = null;             // poder ativado esperando o alvo
+  let swapPick = null;          // primeira peça escolhida na troca livre
+  let particles = [], popups = [], flashes = [];
+  let stars = [];               // fundo estrelado
+  let idleTime = 0, hint = null;
+  let lastFrame = 0, rafId = null;
+  let shake = 0;                // tremor de tela, decai sozinho
+
+  function tremer(forca){ shake = Math.min(16, Math.max(shake, forca)); }
+
+  // efeito visual com duração própria; t negativo = começa atrasado
+  function efeito(kind, r, c, opts){
+    flashes.push(Object.assign({ kind, r, c, t:0, dur:.38, color:'#fff' }, opts || {}));
+  }
+
+  // ---------- helpers ----------
+  const K = (r,c) => r + ',' + c;
+  const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  const inside = (r,c) => r >= 0 && r < ROWS && c >= 0 && c < COLS;
+  const randType = () => Math.floor(Math.random()*NT);
+  const VIZINHOS = [[-1,0],[1,0],[0,-1],[0,1]];
+
+  function makeTile(type, r, c){
+    return { id:idSeq++, t:type, special:null, locked:false, cargo:false, r, c,
+             px:c*CELL, py:r*CELL, vy:0, dying:false, triggered:false, born:0,
+             fase:Math.random()*6.28,   // desencontra o balanço parado de cada peça
+             squash:0 };
+  }
+  function makeCargo(r, c){
+    const t = makeTile(CARGO, r, c);
+    t.cargo = true;
+    return t;
+  }
+
+  // ---------- montagem do tabuleiro ----------
+  function wouldMatch(grid, r, c, type){
+    if(c >= 2 && grid[r][c-1] && grid[r][c-2] && grid[r][c-1].t === type && grid[r][c-2].t === type) return true;
+    if(r >= 2 && grid[r-1][c] && grid[r-2][c] && grid[r-1][c].t === type && grid[r-2][c].t === type) return true;
+    // quadrado 2x2 também é combinação agora
+    if(r >= 1 && c >= 1 && grid[r-1][c] && grid[r][c-1] && grid[r-1][c-1] &&
+       grid[r-1][c].t === type && grid[r][c-1].t === type && grid[r-1][c-1].t === type) return true;
+    return false;
+  }
+
+  // sobra formato torto (S, Z, cobrinha) que wouldMatch não prevê: desmancha trocando uma peça
+  function desfazerCombinacoesIniciais(){
+    let guarda = 0;
+    while(guarda++ < 400){
+      const g = findGroups();
+      if(!g.length) break;
+      const cells = g[0].cells;
+      const [r,c] = cells[Math.floor(Math.random()*cells.length)];
+      if(board[r][c]) board[r][c].t = randType();
+    }
+  }
+
+  function buildBlocks(){
+    blocks = [];
+    for(let r=0;r<ROWS;r++){ blocks.push([]); for(let c=0;c<COLS;c++) blocks[r].push(null); }
+
+    iceLeft = 0;
+    // uma fase de gelo sem gelo seria vencida sozinha — garante um padrão
+    const padrao = cfg.ice || (cfg.kind === 'ice' ? 'centro' : null);
+    if(padrao && PADROES[padrao]){
+      PADROES[padrao]().forEach(([r,c]) => {
+        if(!inside(r,c) || blocks[r][c]) return;
+        blocks[r][c] = { kind:'ice', hp:cfg.iceHp, max:cfg.iceHp };
+        iceLeft++;
+      });
+    }
+    // sementes de matéria escura, longe do gelo
+    let postas = 0;
+    const alvos = [[2,2],[5,5],[2,5],[5,2]];
+    for(const [r,c] of alvos){
+      if(postas >= cfg.dark) break;
+      if(blocks[r][c]) continue;
+      blocks[r][c] = { kind:'dark', hp:1, max:1 };
+      postas++;
+    }
+    iceInicial = iceLeft;
+  }
+
+  function buildBoard(){
+    let tentativa = 0;
+    do {
+      board = [];
+      for(let r=0;r<ROWS;r++){
+        board.push([]);
+        for(let c=0;c<COLS;c++){
+          if(blocks[r][c]){ board[r].push(null); continue; }
+          let type, guard = 0;
+          do { type = randType(); guard++; }
+          while(wouldMatch(board, r, c, type) && guard < 40);
+          board[r][c] = makeTile(type, r, c);
+        }
+      }
+      desfazerCombinacoesIniciais();
+      tentativa++;
+    } while(!hasMove() && tentativa < 40);
+
+    if(cfg.locks && CORRENTES[cfg.locks]){
+      CORRENTES[cfg.locks]().forEach(([r,c]) => {
+        if(inside(r,c) && board[r][c]) board[r][c].locked = true;
+      });
+    }
+    garantirJogada();
+  }
+
+  // se o tabuleiro travar de vez (bloqueadores podem isolar pedaços), um buraco negro destrava
+  function garantirJogada(){
+    if(hasMove()) return;
+    shuffleBoard();
+    if(hasMove()) return;
+    for(let r=ROWS-1;r>=0;r--) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(t && !t.cargo && !t.locked){
+        t.special = 'hole'; t.t = -1; t.holeTarget = null; t.born = 0.001;
+        popups.push({ x:BOARD/2, y:BOARD/2, text:'Sem saída — buraco negro de brinde',
+                      life:1.5, max:1.5, color:'#c4b5fd', size:14 });
+        return;
+      }
+    }
+  }
+
+  function shuffleBoard(){
+    const types = [];
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(t && t.t >= 0 && !t.special) types.push(t.t);
+    }
+    let guard = 0;
+    do {
+      for(let i=types.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [types[i],types[j]]=[types[j],types[i]]; }
+      let k = 0;
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+        const t = board[r][c];
+        if(t && t.t >= 0 && !t.special) t.t = types[k++];
+      }
+      guard++;
+    } while(guard < 60 && (temCombinacao() || !hasMove()));
+    popups.push({ x:BOARD/2, y:BOARD/2, text:'Sem jogadas — embaralhando', life:1.4, max:1.4, color:'#e8ecf4', size:15 });
+  }
+
+  // ---------- detecção de combinações ----------
+  function findRuns(){
+    const runs = [];
+    for(let r=0;r<ROWS;r++){
+      let c = 0;
+      while(c < COLS){
+        const t = board[r][c];
+        if(!t || t.t < 0){ c++; continue; }
+        let e = c + 1;
+        while(e < COLS && board[r][e] && board[r][e].t === t.t) e++;
+        if(e - c >= 3){
+          const cs = [];
+          for(let i=c;i<e;i++) cs.push([r,i]);
+          runs.push({ dir:'h', type:t.t, cells:cs });
+        }
+        c = e;
+      }
+    }
+    for(let c=0;c<COLS;c++){
+      let r = 0;
+      while(r < ROWS){
+        const t = board[r][c];
+        if(!t || t.t < 0){ r++; continue; }
+        let e = r + 1;
+        while(e < ROWS && board[e][c] && board[e][c].t === t.t) e++;
+        if(e - r >= 3){
+          const cs = [];
+          for(let i=r;i<e;i++) cs.push([i,c]);
+          runs.push({ dir:'v', type:t.t, cells:cs });
+        }
+        r = e;
+      }
+    }
+    return runs;
+  }
+
+  // Um grupo é todo bloco de peças da mesma cor grudadas (vizinhança ortogonal).
+  // Vale como combinação se tiver 4+ peças em QUALQUER formato (quadrado, S, Z, cobrinha)
+  // ou se contiver uma sequência reta de 3. E leva o grupo inteiro, não só a reta.
+  function findGroups(){
+    const runs = findRuns();
+    const emRun = new Set();
+    runs.forEach(r => r.cells.forEach(p => emRun.add(K(p[0],p[1]))));
+
+    const visto = new Set();
+    const grupos = [];
+    for(let r0=0;r0<ROWS;r0++) for(let c0=0;c0<COLS;c0++){
+      const raiz = board[r0][c0];
+      if(!raiz || raiz.t < 0 || visto.has(K(r0,c0))) continue;
+
+      const fila = [[r0,c0]];
+      const cells = [];
+      visto.add(K(r0,c0));
+      while(fila.length){
+        const [r,c] = fila.pop();
+        cells.push([r,c]);
+        for(const [dr,dc] of VIZINHOS){
+          const nr = r+dr, nc = c+dc;
+          if(!inside(nr,nc)) continue;
+          const o = board[nr][nc];
+          if(!o || o.t !== raiz.t) continue;
+          const k = K(nr,nc);
+          if(visto.has(k)) continue;
+          visto.add(k);
+          fila.push([nr,nc]);
+        }
+      }
+
+      if(cells.length < 4 && !cells.some(p => emRun.has(K(p[0],p[1])))) continue;
+
+      const set = new Set(cells.map(p => K(p[0],p[1])));
+      grupos.push({
+        type: raiz.t,
+        cells,
+        set,
+        runs: runs.filter(x => x.type === raiz.t && x.cells.some(p => set.has(K(p[0],p[1]))))
+      });
+    }
+    return grupos;
+  }
+
+  const temCombinacao = () => findGroups().length > 0;
+
+  // decide o que limpar e onde nascem as peças especiais
+  function planClear(swapCells, grupos){
+    const clear = new Set();
+    const specials = [];
+
+    for(const g of (grupos || findGroups())){
+      g.cells.forEach(p => clear.add(K(p[0],p[1])));
+
+      const hasH = g.runs.some(r => r.dir === 'h');
+      const hasV = g.runs.some(r => r.dir === 'v');
+      const longest = g.runs.length ? g.runs.reduce((a,b) => b.cells.length > a.cells.length ? b : a) : null;
+      const maior = longest ? longest.cells.length : 0;
+
+      let kind = null;
+      if(maior >= 5) kind = 'hole';
+      else if(hasH && hasV) kind = 'nova';
+      else if(maior === 4) kind = longest.dir === 'h' ? 'row' : 'col';
+      else if(g.cells.length >= 5) kind = 'nova';      // bolha grande sem reta nenhuma
+      if(!kind) continue;                              // 4 peças tortas: limpa as 4, sem especial
+
+      // nasce na peça que o jogador moveu; senão no cruzamento; senão no meio da run
+      let spot = null;
+      if(swapCells) spot = g.cells.find(p => swapCells.some(s => s[0] === p[0] && s[1] === p[1]));
+      if(!spot && kind === 'nova' && hasH && hasV){
+        const hCells = new Set(g.runs.filter(r => r.dir === 'h').flatMap(r => r.cells.map(p => K(p[0],p[1]))));
+        spot = g.runs.filter(r => r.dir === 'v').flatMap(r => r.cells).find(p => hCells.has(K(p[0],p[1])));
+      }
+      if(!spot && longest) spot = longest.cells[Math.floor(longest.cells.length/2)];
+      if(!spot) spot = celulaMaisLigada(g);
+
+      // uma peça acorrentada não pode virar especial: ela ainda vai gastar o acerto quebrando a corrente
+      const alvo = board[spot[0]][spot[1]];
+      if(alvo && alvo.locked){
+        const livre = g.cells.find(p => board[p[0]][p[1]] && !board[p[0]][p[1]].locked);
+        if(!livre) continue;
+        spot = livre;
+      }
+
+      clear.delete(K(spot[0],spot[1]));
+      specials.push({ r:spot[0], c:spot[1], type:g.type, kind });
+    }
+    return { clear, specials };
+  }
+
+  // no meio de uma bolha sem reta, a especial nasce na peça com mais vizinhas do grupo
+  function celulaMaisLigada(g){
+    let melhor = g.cells[0], nota = -1;
+    for(const [r,c] of g.cells){
+      let n = 0;
+      for(const [dr,dc] of VIZINHOS) if(g.set.has(K(r+dr,c+dc))) n++;
+      if(n > nota){ nota = n; melhor = [r,c]; }
+    }
+    return melhor;
+  }
+
+  // dispara em cadeia as especiais que caíram na limpeza
+  function activateSpecials(clear){
+    const queue = [...clear];
+    const seen = new Set(clear);
+    while(queue.length){
+      const [r,c] = queue.pop().split(',').map(Number);
+      const tile = board[r][c];
+      if(!tile || !tile.special || tile.triggered) continue;
+      tile.triggered = true;
+
+      const add = [];
+      if(tile.special === 'row'){
+        for(let cc=0;cc<COLS;cc++) add.push([r,cc]);
+        efeito('row', r, c, { dur:.55, color:TYPES[clamp(tile.t,0,NT-1)].glow }); tremer(5);
+      } else if(tile.special === 'col'){
+        for(let rr=0;rr<ROWS;rr++) add.push([rr,c]);
+        efeito('col', r, c, { dur:.55, color:TYPES[clamp(tile.t,0,NT-1)].glow }); tremer(5);
+      } else if(tile.special === 'nova'){
+        for(let rr=r-1;rr<=r+1;rr++) for(let cc=c-1;cc<=c+1;cc++) if(inside(rr,cc)) add.push([rr,cc]);
+        efeito('nova', r, c, { dur:.5, color:'#fef3c7' }); tremer(8);
+      } else if(tile.special === 'hole'){
+        const target = tile.holeTarget != null ? tile.holeTarget : pickCommonType();
+        for(let rr=0;rr<ROWS;rr++) for(let cc=0;cc<COLS;cc++){
+          const o = board[rr][cc];
+          if(o && (target === -1 || o.t === target)) add.push([rr,cc]);
+        }
+        efeito('hole', r, c, { dur:.75, color:'#c4b5fd' }); tremer(12);
+      }
+      score += 150;
+
+      for(const [rr,cc] of add){
+        if(!board[rr][cc]) continue;
+        const k = K(rr,cc);
+        if(!seen.has(k)){ seen.add(k); queue.push(k); }
+      }
+    }
+    return seen;
+  }
+
+  function pickCommonType(){
+    const count = new Array(NT).fill(0);
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(t && t.t >= 0) count[t.t]++;
+    }
+    let best = 0;
+    for(let i=1;i<NT;i++) if(count[i] > count[best]) best = i;
+    return best;
+  }
+
+  // ---------- combinações entre especiais ----------
+  // trocar duas especiais não dispara as duas isoladas: cada par tem um efeito próprio
+  function comboClear(a, b){
+    const clear = new Set([K(a.r,a.c), K(b.r,b.c)]);
+    const A = a.special, B = b.special;
+    const foguete = s => s === 'row' || s === 'col';
+    let nome = null;
+
+    if(A === 'hole' && B === 'hole'){
+      // limpa o tabuleiro inteiro
+      a.holeTarget = -1; b.holeTarget = -1;
+      nome = 'Colapso total!';
+
+    } else if(A === 'hole' || B === 'hole'){
+      const hole = A === 'hole' ? a : b;
+      const outra = A === 'hole' ? b : a;
+      const cor = outra.t;
+      if(foguete(outra.special) || outra.special === 'nova'){
+        // toda peça daquela cor vira a especial da outra e dispara junto
+        const kind = outra.special === 'nova' ? 'nova' : null;
+        for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+          const t = board[r][c];
+          if(!t || t.cargo || t === hole || t === outra || t.t !== cor) continue;
+          t.special = kind || (Math.random() < .5 ? 'row' : 'col');
+          t.triggered = false;
+          t.born = 0.001;
+          clear.add(K(r,c));
+        }
+        hole.holeTarget = cor;
+        nome = kind === 'nova' ? 'Chuva de supernovas!' : 'Chuva de foguetes!';
+      } else {
+        hole.holeTarget = cor;
+      }
+
+    } else if(foguete(A) && foguete(B)){
+      // sempre em cruz, mesmo que os dois foguetes sejam da mesma direção
+      a.special = 'row'; b.special = 'col';
+      a.triggered = false; b.triggered = false;
+      nome = 'Cruzeta!';
+
+    } else if((foguete(A) && B === 'nova') || (A === 'nova' && foguete(B))){
+      // 3 linhas e 3 colunas de uma vez
+      const nova = A === 'nova' ? a : b;
+      for(let d=-1;d<=1;d++){
+        const rr = nova.r + d, cc = nova.c + d;
+        for(let i=0;i<COLS;i++){
+          if(inside(rr,i) && board[rr][i]) clear.add(K(rr,i));
+          if(inside(i,cc) && board[i][cc]) clear.add(K(i,cc));
+        }
+        if(inside(rr,0)) efeito('row', rr, nova.c, { dur:.55, color:'#fef3c7' });
+        if(inside(0,cc)) efeito('col', nova.r, cc, { dur:.55, color:'#fef3c7' });
+      }
+      a.triggered = true; b.triggered = true;   // o efeito já foi aplicado à mão
+      nome = 'Devastação!';
+
+    } else if(A === 'nova' && B === 'nova'){
+      // explosão 5x5 centrada entre as duas
+      const rc = Math.round((a.r + b.r)/2), cc0 = Math.round((a.c + b.c)/2);
+      for(let rr=rc-2;rr<=rc+2;rr++) for(let cc=cc0-2;cc<=cc0+2;cc++)
+        if(inside(rr,cc) && board[rr][cc]) clear.add(K(rr,cc));
+      efeito('nova', rc, cc0, { dur:.6, color:'#fef3c7' });
+      efeito('nova', rc, cc0, { t:-0.14, dur:.6, color:'#fed7aa' }); tremer(13);
+      a.triggered = true; b.triggered = true;
+      nome = 'Supernova dupla!';
+    }
+
+    if(nome) popups.push({ x:BOARD/2, y:BOARD/2 - 10, text:nome, life:1.2, max:1.2, color:'#fbbf24', size:23 });
+    stat('combos', 1);
+    return activateSpecials(clear);
+  }
+
+  // ---------- jogadas ----------
+  // a cápsula também não conta: se ela entrasse aqui, hasMove/findHint apontariam
+  // uma jogada que tryMove recusa, e o tabuleiro travaria sem nunca embaralhar
+  function movivel(t){ return !!t && !t.locked && !t.cargo; }
+
+  function hasMove(){
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(!movivel(t)) continue;
+      if(t.special === 'hole') return true;
+      for(const [dr,dc] of [[0,1],[1,0]]){
+        const r2 = r+dr, c2 = c+dc;
+        if(!inside(r2,c2) || !movivel(board[r2][c2])) continue;
+        if(t.special && board[r2][c2].special) return true;
+        swapLogical(t, board[r2][c2]);
+        const ok = temCombinacao();
+        swapLogical(board[r][c], board[r2][c2]);
+        if(ok) return true;
+      }
+    }
+    return false;
+  }
+
+  function findHint(){
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(!movivel(t)) continue;
+      for(const [dr,dc] of [[0,1],[1,0]]){
+        const r2 = r+dr, c2 = c+dc;
+        if(!inside(r2,c2) || !movivel(board[r2][c2])) continue;
+        swapLogical(t, board[r2][c2]);
+        const ok = temCombinacao();
+        swapLogical(board[r][c], board[r2][c2]);
+        if(ok) return [[r,c],[r2,c2]];
+      }
+    }
+    return null;
+  }
+
+  function swapLogical(a, b){
+    const ar = a.r, ac = a.c;
+    board[a.r][a.c] = b; board[b.r][b.c] = a;
+    a.r = b.r; a.c = b.c;
+    b.r = ar;  b.c = ac;
+  }
+
+  function recusar(t, texto){
+    popups.push({ x:t.px + CELL/2, y:t.py + CELL/2, text:texto, life:.9, max:.9, color:'#f87171', size:13 });
+  }
+
+  function tryMove(a, b){
+    if(phase !== 'idle' || movesLeft <= 0) return;
+    selected = null; hint = null; idleTime = 0;
+
+    if(a.locked || b.locked){ recusar(a.locked ? a : b, 'acorrentada'); return; }
+    if(a.cargo || b.cargo){ recusar(a.cargo ? a : b, 'a cápsula só cai'); return; }
+
+    const combo = !!a.special && !!b.special;
+    const holeA = a.special === 'hole', holeB = b.special === 'hole';
+    swapLogical(a, b);
+    const matched = temCombinacao();
+
+    if(matched || holeA || holeB || combo){
+      pendingResolve = { a, b, holeA, holeB, combo };
+      startSwapAnim(a, b, 'swap');
+    } else {
+      startSwapAnim(a, b, 'unswap');
+    }
+  }
+
+  // troca livre (poder): vale mesmo sem formar combinação e não gasta movimento
+  function forceSwap(a, b){
+    if(phase !== 'idle') return;
+    if(a.locked || b.locked || a.cargo || b.cargo) return;
+    const combo = !!a.special && !!b.special;
+    const holeA = a.special === 'hole', holeB = b.special === 'hole';
+    swapLogical(a, b);
+    pendingResolve = { a, b, holeA, holeB, combo, free:true };
+    startSwapAnim(a, b, 'swap');
+  }
+
+  function startSwapAnim(a, b, kind){
+    anim = { kind, a, b, t:0, ax0:a.px, ay0:a.py, bx0:b.px, by0:b.py };
+    phase = 'swap';
+  }
+
+  function finishSwap(){
+    const { a, b, kind } = anim;
+    anim = null;
+
+    if(kind === 'unswap'){
+      // troca inválida: desfaz a lógica e anima de volta pro lugar
+      swapLogical(a, b);
+      startSwapAnim(a, b, 'unswapBack');
+      return;
+    }
+    if(kind === 'unswapBack'){
+      phase = 'idle';
+      return;
+    }
+
+    const p = pendingResolve;
+    pendingResolve = null;
+
+    if(!(p && p.free)){ movesLeft--; darkPending = true; updateHud(); }
+    cascade = 0;
+
+    // duas especiais trocadas entre si: cada par tem um efeito combinado
+    if(p && p.combo){
+      startPop(comboClear(a, b), []);
+      return;
+    }
+
+    // buraco negro trocado com uma peça normal: varre a cor inteira
+    if(p && (p.holeA || p.holeB)){
+      const hole = p.holeA ? a : b;
+      const outra = p.holeA ? b : a;
+      hole.holeTarget = outra.t;
+      startPop(activateSpecials(new Set([K(hole.r,hole.c)])), []);
+      return;
+    }
+
+    stepResolve([[a.r,a.c],[b.r,b.c]]);
+  }
+
+  // ---------- resolução ----------
+  function stepResolve(swapCells){
+    const grupos = findGroups();
+    if(!grupos.length){ finishTurn(); return; }
+    cascade++;
+    const { clear, specials } = planClear(swapCells, grupos);
+    startPop(activateSpecials(clear), specials);
+  }
+
+  function startPop(keys, specials){
+    const mult = Math.max(1, Math.min(8, cascade));
+    let gained = 0;
+    popList = [];
+    let sx = 0, sy = 0, n = 0;
+    const atingidos = new Set();     // blocos que levam dano neste estouro
+
+    keys.forEach(k => {
+      const [r,c] = k.split(',').map(Number);
+      const tile = board[r][c];
+      if(!tile || tile.dying) return;
+      if(specials.some(s => s.r === r && s.c === c)) return;
+      if(tile.cargo) return;                                  // cápsula não é destruída, só empurrada
+
+      // a corrente absorve o primeiro acerto: a peça sobrevive e fica livre
+      if(tile.locked){
+        tile.locked = false;
+        gained += 80;
+        efeito('lock', r, c, { dur:.45, color:'#cbd5e1' });
+        marcarVizinhos(r, c, atingidos);
+        return;
+      }
+
+      tile.dying = true; tile.popT = 0;
+      popList.push(tile);
+      if(tile.t >= 0) collected[tile.t]++;
+      gained += 60 * mult;
+      sx += tile.px; sy += tile.py; n++;
+      spawnParticles(tile);
+      marcarVizinhos(r, c, atingidos);
+    });
+
+    // a cápsula abre caminho: qualquer combinação encostada nela leva junto a peça logo abaixo.
+    // sem isso ela só desce quando a combinação cai exatamente embaixo — medido em 0,15 linha
+    // por jogada, o que exigiria ~52 jogadas por cápsula e tornava a fase impossível.
+    const empurrar = new Set();
+    keys.forEach(k => {
+      const [r,c] = k.split(',').map(Number);
+      for(const [dr,dc] of VIZINHOS){
+        const rr = r+dr, cc = c+dc;
+        const viz = inside(rr,cc) ? board[rr][cc] : null;
+        if(viz && viz.cargo) empurrar.add(K(rr,cc));
+      }
+    });
+    empurrar.forEach(k => {
+      const [r,c] = k.split(',').map(Number);
+      for(let d=1;d<=2;d++){                       // abre duas peças de caminho
+        const abaixo = inside(r+d,c) ? board[r+d][c] : null;
+        if(!abaixo || abaixo.dying || abaixo.cargo || abaixo.locked) break;
+        abaixo.dying = true; abaixo.popT = 0;
+        popList.push(abaixo);
+        if(abaixo.t >= 0) collected[abaixo.t]++;
+        gained += 40;
+        spawnParticles(abaixo);
+        marcarVizinhos(r+d, c, atingidos);
+      }
+    });
+
+    atingidos.forEach(k => {
+      const [r,c] = k.split(',').map(Number);
+      gained += hitBlock(r, c) ? 120 : 0;
+    });
+
+    specials.forEach(s => {
+      const tile = board[s.r][s.c];
+      if(!tile) return;
+      tile.special = s.kind;
+      tile.triggered = false;
+      tile.dying = false;
+      tile.locked = false;
+      tile.born = 0.001;
+      tile.t = s.kind === 'hole' ? -1 : s.type;
+      if(s.kind === 'hole') tile.holeTarget = null;
+      gained += 250;
+    });
+
+    if(!popList.length && !specials.length && !atingidos.size){ finishTurn(); return; }
+
+    score += gained;
+    // cascata grande sacode a tela e solta uma onda no centro do estouro
+    if(n >= 3){
+      tremer(Math.min(11, 2 + n*.5 + mult));
+      efeito('nova', Math.round(sy/n/CELL), Math.round(sx/n/CELL),
+             { dur:.4, color: mult > 2 ? '#fbbf24' : 'rgba(226,232,240,.8)' });
+    }
+    stat('pecas', popList.length);
+    stat('especiais', specials.length);
+    stat('melhorCombo', mult, true);
+    if(n){
+      popups.push({ x:sx/n + CELL/2, y:sy/n + CELL/2, text:'+' + gained,
+                    life:.9, max:.9, color: mult > 1 ? '#fbbf24' : '#e8ecf4', size: mult > 2 ? 22 : 17 });
+      const elogio = CASCATA[Math.min(mult, CASCATA.length-1)];
+      if(elogio) popups.push({ x:sx/n + CELL/2, y:sy/n + CELL/2 - 24, text:elogio,
+                               life:1, max:1, color:'#5eead4', size: 13 + Math.min(mult,6) });
+    }
+    updateHud();
+    updateGoals();
+    popT = 0;
+    phase = 'pop';
+  }
+
+  function marcarVizinhos(r, c, destino){
+    for(const [dr,dc] of VIZINHOS){
+      const rr = r+dr, cc = c+dc;
+      if(inside(rr,cc) && blocks[rr][cc]) destino.add(K(rr,cc));
+    }
+  }
+
+  function hitBlock(r, c){
+    const b = blocks[r][c];
+    if(!b) return false;
+    b.hp--;
+    spawnBlockParticles(r, c, b.kind);
+    if(b.hp <= 0){
+      blocks[r][c] = null;
+      efeito(b.kind === 'ice' ? 'ice' : 'nova', r, c,
+             { dur:.5, color: b.kind === 'ice' ? '#e0f2fe' : '#c084fc' });
+      tremer(5);
+      if(b.kind === 'ice'){ iceLeft = Math.max(0, iceLeft - 1); stat('gelos', 1); }
+      if(b.kind === 'dark') darkHitTurno = true;
+    } else {
+      efeito('ice', r, c, { dur:.35, color:'#bae6fd' });   // trincou mas aguentou
+    }
+    return true;
+  }
+
+  // a matéria escura se alastra no fim de todo turno em que não levou dano
+  function espalharDark(){
+    const focos = [];
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++)
+      if(blocks[r][c] && blocks[r][c].kind === 'dark') focos.push([r,c]);
+    if(!focos.length || darkHitTurno) return false;
+
+    const opcoes = [];
+    for(const [r,c] of focos){
+      for(const [dr,dc] of VIZINHOS){
+        const rr = r+dr, cc = c+dc;
+        if(!inside(rr,cc) || blocks[rr][cc]) continue;
+        const t = board[rr][cc];
+        if(!t || t.cargo || t.special) continue;
+        // não pode fechar o caminho de uma cápsula que esteja acima nesta coluna
+        const cargoR = cargoNaColuna(cc);
+        if(cargoR >= 0 && cargoR < rr) continue;
+        opcoes.push([rr,cc]);
+      }
+    }
+    if(!opcoes.length) return false;
+
+    const [r,c] = opcoes[Math.floor(Math.random()*opcoes.length)];
+    board[r][c] = null;
+    blocks[r][c] = { kind:'dark', hp:1, max:1 };
+    efeito('nova', r, c, { dur:.55, color:'#a855f7' }); tremer(4);
+    popups.push({ x:c*CELL + CELL/2, y:r*CELL + CELL/2, text:'a matéria escura cresceu',
+                  life:1.1, max:1.1, color:'#c4b5fd', size:12 });
+    return true;
+  }
+
+  function applyGravity(){
+    for(let c=0;c<COLS;c++){
+      // blocos partem a coluna em segmentos; cada segmento cai e é reposto por conta própria
+      let write = ROWS - 1;
+      for(let r=ROWS-1;r>=0;r--){
+        if(blocks[r][c]){
+          fillSegment(c, r+1, write);
+          write = r - 1;
+          continue;
+        }
+        if(board[r][c]){
+          if(write !== r){
+            board[write][c] = board[r][c];
+            board[write][c].r = write;
+            board[r][c] = null;
+          }
+          write--;
+        }
+      }
+      fillSegment(c, 0, write);
+    }
+    phase = 'fall';
+  }
+
+  // preenche de `bottom` até `top` (inclusive) com peças novas entrando por cima do segmento
+  function fillSegment(c, top, bottom){
+    let above = 0;
+    for(let r=bottom;r>=top;r--){
+      let tile;
+      // cápsulas só entram pelo topo e só em coluna sem bloqueio — senão travariam em cima dele pra sempre
+      if(top === 0 && r === 0 && cargoPending > 0 && colunaLivre(c) && cargoAtivas() < MAX_CARGO_ATIVAS){
+        tile = makeCargo(r, c);
+        cargoPending--;
+      } else {
+        tile = makeTile(randType(), r, c);
+      }
+      tile.py = (top - 1 - above) * CELL - CELL*0.4;
+      board[r][c] = tile;
+      above++;
+    }
+  }
+
+  const MAX_CARGO_ATIVAS = 3;   // descem em paralelo — uma de cada vez não cabe no limite de jogadas
+
+  function cargoAtivas(){
+    let n = 0;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(board[r][c] && board[r][c].cargo) n++;
+    return n;
+  }
+
+  // as primeiras cápsulas já entram no tabuleiro: esperar a reposição sortear
+  // deixava a fase impossível de terminar dentro do limite de movimentos
+  function semearCargo(){
+    const livres = [];
+    for(let c=0;c<COLS;c++) if(colunaLivre(c) && board[0][c] && !board[0][c].cargo) livres.push(c);
+    for(let i=livres.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [livres[i],livres[j]]=[livres[j],livres[i]]; }
+    const quantas = Math.min(MAX_CARGO_ATIVAS, cargoPending, livres.length);
+    for(let i=0;i<quantas;i++){
+      board[0][livres[i]] = makeCargo(0, livres[i]);
+      cargoPending--;
+    }
+  }
+
+  function colunaLivre(c){
+    for(let r=0;r<ROWS;r++) if(blocks[r][c]) return false;
+    return true;
+  }
+
+  // linha da cápsula que estiver nesta coluna (para não fechar o caminho dela)
+  function cargoNaColuna(c){
+    for(let r=0;r<ROWS;r++) if(board[r][c] && board[r][c].cargo) return r;
+    return -1;
+  }
+
+  // cápsulas que chegaram na última linha são resgatadas
+  function coletarCargo(){
+    let n = 0;
+    for(let c=0;c<COLS;c++){
+      const t = board[ROWS-1][c];
+      if(t && t.cargo){
+        board[ROWS-1][c] = null;
+        cargoDone++;
+        n++;
+        score += 500;
+        stat('capsulas', 1);
+        efeito('cargo', ROWS-1, c, { dur:.7 });
+        tremer(6);
+        for(let i=0;i<14;i++){
+          const a = Math.random()*Math.PI*2, sp = 80 + Math.random()*200;
+          particles.push({ x:t.px + CELL/2, y:t.py + CELL/2, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 60,
+                           life:.6 + Math.random()*.4, max:1, color:'#5eead4', size:2 + Math.random()*3 });
+        }
+        popups.push({ x:t.px + CELL/2, y:t.py + CELL/2, text:'resgatada!', life:1, max:1, color:'#5eead4', size:16 });
+      }
+    }
+    if(n){ updateHud(); updateGoals(); }
+    return n;
+  }
+
+  function finishTurn(){
+    cascade = 0;
+    if(goalsMet()){
+      if(movesLeft > 0 && !finaleUsed){ startFinale(); return; }
+      endLevel(true);
+      return;
+    }
+    if(movesLeft <= 0){ endLevel(false); return; }
+
+    // cresce no máximo uma vez por jogada — sem o sinalizador isso viraria laço infinito,
+    // porque applyGravity volta pra cá no fim da queda
+    if(darkPending){
+      darkPending = false;
+      const cresceu = !darkHitTurno && espalharDark();
+      darkHitTurno = false;
+      if(cresceu){ applyGravity(); return; }
+    }
+    darkHitTurno = false;
+
+    garantirJogada();
+    idleTime = 0; hint = null;
+    phase = 'idle';
+  }
+
+  function goalsMet(){
+    if(cfg.kind === 'ice')   return iceLeft <= 0;
+    if(cfg.kind === 'cargo') return cargoDone >= cfg.cargo;
+    if(cfg.kind === 'score') return score >= cfg.target;
+    return cfg.goals.every(g => collected[g[0]] >= g[1]);
+  }
+
+  // ---------- ignição final (o "Sugar Crush" daqui) ----------
+  // objetivo cumprido com movimentos sobrando: cada movimento restante vira um foguete
+  function startFinale(){
+    finaleUsed = true;
+    finaleT = 0;
+    phase = 'finale';
+    disarm();
+    popups.push({ x:BOARD/2, y:BOARD/2 - 20, text:'IGNIÇÃO FINAL!', life:1.6, max:1.6, color:'#fbbf24', size:26 });
+  }
+
+  function tickFinale(dt){
+    finaleT += dt;
+    if(finaleT < FINALE_STEP) return;
+    finaleT = 0;
+
+    if(movesLeft > 0){
+      const cands = [];
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+        const t = board[r][c];
+        if(t && !t.special && !t.cargo && t.t >= 0) cands.push(t);
+      }
+      movesLeft--;
+      updateHud();
+      if(cands.length){
+        const t = cands[Math.floor(Math.random()*cands.length)];
+        t.special = Math.random() < .5 ? 'row' : 'col';
+        t.triggered = false;
+        t.born = 0.001;
+        score += 200;
+        updateHud();
+      }
+      return;
+    }
+
+    // acabaram os movimentos: dispara tudo que está no tabuleiro
+    const keys = new Set();
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(t && t.special && !t.triggered) keys.add(K(r,c));
+    }
+    if(keys.size){
+      cascade = 2;
+      startPop(activateSpecials(keys), []);
+    } else {
+      endLevel(true);
+    }
+  }
+
+  // ---------- ciclo de fase ----------
+  function startLevel(n){
+    level = n;
+    cfg = levelConfig(n);
+    movesLeft = cfg.moves;
+    score = 0;
+    cascade = 0;
+    collected = new Array(NT).fill(0);
+    cargoDone = 0;
+    cargoPending = cfg.cargo;
+    darkHitTurno = false;
+    finaleUsed = false; finaleT = 0;
+    particles = []; popups = []; flashes = [];
+    hint = null; idleTime = 0;
+    anim = null; pendingResolve = null; popList = [];
+    disarm();
+    buildBlocks();
+    buildBoard();
+    if(cfg.kind === 'cargo') semearCargo();
+    updateHud();
+    buildGoalChips();
+    hideOverlay();
+    phase = 'idle';
+  }
+
+  function starsFor(sc){
+    let s = 0;
+    for(const th of cfg.stars) if(sc >= th) s++;
+    return s;
+  }
+
+  function endLevel(won){
+    phase = 'over';
+    disarm();
+    stat('melhorPontos', score, true);
+
+    if(won){
+      const got = Math.max(1, starsFor(score));
+      if(got > (save.stars[level] || 0)) save.stars[level] = got;
+      const recorde = score > (save.best[level] || 0);
+      save.best[level] = Math.max(save.best[level] || 0, score);
+      if(level + 1 > save.unlocked) save.unlocked = level + 1;
+      stat('fases', 1);
+
+      // prêmio: 1 poder por fase (o tipo gira), 2 se tirar 3 estrelas
+      const premio = BOOSTERS[(level - 1) % BOOSTERS.length];
+      const qtd = got >= 3 ? 2 : 1;
+      save.boosters[premio.key] = (save.boosters[premio.key] || 0) + qtd;
+
+      // cristais: a moeda da loja
+      const cristais = 100 + got*50 + (recorde ? 80 : 0);
+      save.cristais += cristais;
+      stat('cristaisGanhos', cristais);
+
+      persist();
+      const novas = checarConquistas();
+      updateBoosters();
+      updateWallet();
+      showWin(got, premio, qtd, cristais, novas);
+    } else {
+      persist();
+      checarConquistas();
+      updateWallet();
+      showLose();
+    }
+  }
+
+  // ---------- HUD ----------
+  function updateHud(){
+    levelVal.textContent = level;
+    movesVal.textContent = movesLeft;
+    scoreVal.textContent = score;
+    movesStat.classList.toggle('low', movesLeft <= 4);
+  }
+
+  function goalChips(){
+    if(cfg.kind === 'ice')   return [{ ico:'❄️', title:'Gelo cósmico' }];
+    if(cfg.kind === 'cargo') return [{ ico:CARGO_EMOJI, title:'Cápsulas resgatadas' }];
+    if(cfg.kind === 'score') return [{ ico:'🏆', title:'Pontuação alvo' }];
+    return cfg.goals.map(g => ({ ico:TYPES[g[0]].emoji, title:TYPES[g[0]].name }));
+  }
+
+  function buildGoalChips(){
+    goalsEl.innerHTML = '';
+    goalChips().forEach(g => {
+      const chip = el('div','goal');
+      chip.appendChild(el('span','ico', g.ico));
+      chip.appendChild(el('span', null, '—'));
+      chip.title = g.title;
+      goalsEl.appendChild(chip);
+    });
+    updateGoals();
+  }
+
+  function updateGoals(){
+    const kids = goalsEl.children;
+    if(cfg.kind === 'ice'){
+      const total = iceTotal();
+      if(kids[0]){
+        kids[0].lastChild.textContent = (total - iceLeft) + '/' + total;
+        kids[0].classList.toggle('done', iceLeft <= 0);
+      }
+      return;
+    }
+    if(cfg.kind === 'cargo'){
+      if(kids[0]){
+        kids[0].lastChild.textContent = Math.min(cargoDone, cfg.cargo) + '/' + cfg.cargo;
+        kids[0].classList.toggle('done', cargoDone >= cfg.cargo);
+      }
+      return;
+    }
+    if(cfg.kind === 'score'){
+      if(kids[0]){
+        kids[0].lastChild.textContent = Math.min(score, cfg.target) + '/' + cfg.target;
+        kids[0].classList.toggle('done', score >= cfg.target);
+      }
+      return;
+    }
+    cfg.goals.forEach((g,i) => {
+      const chip = kids[i];
+      if(!chip) return;
+      const have = Math.min(collected[g[0]], g[1]);
+      chip.lastChild.textContent = have + '/' + g[1];
+      chip.classList.toggle('done', have >= g[1]);
+    });
+  }
+
+  function iceTotal(){ return iceInicial; }
+
+  // ---------- poderes ----------
+  function buildBoosterBar(){
+    boostersEl.innerHTML = '';
+    BOOSTERS.forEach(b => {
+      const btnEl = el('button','bst');
+      btnEl.dataset.k = b.key;
+      btnEl.title = b.name;
+      btnEl.appendChild(el('span','ic', b.emoji));
+      btnEl.appendChild(el('span','n', '0'));
+      btnEl.addEventListener('click', () => useBooster(b.key));
+      boostersEl.appendChild(btnEl);
+    });
+    updateBoosters();
+  }
+
+  function updateBoosters(){
+    [...boostersEl.children].forEach(node => {
+      const qty = save.boosters[node.dataset.k] || 0;
+      node.lastChild.textContent = qty;
+      node.classList.toggle('empty', qty <= 0);
+      node.classList.toggle('armed', armed === node.dataset.k);
+    });
+  }
+
+  function setHint(text){ hintEl.textContent = text || ''; }
+
+  function disarm(){
+    armed = null; swapPick = null; selected = null;
+    setHint('');
+    updateBoosters();
+  }
+
+  function spend(key){
+    save.boosters[key] = Math.max(0, (save.boosters[key] || 0) - 1);
+    persist();
+    updateBoosters();
+  }
+
+  function useBooster(key){
+    const qty = save.boosters[key] || 0;
+    if(qty <= 0 || phase !== 'idle') return;
+
+    if(key === 'moves'){
+      spend('moves');
+      movesLeft += 5;
+      updateHud();
+      popups.push({ x:BOARD/2, y:BOARD/2, text:'+5 movimentos', life:1.1, max:1.1, color:'#5eead4', size:19 });
+      return;
+    }
+    if(armed === key){ disarm(); return; }
+    armed = key; swapPick = null; selected = null;
+    setHint(BOOSTERS.find(b => b.key === key).hint);
+    updateBoosters();
+  }
+
+  // clique no tabuleiro com um poder ativado
+  function applyBooster(cell){
+    const tile = board[cell.r][cell.c];
+    const bloco = blocks[cell.r][cell.c];
+
+    if(armed === 'hammer'){
+      if(!tile && !bloco) return;
+      spend('hammer');
+      cascade = 0;
+      armed = null; setHint(''); updateBoosters();
+
+      if(bloco){                                   // martelar gelo/matéria escura direto
+        hitBlock(cell.r, cell.c);
+        updateGoals();
+        applyGravity();
+        return;
+      }
+      if(tile.cargo){ recusar(tile, 'a cápsula só cai'); applyGravity(); return; }
+      efeito('hammer', cell.r, cell.c, { dur:.5 }); tremer(7);
+      tile.locked = false;
+      startPop(activateSpecials(new Set([K(cell.r, cell.c)])), []);
+      return;
+    }
+
+    if(armed === 'bomb'){
+      if(!tile) return;
+      spend('bomb');
+      cascade = 0;
+      const alvo = tile.t >= 0 ? tile.t : pickCommonType();
+      const keys = new Set();
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+        const o = board[r][c];
+        if(o && !o.cargo && o.t === alvo) keys.add(K(r,c));
+      }
+      keys.add(K(cell.r, cell.c));
+      armed = null; setHint(''); updateBoosters();
+      efeito('hole', cell.r, cell.c, { dur:.7, color:'#c4b5fd' }); tremer(10);
+      startPop(activateSpecials(keys), []);
+      return;
+    }
+
+    if(armed === 'swap'){
+      if(!tile || tile.locked || tile.cargo){ if(tile) recusar(tile, tile.cargo ? 'a cápsula só cai' : 'acorrentada'); return; }
+      if(!swapPick){
+        swapPick = cell; selected = cell;
+        setHint('Agora toque numa peça vizinha para trocar.');
+        return;
+      }
+      const d = Math.abs(swapPick.r - cell.r) + Math.abs(swapPick.c - cell.c);
+      if(d !== 1){ swapPick = cell; selected = cell; return; }
+      const a = board[swapPick.r][swapPick.c], b = board[cell.r][cell.c];
+      if(!a || !b) { disarm(); return; }
+      spend('swap');
+      disarm();
+      forceSwap(a, b);
+    }
+  }
+
+  // ---------- overlays ----------
+  function hideOverlay(){ overlay.className = 'overlay hidden'; overlay.innerHTML = ''; }
+
+  function el(tag, cls, html){
+    const e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(html != null) e.innerHTML = html;
+    return e;
+  }
+
+  function showOverlay(nodes, cls){
+    overlay.innerHTML = '';
+    nodes.forEach(n => overlay.appendChild(n));
+    overlay.className = 'overlay' + (cls ? ' ' + cls : '');
+  }
+
+  function starsRow(n){
+    return el('div','stars-row',
+      [0,1,2].map(i => '<i class="' + (i < n ? 'on' : '') + '">★</i>').join(''));
+  }
+
+  function btn(label, cls, fn){
+    const b = el('button', cls, label);
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  function updateWallet(){
+    walletEl.innerHTML = '<span class="cr">💎 ' + save.cristais + '</span>' +
+                         '<span class="st">⭐ ' + totalEstrelas() + '</span>';
+  }
+
+  function showMenu(){
+    phase = 'menu';
+    disarm();
+    updateWallet();
+    const next = Math.max(1, save.unlocked);
+    const grid = el('div','menu-grid');
+    const jogar = btn('▶ Jogar fase ' + next, 'wide', () => startLevel(next));
+    grid.appendChild(jogar);
+    grid.appendChild(btn('🗺️ Mapa', 'ghost', showMap));
+    grid.appendChild(btn('🛒 Loja', 'ghost', showShop));
+    grid.appendChild(btn('👤 Perfil', 'ghost', showPerfil));
+    grid.appendChild(btn('🏅 Conquistas', 'ghost', showConquistas));
+    grid.appendChild(btn('📖 Como jogar', 'ghost wide', showTutorial));
+    showOverlay([
+      el('h2', null, '🪐 Cosmic Crush'),
+      el('div','map-total', '💎 <b>' + save.cristais + '</b> cristais · ⭐ <b>' + totalEstrelas() + '</b> estrelas'),
+      grid
+    ]);
+  }
+
+  // volta pro menu no rodapé de cada tela
+  function rodape(){
+    return btn('← Voltar', 'ghost small', showMenu);
+  }
+
+  function linha(ic, titulo, sub, extra, cls){
+    const r = el('div','row' + (cls ? ' ' + cls : ''));
+    r.appendChild(el('div','ic', ic));
+    const t = el('div','txt');
+    t.appendChild(el('b', null, titulo));
+    t.appendChild(el('small', null, sub));
+    if(extra) t.appendChild(extra);
+    r.appendChild(t);
+    return r;
+  }
+
+  // ---------- loja ----------
+  function comprar(key, qtd, custo){
+    if(save.cristais < custo) return;
+    save.cristais -= custo;
+    save.boosters[key] = (save.boosters[key] || 0) + qtd;
+    persist();
+    updateBoosters();
+    updateWallet();
+    showShop();
+  }
+
+  function showShop(){
+    phase = 'menu';
+    const sheet = el('div','sheet');
+    BOOSTERS.forEach(b => {
+      const preco = PRECOS[b.key];
+      const pacote = Math.round(preco * PACOTE * PACOTE_DESC);
+      const r = linha(b.emoji, b.name, 'você tem ' + (save.boosters[b.key] || 0));
+      const acoes = el('div','btn-row');
+      acoes.style.gap = '6px';
+
+      const um = el('button','buy' + (save.cristais < preco ? ' off' : ''), '💎 ' + preco);
+      um.addEventListener('click', () => comprar(b.key, 1, preco));
+      const cinco = el('button','buy' + (save.cristais < pacote ? ' off' : ''), '×' + PACOTE + ' 💎 ' + pacote);
+      cinco.addEventListener('click', () => comprar(b.key, PACOTE, pacote));
+      acoes.appendChild(um); acoes.appendChild(cinco);
+      r.appendChild(acoes);
+      sheet.appendChild(r);
+    });
+    sheet.appendChild(el('div','map-total',
+      'Cristais vêm de concluir fases: <b>100</b> por fase, <b>+50</b> por estrela e <b>+80</b> ao bater o próprio recorde.'));
+
+    showOverlay([
+      el('h2', null, '🛒 Loja'),
+      el('div','map-total', '💎 <b>' + save.cristais + '</b> cristais'),
+      sheet,
+      rodape()
+    ], 'sheet-mode');
+  }
+
+  // ---------- perfil ----------
+  function showPerfil(){
+    phase = 'menu';
+    checarConquistas();
+    const s = save.stats;
+    const grade = el('div','stat-grid');
+    const cel = (valor, rotulo) => {
+      const c = el('div','cell');
+      c.appendChild(el('b', null, String(valor)));
+      c.appendChild(el('span', null, rotulo));
+      return c;
+    };
+    const totalFases = Math.max(LEVELS.length, save.unlocked);
+    grade.appendChild(cel(s.fases, 'Fases vencidas'));
+    grade.appendChild(cel(totalEstrelas() + '/' + totalFases*3, 'Estrelas'));
+    grade.appendChild(cel(s.melhorPontos, 'Melhor pontuação'));
+    grade.appendChild(cel('x' + s.melhorCombo, 'Maior cascata'));
+    grade.appendChild(cel(s.pecas, 'Peças estouradas'));
+    grade.appendChild(cel(s.especiais, 'Especiais criadas'));
+    grade.appendChild(cel(s.combos, 'Especiais combinadas'));
+    grade.appendChild(cel(s.gelos, 'Gelo derretido'));
+    grade.appendChild(cel(s.capsulas, 'Cápsulas resgatadas'));
+    grade.appendChild(cel(s.cristaisGanhos, 'Cristais ganhos'));
+
+    const feitas = CONQUISTAS.filter(c => save.conquistas[c.id]).length;
+    const sheet = el('div','sheet');
+    sheet.appendChild(grade);
+    sheet.appendChild(el('div','map-total',
+      'Conquistas: <b>' + feitas + '</b> / ' + CONQUISTAS.length + ' · Fase mais longe: <b>' + save.unlocked + '</b>'));
+
+    showOverlay([ el('h2', null, '👤 Perfil'), sheet, rodape() ], 'sheet-mode');
+  }
+
+  // ---------- conquistas ----------
+  function showConquistas(){
+    phase = 'menu';
+    checarConquistas();          // senão uma meta já batida ficaria mostrando cadeado
+    const sheet = el('div','sheet');
+    CONQUISTAS.forEach(c => {
+      const feita = !!save.conquistas[c.id];
+      const v = Math.min(c.val(save), c.alvo);
+      const barra = el('div','bar');
+      const preenche = el('i');
+      preenche.style.width = Math.round(v/c.alvo*100) + '%';
+      barra.appendChild(preenche);
+      const r = linha(feita ? c.emoji : '🔒', c.nome, c.desc + ' — ' + v + '/' + c.alvo, barra,
+                      feita ? 'got' : 'locked');
+      sheet.appendChild(r);
+    });
+    const feitas = CONQUISTAS.filter(c => save.conquistas[c.id]).length;
+    showOverlay([
+      el('h2', null, '🏅 Conquistas'),
+      el('div','map-total', '<b>' + feitas + '</b> de ' + CONQUISTAS.length),
+      sheet,
+      rodape()
+    ], 'sheet-mode');
+  }
+
+  // ---------- como jogar ----------
+  function showTutorial(){
+    phase = 'menu';
+    const sheet = el('div','sheet');
+    const bloco = (titulo, fig, texto) => {
+      const d = el('div','row tut');
+      const t = el('div','txt');
+      t.appendChild(el('b', null, titulo));
+      if(fig) t.appendChild(el('div','fig', fig));
+      t.appendChild(el('small', null, texto));
+      d.appendChild(t);
+      return d;
+    };
+    sheet.appendChild(bloco('Combinar',
+      '🪐🪐🪐   🪐🪐\n         🪐🪐',
+      'Três em linha vale. Quatro ou mais peças <b>grudadas em qualquer formato</b> também valem — quadrado, L, T, S, cobrinha. E leva o grupo inteiro, não só a fileira.'));
+    sheet.appendChild(bloco('Foguete — 4 em linha',
+      '🪐🪐🪐🪐',
+      'Varre a linha ou a coluna inteira, conforme a direção da combinação.'));
+    sheet.appendChild(bloco('Supernova — L ou T',
+      '🪐🪐🪐\n🪐\n🪐',
+      'Explode a área 3×3 em volta. Bolhas grandes sem fileira reta também geram supernova.'));
+    sheet.appendChild(bloco('Buraco negro — 5 em linha',
+      '🪐🪐🪐🪐🪐',
+      'Troque com qualquer peça e ele suga todas daquela cor do tabuleiro.'));
+    sheet.appendChild(bloco('Combinar duas especiais', null,
+      'Foguete+foguete = cruzeta · foguete+supernova = 3 linhas e 3 colunas · supernova+supernova = 5×5 · buraco negro+foguete = chuva de foguetes · dois buracos negros = colapso total.'));
+    sheet.appendChild(bloco('Bloqueadores', '❄️  ⛓️  🟣',
+      'O <b>gelo</b> quebra com combinações ao lado (às vezes tem 2 camadas). A <b>corrente</b> prende a peça: o primeiro acerto solta em vez de destruir. A <b>matéria escura</b> cresce 1 célula por jogada em que não leva dano.'));
+    sheet.appendChild(bloco('Tipos de fase', '🎯 ❄️ 🚀 🏆',
+      'Coletar peças · derreter todo o gelo · levar as cápsulas até a base · bater a pontuação.'));
+    sheet.appendChild(bloco('Ignição final', null,
+      'Cumpriu o objetivo com movimento sobrando? Cada movimento restante vira um foguete e tudo detona em cascata.'));
+    sheet.appendChild(bloco('Poderes', '🔨 🔄 ➕ 💥',
+      'Martelo destrói 1 peça (ou quebra gelo). Troca livre troca duas vizinhas sem precisar formar combinação. +5 movimentos. Bomba varre uma cor inteira. Nenhum gasta movimento — compre mais na loja.'));
+
+    showOverlay([ el('h2', null, '📖 Como jogar'), sheet, rodape() ], 'sheet-mode');
+  }
+
+  // mapa de fases: trilha de baixo (fase 1) pra cima, com estrelas e recorde
+  function showMap(){
+    const total = Math.max(LEVELS.length, save.unlocked + 3);
+    const STEP = 78, TOP = 22, W = 300;
+    const height = total*STEP + TOP*2;
+
+    const wrap = el('div','map-wrap');
+    const map = el('div','map');
+    map.style.height = height + 'px';
+
+    const pos = [];
+    for(let n=1;n<=total;n++){
+      pos.push({ n,
+        x: W/2 + Math.sin(n*0.95)*74,
+        y: height - TOP - (n-1)*STEP - STEP/2 });
+    }
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS,'svg');
+    svg.setAttribute('class','trail');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + height);
+    svg.setAttribute('preserveAspectRatio','none');
+    const path = document.createElementNS(NS,'path');
+    path.setAttribute('d', pos.map((p,i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' '));
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke','rgba(148,163,184,.28)');
+    path.setAttribute('stroke-width','4');
+    path.setAttribute('stroke-linecap','round');
+    path.setAttribute('stroke-dasharray','2 11');
+    svg.appendChild(path);
+    map.appendChild(svg);
+
+    const ICONE = { collect:'🎯', ice:'❄️', cargo:CARGO_EMOJI, score:'🏆' };
+    let ganhas = 0, alvoY = 0;
+    pos.forEach(p => {
+      const locked = p.n > save.unlocked;
+      const st = save.stars[p.n] || 0;
+      const kind = levelConfig(p.n).kind;
+      ganhas += st;
+      const node = el('button','node' + (locked ? ' locked' : '') +
+                                (st ? ' done' : '') +
+                                (p.n === save.unlocked && !locked ? ' next' : ''));
+      node.style.left = (p.x - 26) + 'px';
+      node.style.top  = (p.y - 26) + 'px';
+      node.title = locked ? 'Bloqueada' : 'Fase ' + p.n + ' — ' + levelTitle(levelConfig(p.n));
+      node.appendChild(el('div','disc', locked ? '🔒' : p.n + '<small>' + ICONE[kind] + '</small>'));
+      node.appendChild(el('div','st', locked ? '' :
+        [0,1,2].map(i => '<i class="' + (i < st ? 'on' : '') + '">★</i>').join('')));
+      node.appendChild(el('div','sc', save.best[p.n] ? String(save.best[p.n]) : ''));
+      if(locked) node.disabled = true;
+      else node.addEventListener('click', () => startLevel(p.n));
+      if(p.n === save.unlocked) alvoY = p.y;
+      map.appendChild(node);
+    });
+
+    wrap.appendChild(map);
+    showOverlay([
+      el('h2', null, 'Mapa de fases'),
+      el('div','map-total', 'Estrelas: <b>' + ganhas + '</b> / ' + (total*3)),
+      wrap,
+      btn('Voltar', 'ghost small', showMenu)
+    ], 'map-mode');
+    wrap.scrollTop = Math.max(0, alvoY - wrap.clientHeight/2);
+  }
+
+  function showWin(got, premio, qtd, cristais, novas){
+    const row = el('div','btn-row');
+    row.appendChild(btn('Próxima fase', '', () => startLevel(level + 1)));
+    row.appendChild(btn('Repetir', 'ghost small', () => startLevel(level)));
+    row.appendChild(btn('Mapa', 'ghost small', showMap));
+    row.appendChild(btn('Menu', 'ghost small', showMenu));
+    const nextTh = cfg.stars[got];
+    const nodes = [
+      el('h2', null, 'Fase ' + level + ' concluída!'),
+      starsRow(got),
+      el('div','big-score', String(score)),
+      el('p', null, nextTh ? 'Faça <b>' + nextTh + '</b> pontos para ganhar mais uma estrela.'
+                           : 'Pontuação máxima de estrelas nesta fase. Impecável.'),
+      el('p', null, 'Ganhou <b>💎 ' + cristais + '</b> e <b>' + qtd + '× ' + premio.emoji + ' ' + premio.name + '</b>.')
+    ];
+    if(novas && novas.length){
+      nodes.push(el('p', null, '🏅 Conquista: <b>' + novas.map(c => c.emoji + ' ' + c.nome).join(', ') + '</b>'));
+    }
+    nodes.push(row);
+    showOverlay(nodes);
+  }
+
+  function faltando(){
+    if(cfg.kind === 'ice')   return iceLeft + ' célula(s) de gelo';
+    if(cfg.kind === 'cargo') return (cfg.cargo - cargoDone) + ' cápsula(s)';
+    if(cfg.kind === 'score') return (cfg.target - score) + ' pontos';
+    return cfg.goals.filter(g => collected[g[0]] < g[1])
+                    .map(g => (g[1] - collected[g[0]]) + ' ' + TYPES[g[0]].name)
+                    .join(', ');
+  }
+
+  function showLose(){
+    const row = el('div','btn-row');
+    if((save.boosters.moves || 0) > 0){
+      row.appendChild(btn('➕ Usar +5 e continuar', '', () => {
+        spend('moves');
+        movesLeft += 5;
+        updateHud();
+        hideOverlay();
+        phase = 'idle';
+        idleTime = 0;
+        garantirJogada();
+      }));
+    }
+    row.appendChild(btn('Tentar de novo', 'ghost small', () => startLevel(level)));
+    row.appendChild(btn('🛒 Loja', 'ghost small', showShop));
+    row.appendChild(btn('Mapa', 'ghost small', showMap));
+    showOverlay([
+      el('h2', null, 'Acabaram os movimentos'),
+      el('div','big-score', String(score)),
+      el('p', null, 'Ainda faltava: <b>' + faltando() + '</b>.'),
+      row
+    ]);
+  }
+
+  // ---------- efeitos ----------
+  function spawnParticles(tile){
+    const col = tile.t >= 0 ? TYPES[tile.t].color : '#c4b5fd';
+    const cx = tile.px + CELL/2, cy = tile.py + CELL/2;
+    for(let i=0;i<7;i++){
+      const a = Math.random()*Math.PI*2, sp = 60 + Math.random()*170;
+      particles.push({ x:cx, y:cy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 40,
+                       life:.5 + Math.random()*.35, max:.85, color:col, size:2 + Math.random()*3 });
+    }
+  }
+
+  function spawnBlockParticles(r, c, kind){
+    const col = kind === 'ice' ? '#bae6fd' : '#7c3aed';
+    const cx = c*CELL + CELL/2, cy = r*CELL + CELL/2;
+    for(let i=0;i<9;i++){
+      const a = Math.random()*Math.PI*2, sp = 70 + Math.random()*160;
+      particles.push({ x:cx, y:cy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 50,
+                       life:.45 + Math.random()*.4, max:.85, color:col, size:2 + Math.random()*3 });
+    }
+  }
+
+  function buildStars(){
+    stars = [];
+    for(let i=0;i<80;i++){
+      stars.push({ x:Math.random()*BOARD, y:Math.random()*BOARD,
+                   r:Math.random()*1.3 + .3, ph:Math.random()*Math.PI*2, sp:.6 + Math.random()*1.6 });
+    }
+  }
+
+  // ---------- desenho das peças ----------
+  function drawPiece(g, type, special, cx, cy, rad, now){
+    const tempo = now || 0;
+    if(special === 'hole'){
+      const grad = g.createRadialGradient(cx, cy, rad*.1, cx, cy, rad);
+      grad.addColorStop(0, '#000');
+      grad.addColorStop(.62, '#150d2b');
+      grad.addColorStop(1, '#6d28d9');
+      g.fillStyle = grad;
+      g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI*2); g.fill();
+      // os anéis giram: o buraco negro nunca fica parado
+      g.lineWidth = Math.max(1.4, rad*.14);
+      g.strokeStyle = '#c4b5fd';
+      g.beginPath(); g.ellipse(cx, cy, rad*.98, rad*.42, -0.5 + tempo*1.4, 0, Math.PI*2); g.stroke();
+      g.strokeStyle = '#f0abfc';
+      g.beginPath(); g.ellipse(cx, cy, rad*.7, rad*.98, 0.7 - tempo*1.1, 0, Math.PI*2); g.stroke();
+      return;
+    }
+
+    if(type === CARGO){                              // cápsula de resgate
+      g.fillStyle = 'rgba(94,234,212,.2)';
+      g.beginPath(); g.roundRect(cx - rad*.86, cy - rad*.86, rad*1.72, rad*1.72, rad*.4); g.fill();
+      g.strokeStyle = '#5eead4';
+      g.lineWidth = Math.max(1.4, rad*.11);
+      g.beginPath(); g.roundRect(cx - rad*.86, cy - rad*.86, rad*1.72, rad*1.72, rad*.4); g.stroke();
+      g.save();
+      g.font = Math.round(rad*1.35) + 'px ' + EMOJI_FONT;
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(CARGO_EMOJI, cx, cy + rad*.05);
+      g.restore();
+      return;
+    }
+
+    // peça normal: emoji do sistema sobre um disco da cor do tipo
+    const T = TYPES[clamp(type,0,NT-1)];
+    const halo = g.createRadialGradient(cx, cy, rad*.15, cx, cy, rad);
+    halo.addColorStop(0, rgba(T.color, .38));
+    halo.addColorStop(.72, rgba(T.color, .16));
+    halo.addColorStop(1, rgba(T.color, 0));
+    g.fillStyle = halo;
+    g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI*2); g.fill();
+
+    g.save();
+    g.font = Math.round(rad*1.62) + 'px ' + EMOJI_FONT;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(T.emoji, cx, cy + rad*.05);
+    g.restore();
+
+    // cada marcador é traçado duas vezes: contorno escuro embaixo, branco em cima
+    if(special === 'row' || special === 'col'){
+      g.save();
+      g.translate(cx, cy);
+      if(special === 'col') g.rotate(-Math.PI/2);
+      g.lineCap = 'round';
+      for(const pass of [0, 1]){
+        g.strokeStyle = pass ? '#fff' : 'rgba(6,8,16,.7)';
+        g.lineWidth = Math.max(1.6, rad*.15) + (pass ? 0 : Math.max(1.6, rad*.12));
+        for(const dir of [-1, 1]){
+          for(let i=0;i<2;i++){
+            const x = dir * (rad*.42 + i*rad*.28);
+            g.beginPath();
+            g.moveTo(x - dir*rad*.16, -rad*.26);
+            g.lineTo(x + dir*rad*.06, 0);
+            g.lineTo(x - dir*rad*.16, rad*.26);
+            g.stroke();
+          }
+        }
+      }
+      g.restore();
+    } else if(special === 'nova'){
+      g.lineCap = 'round';
+      for(const pass of [0, 1]){
+        g.strokeStyle = pass ? '#fff' : 'rgba(6,8,16,.7)';
+        g.lineWidth = Math.max(1.2, rad*.1) + (pass ? 0 : Math.max(1.2, rad*.09));
+        g.beginPath(); g.arc(cx, cy, rad*.42, 0, Math.PI*2); g.stroke();
+        for(let i=0;i<8;i++){
+          const a = i*Math.PI/4 + Math.PI/8;
+          g.beginPath();
+          g.moveTo(cx + Math.cos(a)*rad*.66, cy + Math.sin(a)*rad*.66);
+          g.lineTo(cx + Math.cos(a)*rad*.92, cy + Math.sin(a)*rad*.92);
+          g.stroke();
+        }
+      }
+    }
+  }
+
+  // corrente: uma gaiola na borda da célula. Nada de X atravessando o meio —
+  // isso escondia o emoji e ficava igualzinho às rachaduras do gelo.
+  function drawLock(g, t){
+    const x = t.px, y = t.py, m = 3.5, s = CELL - m*2;
+    g.save();
+    g.lineJoin = 'round';
+    g.strokeStyle = 'rgba(9,12,20,.85)';
+    g.lineWidth = 8;
+    g.beginPath(); g.roundRect(x+m, y+m, s, s, 12); g.stroke();
+    g.strokeStyle = '#94a3b8';
+    g.lineWidth = 5;
+    g.beginPath(); g.roundRect(x+m, y+m, s, s, 12); g.stroke();
+
+    // elos ao longo da moldura
+    g.strokeStyle = 'rgba(226,232,240,.85)';
+    g.lineWidth = 1.5;
+    for(let i=1;i<4;i++){
+      const p = m + s*i/4;
+      g.beginPath(); g.moveTo(x+p, y+m-2.2); g.lineTo(x+p, y+m+2.2); g.stroke();
+      g.beginPath(); g.moveTo(x+p, y+m+s-2.2); g.lineTo(x+p, y+m+s+2.2); g.stroke();
+      g.beginPath(); g.moveTo(x+m-2.2, y+p); g.lineTo(x+m+2.2, y+p); g.stroke();
+      g.beginPath(); g.moveTo(x+m+s-2.2, y+p); g.lineTo(x+m+s+2.2, y+p); g.stroke();
+    }
+
+    // cadeado no canto, pra não restar dúvida
+    const lx = x + CELL - 15, ly = y + CELL - 13;
+    g.strokeStyle = '#e2e8f0'; g.lineWidth = 2;
+    g.beginPath(); g.arc(lx, ly - 4, 3.4, Math.PI, 0); g.stroke();
+    g.fillStyle = '#cbd5e1';
+    g.beginPath(); g.roundRect(lx - 5, ly - 4, 10, 8, 2); g.fill();
+    g.strokeStyle = 'rgba(9,12,20,.8)'; g.lineWidth = 1;
+    g.beginPath(); g.roundRect(lx - 5, ly - 4, 10, 8, 2); g.stroke();
+    g.restore();
+  }
+
+  // ---------- render ----------
+  function drawBackground(now){
+    ctx.fillStyle = '#080a12';
+    ctx.fillRect(0, 0, BOARD, BOARD);
+
+    let g = ctx.createRadialGradient(BOARD*.2, BOARD*.15, 10, BOARD*.2, BOARD*.15, BOARD*.75);
+    g.addColorStop(0, 'rgba(124,58,237,.22)');
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g; ctx.fillRect(0,0,BOARD,BOARD);
+    g = ctx.createRadialGradient(BOARD*.85, BOARD*.9, 10, BOARD*.85, BOARD*.9, BOARD*.7);
+    g.addColorStop(0, 'rgba(14,165,233,.18)');
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g; ctx.fillRect(0,0,BOARD,BOARD);
+
+    for(const s of stars){
+      const a = .25 + .55 * (0.5 + 0.5*Math.sin(now*s.sp + s.ph));
+      ctx.fillStyle = 'rgba(226,232,240,' + a.toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+    }
+
+    ctx.strokeStyle = 'rgba(148,163,184,.06)';
+    ctx.lineWidth = 1;
+    for(let i=1;i<COLS;i++){
+      ctx.beginPath(); ctx.moveTo(i*CELL, 0); ctx.lineTo(i*CELL, BOARD); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i*CELL); ctx.lineTo(BOARD, i*CELL); ctx.stroke();
+    }
+
+    // linha da base: é ali que as cápsulas são resgatadas
+    if(cfg && cfg.kind === 'cargo'){
+      const y = (ROWS-1)*CELL;
+      const gg = ctx.createLinearGradient(0, y, 0, BOARD);
+      gg.addColorStop(0, 'rgba(94,234,212,0)');
+      gg.addColorStop(1, 'rgba(94,234,212,.16)');
+      ctx.fillStyle = gg;
+      ctx.fillRect(0, y, BOARD, CELL);
+      ctx.strokeStyle = 'rgba(94,234,212,.45)';
+      ctx.setLineDash([7,6]);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(BOARD, y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function drawBlocks(now){
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const b = blocks[r][c];
+      if(!b) continue;
+      const x = c*CELL, y = r*CELL;
+
+      if(b.kind === 'ice'){
+        const dupla = b.hp >= 2;
+        const g = ctx.createLinearGradient(x, y, x + CELL, y + CELL);
+        g.addColorStop(0, dupla ? 'rgba(186,230,253,.92)' : 'rgba(186,230,253,.6)');
+        g.addColorStop(1, dupla ? 'rgba(56,189,248,.85)'  : 'rgba(56,189,248,.45)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.roundRect(x+2, y+2, CELL-4, CELL-4, 10); ctx.fill();
+        ctx.strokeStyle = 'rgba(240,249,255,.9)';
+        ctx.lineWidth = dupla ? 2.6 : 1.6;
+        ctx.beginPath(); ctx.roundRect(x+2, y+2, CELL-4, CELL-4, 10); ctx.stroke();
+
+        // brilho diagonal, como reflexo numa placa de gelo
+        ctx.save();
+        ctx.beginPath(); ctx.roundRect(x+2, y+2, CELL-4, CELL-4, 10); ctx.clip();
+        ctx.fillStyle = 'rgba(255,255,255,.34)';
+        ctx.beginPath();
+        ctx.moveTo(x-6, y+CELL*.62); ctx.lineTo(x+CELL*.52, y-6);
+        ctx.lineTo(x+CELL*.78, y-6); ctx.lineTo(x-6, y+CELL*.9);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+
+        // cristais de gelo (não rachaduras em X — isso ficava igual à corrente)
+        ctx.strokeStyle = 'rgba(255,255,255,.85)';
+        ctx.lineWidth = 1.3;
+        ctx.lineCap = 'round';
+        [[16,40,5],[40,17,4],[34,40,3]].forEach(([ox,oy,rr]) => {
+          for(let i=0;i<3;i++){
+            const a = i*Math.PI/3;
+            ctx.beginPath();
+            ctx.moveTo(x+ox - Math.cos(a)*rr, y+oy - Math.sin(a)*rr);
+            ctx.lineTo(x+ox + Math.cos(a)*rr, y+oy + Math.sin(a)*rr);
+            ctx.stroke();
+          }
+        });
+        if(dupla){
+          ctx.fillStyle = 'rgba(8,20,35,.55)';
+          ctx.beginPath(); ctx.arc(x+CELL-13, y+13, 8, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#e0f2fe';
+          ctx.font = '700 11px -apple-system, Segoe UI, Roboto, sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('2', x+CELL-13, y+13);
+          ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+        }
+      } else {
+        const pulso = .5 + .5*Math.sin(now*2 + r + c);
+        const g = ctx.createRadialGradient(x+CELL/2, y+CELL/2, 3, x+CELL/2, y+CELL/2, CELL*.62);
+        g.addColorStop(0, 'rgba(109,40,217,.95)');
+        g.addColorStop(.7, 'rgba(46,16,101,.95)');
+        g.addColorStop(1, 'rgba(15,6,35,.95)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.roundRect(x+2, y+2, CELL-4, CELL-4, 14); ctx.fill();
+        ctx.strokeStyle = 'rgba(192,132,252,' + (.35 + pulso*.5).toFixed(2) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.roundRect(x+2, y+2, CELL-4, CELL-4, 14); ctx.stroke();
+        ctx.fillStyle = 'rgba(216,180,254,.55)';
+        for(let i=0;i<3;i++){
+          const a = now*1.1 + i*2.1;
+          ctx.beginPath();
+          ctx.arc(x+CELL/2 + Math.cos(a)*13, y+CELL/2 + Math.sin(a*1.3)*13, 2.2, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  function drawTiles(now){
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(!t) continue;
+
+      // estouro: incha um tico antes de colapsar, em vez de só encolher
+      let scale = 1, alpha = 1;
+      if(t.dying){
+        const k = Math.min(1, t.popT/POP_MS);
+        scale = k < .35 ? 1 + k*.9 : (1.31) * (1 - (k-.35)/.65);
+        alpha = 1 - k*k;
+      } else if(t.born > 0){
+        const k = Math.min(1, t.born/0.22);
+        scale = .5 + .5*easeOut(k) + Math.sin(k*Math.PI)*.18;
+      }
+      if(scale <= .02) continue;
+
+      // balanço de peça parada + esmagada da aterrissagem
+      const parado = (phase === 'idle' && !t.dying) ? Math.sin(now*1.9 + t.fase)*1.1 : 0;
+      const sq = t.squash;
+      const escX = scale * (1 + sq*.32);
+      const escY = scale * (1 - sq*.32);
+      const cx = t.px + CELL/2;
+      const cy = t.py + CELL/2 + parado + sq*(CELL/2 - PAD)*.3;
+      const rad = CELL/2 - PAD;
+
+      const selecionada = selected && selected.r === r && selected.c === c;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(cx, cy);
+      if(selecionada) ctx.rotate(Math.sin(now*11)*.09);
+      ctx.scale(escX, escY * (selecionada ? 1.1 : 1));
+
+      if(t.special){
+        ctx.shadowColor = t.special === 'hole' ? '#a78bfa' : (t.t >= 0 ? TYPES[t.t].glow : '#fff');
+        ctx.shadowBlur = 14 + Math.sin(now*4 + t.id)*5;
+      }
+      drawPiece(ctx, t.t, t.special, 0, 0, rad, now);
+      ctx.restore();
+
+      if(t.locked && !t.dying) drawLock(ctx, t);
+    }
+
+    if(selected){
+      const t = board[selected.r][selected.c];
+      if(t){
+        const pad = 3 - Math.sin(now*7)*1.6;
+        ctx.strokeStyle = '#5eead4';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(t.px + pad, t.py + pad, CELL - pad*2, CELL - pad*2, 12);
+        ctx.stroke();
+      }
+    }
+
+    if(hint && phase === 'idle'){
+      const a = .3 + .3*Math.sin(now*5);
+      ctx.strokeStyle = 'rgba(167,139,250,' + a.toFixed(3) + ')';
+      ctx.lineWidth = 2;
+      hint.forEach(([r,c]) => {
+        ctx.beginPath(); ctx.roundRect(c*CELL + 4, r*CELL + 4, CELL-8, CELL-8, 11); ctx.stroke();
+      });
+    }
+  }
+
+  // desenha um foguetinho apontado para `dir` (1 = direita) na posição dada
+  function drawFoguete(x, y, dir, tam, cor){
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(dir > 0 ? 0 : Math.PI);
+    ctx.shadowColor = cor;
+    ctx.shadowBlur = tam*1.6;
+    // chama
+    const ch = ctx.createLinearGradient(-tam*2.4, 0, -tam*.4, 0);
+    ch.addColorStop(0, 'rgba(251,191,36,0)');
+    ch.addColorStop(.5, 'rgba(251,146,60,.85)');
+    ch.addColorStop(1, '#fef3c7');
+    ctx.fillStyle = ch;
+    ctx.beginPath();
+    ctx.moveTo(-tam*.4, -tam*.42);
+    ctx.lineTo(-tam*2.4 - Math.random()*tam, 0);
+    ctx.lineTo(-tam*.4, tam*.42);
+    ctx.closePath(); ctx.fill();
+    // corpo
+    ctx.fillStyle = cor;
+    ctx.beginPath();
+    ctx.moveTo(tam*1.15, 0);
+    ctx.lineTo(-tam*.45, -tam*.52);
+    ctx.lineTo(-tam*.2, 0);
+    ctx.lineTo(-tam*.45, tam*.52);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.beginPath(); ctx.arc(tam*.35, 0, tam*.18, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFlashes(dt){
+    for(let i=flashes.length-1;i>=0;i--){
+      const f = flashes[i];
+      f.t += dt;
+      if(f.t < 0) continue;
+      const dur = f.dur || .38;
+      const k = f.t / dur;
+      if(k >= 1){ flashes.splice(i,1); continue; }
+      const a = 1 - k;
+      const cx = f.c*CELL + CELL/2, cy = f.r*CELL + CELL/2;
+
+      if(f.kind === 'row' || f.kind === 'col'){
+        const horiz = f.kind === 'row';
+        // rastro que fica queimando na faixa
+        const g = horiz
+          ? ctx.createLinearGradient(0, f.r*CELL, 0, f.r*CELL + CELL)
+          : ctx.createLinearGradient(f.c*CELL, 0, f.c*CELL + CELL, 0);
+        g.addColorStop(0, 'transparent');
+        g.addColorStop(.5, f.color);
+        g.addColorStop(1, 'transparent');
+        ctx.globalAlpha = a*.9;
+        ctx.fillStyle = g;
+        if(horiz) ctx.fillRect(0, f.r*CELL, BOARD, CELL);
+        else ctx.fillRect(f.c*CELL, 0, CELL, BOARD);
+
+        // dois foguetes saindo do ponto de origem para os dois lados.
+        // avanço linear de propósito: com easeOut o foguete cruzava o tabuleiro
+        // nos primeiros quadros e o jogador não via nada voando.
+        ctx.globalAlpha = Math.min(1, a*3);
+        const avanco = k * BOARD;
+        for(const dir of [-1, 1]){
+          if(horiz) drawFoguete(cx + dir*avanco, cy, dir, CELL*.44, f.color);
+          else {
+            ctx.save();
+            ctx.translate(cx, cy + dir*avanco);
+            ctx.rotate(Math.PI/2);
+            ctx.translate(-cx, -cy);
+            drawFoguete(cx, cy, dir, CELL*.44, f.color);
+            ctx.restore();
+          }
+        }
+        ctx.globalAlpha = 1;
+
+      } else if(f.kind === 'nova'){
+        // duas ondas concêntricas + clarão no miolo
+        ctx.globalAlpha = a;
+        for(const atraso of [0, .22]){
+          const kk = (k - atraso) / (1 - atraso);
+          if(kk <= 0) continue;
+          ctx.strokeStyle = f.color;
+          ctx.lineWidth = 7*(1 - kk) + 1;
+          ctx.beginPath();
+          ctx.arc(cx, cy, CELL*1.8*easeOut(kk), 0, Math.PI*2);
+          ctx.stroke();
+        }
+        const cl = ctx.createRadialGradient(cx, cy, 0, cx, cy, CELL*1.3*(1-k) + 4);
+        cl.addColorStop(0, 'rgba(255,255,255,' + (a*.85).toFixed(3) + ')');
+        cl.addColorStop(1, 'transparent');
+        ctx.fillStyle = cl;
+        ctx.beginPath(); ctx.arc(cx, cy, CELL*1.3, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
+
+      } else if(f.kind === 'lock'){
+        // corrente arrebentando: dois pedaços voando pra fora
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
+        const d = easeOut(k)*CELL*.8;
+        for(const ang of [-0.7, 2.44]){
+          ctx.save();
+          ctx.translate(cx + Math.cos(ang)*d, cy + Math.sin(ang)*d);
+          ctx.rotate(ang + k*4);
+          ctx.beginPath(); ctx.moveTo(-7,0); ctx.lineTo(7,0); ctx.stroke();
+          ctx.restore();
+        }
+        ctx.globalAlpha = 1;
+
+      } else if(f.kind === 'ice'){
+        // gelo estilhaçando: lascas triangulares saindo em leque
+        ctx.globalAlpha = a;
+        ctx.fillStyle = f.color;
+        for(let s=0;s<6;s++){
+          const ang = s*Math.PI/3 + f.r;
+          const d = easeOut(k)*CELL*.85;
+          ctx.save();
+          ctx.translate(cx + Math.cos(ang)*d, cy + Math.sin(ang)*d);
+          ctx.rotate(ang + k*5);
+          const tam = 7*(1-k) + 2;
+          ctx.beginPath();
+          ctx.moveTo(0,-tam); ctx.lineTo(tam,tam); ctx.lineTo(-tam,tam);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
+        ctx.globalAlpha = 1;
+
+      } else if(f.kind === 'hammer'){
+        // martelo caindo e batendo
+        const bate = Math.min(1, k/.55);
+        ctx.save();
+        ctx.globalAlpha = k < .8 ? 1 : (1-k)/.2;
+        ctx.translate(cx + CELL*.5, cy - CELL*.55 + easeOut(bate)*CELL*.42);
+        ctx.rotate(-1.1 + easeOut(bate)*1.35);
+        ctx.font = Math.round(CELL*.8) + 'px ' + EMOJI_FONT;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('🔨', 0, 0);
+        ctx.restore();
+        if(k > .5){                      // faíscas do impacto
+          ctx.globalAlpha = a;
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2.5;
+          const d = (k-.5)/.5;
+          for(let s=0;s<6;s++){
+            const ang = s*Math.PI/3 + .4;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(ang)*CELL*.3*d, cy + Math.sin(ang)*CELL*.3*d);
+            ctx.lineTo(cx + Math.cos(ang)*CELL*.62*d, cy + Math.sin(ang)*CELL*.62*d);
+            ctx.stroke();
+          }
+          ctx.globalAlpha = 1;
+        }
+
+      } else if(f.kind === 'cargo'){
+        // cápsula resgatada saindo por baixo com propulsão
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.translate(cx, cy + easeOut(k)*CELL*1.6);
+        ctx.scale(1 - k*.4, 1 - k*.4);
+        const ch = ctx.createLinearGradient(0, 0, 0, CELL*.9);
+        ch.addColorStop(0, 'rgba(94,234,212,.9)');
+        ch.addColorStop(1, 'rgba(94,234,212,0)');
+        ctx.fillStyle = ch;
+        ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.lineTo(0,CELL*.9); ctx.closePath(); ctx.fill();
+        ctx.font = Math.round(CELL*.62) + 'px ' + EMOJI_FONT;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(CARGO_EMOJI, 0, 0);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+
+      } else {
+        // buraco negro: vórtice com braços em espiral engolindo tudo
+        const rad = BOARD * easeOut(k);
+        const g = ctx.createRadialGradient(cx, cy, rad*.45, cx, cy, rad);
+        g.addColorStop(0, 'rgba(109,40,217,0)');
+        g.addColorStop(.85, 'rgba(167,139,250,' + (a*.5).toFixed(3) + ')');
+        g.addColorStop(1, 'transparent');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI*2); ctx.fill();
+
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = '#e9d5ff';
+        ctx.lineWidth = 2.2;
+        for(let b=0;b<5;b++){
+          ctx.beginPath();
+          for(let p=0;p<=16;p++){
+            const u = p/16;
+            const raio = CELL*.35 + u*BOARD*.55*(1 - k*.55);
+            const ang = b*Math.PI*2/5 + u*3.1 + k*7;
+            const x = cx + Math.cos(ang)*raio, y = cy + Math.sin(ang)*raio;
+            p ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+          }
+          ctx.stroke();
+        }
+        // núcleo: cresce engolindo o tabuleiro e colapsa no fim
+        const nucleo = CELL * (.55 + easeOut(k)*1.5) * (1 - k*k*.75);
+        const gn = ctx.createRadialGradient(cx, cy, nucleo*.2, cx, cy, nucleo);
+        gn.addColorStop(0,   'rgba(2,0,8,'    + a.toFixed(3) + ')');
+        gn.addColorStop(.7,  'rgba(30,10,70,' + (a*.92).toFixed(3) + ')');
+        gn.addColorStop(1,   'rgba(167,139,250,0)');
+        ctx.fillStyle = gn;
+        ctx.beginPath(); ctx.arc(cx, cy, nucleo, 0, Math.PI*2); ctx.fill();
+        // horizonte de eventos
+        ctx.strokeStyle = 'rgba(240,171,252,' + a.toFixed(3) + ')';
+        ctx.lineWidth = 4*(1-k) + 1;
+        ctx.beginPath(); ctx.arc(cx, cy, nucleo, 0, Math.PI*2); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  function drawEffects(dt){
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.life -= dt;
+      if(p.life <= 0){ particles.splice(i,1); continue; }
+      p.vy += 620*dt;
+      p.x += p.vx*dt; p.y += p.vy*dt;
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    for(let i=popups.length-1;i>=0;i--){
+      const p = popups[i];
+      p.life -= dt;
+      if(p.life <= 0){ popups.splice(i,1); continue; }
+      const k = 1 - p.life/p.max;
+      // entrada elástica: estoura pra fora e assenta
+      const ent = Math.min(1, k/.18);
+      const esc = ent < 1 ? .3 + .7*easeOut(ent) + Math.sin(ent*Math.PI)*.35 : 1;
+
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, p.life/p.max * 1.6);
+      ctx.translate(p.x, p.y - k*34);
+      ctx.scale(esc, esc);
+      ctx.font = '700 ' + p.size + 'px -apple-system, Segoe UI, Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(6,8,16,.8)';
+      ctx.strokeText(p.text, 0, 0);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, 0, 0);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // ---------- animação ----------
+  function tickSwap(dt){
+    anim.t += dt;
+    const bruto = Math.min(1, anim.t / SWAP_MS);
+    const { a, b, kind } = anim;
+    // troca boa passa do alvo e volta; troca recusada vai e vem tremendo
+    const k = kind === 'unswapBack'
+      ? bruto
+      : easeOut(bruto) + Math.sin(bruto*Math.PI)*.16;
+    const wob = kind === 'unswap' ? Math.sin(bruto*Math.PI*3)*3 : 0;
+
+    a.px = anim.ax0 + (a.c*CELL - anim.ax0)*k;
+    a.py = anim.ay0 + (a.r*CELL - anim.ay0)*k + wob;
+    b.px = anim.bx0 + (b.c*CELL - anim.bx0)*k;
+    b.py = anim.by0 + (b.r*CELL - anim.by0)*k - wob;
+    if(bruto >= 1){
+      a.px = a.c*CELL; a.py = a.r*CELL;
+      b.px = b.c*CELL; b.py = b.r*CELL;
+      finishSwap();
+    }
+  }
+
+  function tickPop(dt){
+    popT += dt;
+    popList.forEach(t => { t.popT = popT; });
+    if(popT >= POP_MS){
+      popList.forEach(t => { if(board[t.r][t.c] === t) board[t.r][t.c] = null; });
+      popList = [];
+      applyGravity();
+    }
+  }
+
+  function tickFall(dt){
+    let moving = false;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(!t) continue;
+      const ty = r*CELL;
+      t.px = c*CELL;
+      if(t.py < ty - .5){
+        t.vy += FALL_G*dt;
+        t.py += t.vy*dt;
+        if(t.py >= ty){
+          // amassa proporcional à velocidade da queda e volta ao normal sozinha
+          t.squash = Math.min(.45, t.vy/2600);
+          t.py = ty; t.vy = 0;
+          t.born = t.born || 0.001;
+        }
+        else moving = true;
+      } else {
+        t.py = ty; t.vy = 0;
+      }
+      if(t.squash > 0) t.squash = Math.max(0, t.squash - dt*3.2);
+    }
+    if(moving) return;
+
+    // cápsulas que chegaram na base saem e o resto desce de novo
+    if(coletarCargo()){ applyGravity(); return; }
+    stepResolve(null);
+  }
+
+  function frame(now){
+    rafId = requestAnimationFrame(frame);
+    const nowS = now/1000;
+    const dt = Math.min(.05, lastFrame ? nowS - lastFrame : 0);
+    lastFrame = nowS;
+
+    if(phase === 'swap') tickSwap(dt);
+    else if(phase === 'pop') tickPop(dt);
+    else if(phase === 'fall') tickFall(dt);
+    else if(phase === 'finale') tickFinale(dt);
+    else if(phase === 'idle'){
+      idleTime += dt;
+      if(idleTime > 6 && !hint) hint = findHint();
+    }
+
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = board[r][c];
+      if(t && t.born > 0 && t.born < .25) t.born += dt;
+    }
+
+    drawBackground(nowS);
+
+    // o tremor sacode o conteúdo do tabuleiro, não o fundo — senão apareceria borda
+    shake = Math.max(0, shake - dt*38);
+    ctx.save();
+    if(shake > .1) ctx.translate((Math.random()-.5)*shake, (Math.random()-.5)*shake);
+    // blocos depois das peças: escondem a peça nova que nasce logo acima de um bloqueio
+    drawTiles(nowS);
+    drawBlocks(nowS);
+    drawFlashes(dt);      // explosão por cima das peças, senão o efeito fica soterrado
+    drawEffects(dt);
+    ctx.restore();
+  }
+
+  // ---------- entrada ----------
+  function cellFromEvent(e){
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width * BOARD;
+    const y = (e.clientY - rect.top) / rect.height * BOARD;
+    const c = Math.floor(x / CELL), r = Math.floor(y / CELL);
+    return inside(r,c) ? { r, c } : null;
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    if(phase !== 'idle') return;
+    const cell = cellFromEvent(e);
+    if(!cell) return;
+
+    if(armed){ applyBooster(cell); return; }
+    if(!board[cell.r][cell.c]) return;
+
+    canvas.setPointerCapture(e.pointerId);
+    dragFrom = cell;
+    if(selected && (selected.r !== cell.r || selected.c !== cell.c) &&
+       Math.abs(selected.r - cell.r) + Math.abs(selected.c - cell.c) === 1){
+      const a = board[selected.r][selected.c];
+      if(a) tryMove(a, board[cell.r][cell.c]);
+      dragFrom = null;
+    } else {
+      selected = (selected && selected.r === cell.r && selected.c === cell.c) ? null : cell;
+      idleTime = 0; hint = null;
+    }
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if(!dragFrom || phase !== 'idle') return;
+    const cell = cellFromEvent(e);
+    if(!cell) return;
+    const d = Math.abs(cell.r - dragFrom.r) + Math.abs(cell.c - dragFrom.c);
+    if(d === 1){
+      const a = board[dragFrom.r][dragFrom.c], b = board[cell.r][cell.c];
+      dragFrom = null;
+      if(a && b) tryMove(a, b);
+    }
+  });
+
+  const endDrag = () => { dragFrom = null; };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'r' && phase !== 'menu' && cfg) startLevel(level);
+    if(e.key === 'Escape'){
+      if(armed) disarm();
+      else showMenu();
+    }
+  });
+
+  // ---------- boot ----------
+  function fitCanvas(){
+    const cssW = canvas.clientWidth || 432;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssW * dpr);
+    const s = (cssW / BOARD) * dpr;
+    ctx.setTransform(s, 0, 0, s, 0, 0);
+  }
+  window.addEventListener('resize', fitCanvas);
+
+  cfg = levelConfig(1);
+  collected = new Array(NT).fill(0);
+  buildStars();
+  buildBlocks();
+  buildBoard();
+  buildGoalChips();
+  buildBoosterBar();
+  updateWallet();
+  fitCanvas();
+  showMenu();
+  rafId = requestAnimationFrame(frame);
+
+  // ---------- modo vitrine (?attract=1) ----------
+  // usa findHint()/tryMove() do proprio jogo: um bot cego em match-3 erraria
+  // quase toda jogada e a vitrine ficaria com cara de travada.
+  if(/[?&]attract=1(&|$)/.test(location.search)){
+    document.body.classList.add('attract');
+    let fase = 1;
+
+    const botao = (...textos) => [...document.querySelectorAll('button')].find(
+      b => b.offsetParent !== null &&
+           textos.some(t => b.textContent.trim().indexOf(t) === 0));
+
+    function jogada(){
+      // fim de fase: segue para a proxima, ou repete se perdeu
+      const b = botao('Próxima fase', 'Tentar de novo', 'Repetir');
+      if(b){ b.click(); fase++; return 1100; }
+      if(phase === 'menu'){ startLevel(((fase - 1) % 5) + 1); return 1000; }
+      if(phase !== 'idle') return 220;          // animacao rolando: espera
+      const h = findHint();
+      if(!h) return 600;                        // embaralhando sozinho
+      tryMove(board[h[0][0]][h[0][1]], board[h[1][0]][h[1][1]]);
+      return 620 + Math.random()*420;           // ritmo de quem esta pensando
+    }
+
+    // cada jogada devolve quanto esperar antes da proxima
+    (function passo(espera){ setTimeout(() => passo(jogada()), espera); })(900);
+  }
+})();
+</script>
+</body>
+</html>
