@@ -41,7 +41,13 @@ function novaInstancia(opt = {}){
         contains(x){ return this._s.has(x); }
       },
       appendChild(c){ this._filhos.push(c); return c; },
+      _attrs: {},
+      setAttribute(k, v){ this._attrs[k] = String(v); },
+      getAttribute(k){ return k in this._attrs ? this._attrs[k] : null; },
+      removeAttribute(k){ delete this._attrs[k]; },
+      hasAttribute(k){ return k in this._attrs; },
       querySelector: () => elemento('b'),
+      querySelectorAll: () => [],
       addEventListener(t, f){ (this._ev[t] || (this._ev[t] = [])).push(f); },
       focus: noop, select: noop, click(){ (this._ev.click || []).forEach(f => f({
         preventDefault: noop, stopPropagation: noop })); },
@@ -63,7 +69,11 @@ function novaInstancia(opt = {}){
     document: {
       getElementById: id => elementos[id] || (elementos[id] = elemento('div')),
       createElement: t => elemento(t),
-      addEventListener: noop
+      addEventListener: noop,
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      get activeElement(){ return null; },
+      body: elemento('body')
     },
     window: {
       addEventListener: (t, f) => { if(t === 'keydown') teclado.push(f); },

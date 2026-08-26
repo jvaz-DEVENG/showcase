@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NEON DEVOURER</title>
 <meta name="description" content="Arcade estilo Pac-Man com progressão, essências, 8 biomas e labirinto gerado a cada fase.">
 <meta name="theme-color" content="#05070f">
@@ -82,14 +82,15 @@
 
   .abilities{display:flex;gap:6px}
   .ab{
-    width:44px;height:40px;border-radius:9px;border:1px solid var(--line);
+    font-family:inherit;font-weight:400;
+    width:44px;height:42px;border-radius:9px;border:1px solid var(--line);
     background:#0f1730;position:relative;overflow:hidden;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     font-size:8px;letter-spacing:.5px;color:var(--dim);
   }
   .ab b{font-size:13px;color:var(--neon);line-height:1}
   /* a tecla no próprio botão: PULSO no SHIFT não era óbvio pra ninguém */
-  .ab i{font-style:normal;font-size:6px;letter-spacing:.2px;color:var(--dim);opacity:.6;line-height:1;margin-top:2px}
+  .ab i{font-style:normal;font-size:8px;letter-spacing:.2px;color:#9fb0d8;line-height:1;margin-top:2px}
   @media (hover:none){ .ab i{display:none} }   /* no toque não existe tecla */
   .ab.locked{opacity:.32}
   .ab.tela{border-style:dashed}
@@ -138,17 +139,37 @@
     transition:.15s;
   }
   button:hover{background:rgba(57,224,255,.2);box-shadow:0 0 18px rgba(57,224,255,.35)}
+
+  /* foco visivel: com .card e .ab virando <button>, o anel padrao do
+     navegador some sob o estilo proprio */
+  button:focus-visible, .skin:focus-visible, .dots i:focus-visible{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+
+  /* o jogo treme a tela, solta particulas e congela no impacto: quem marcou
+     "reduzir movimento" no sistema pediu pra nao ver isso */
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{
+      animation-duration:.01ms!important; animation-iteration-count:1!important;
+      transition-duration:.01ms!important;
+    }
+  }
   button.ghost{border-color:var(--line);color:var(--dim);background:transparent}
   button.ghost:hover{color:var(--txt);border-color:var(--dim);box-shadow:none;background:rgba(255,255,255,.04)}
   button:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
 
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;max-width:460px}
+  /* .card e .ab sao <button> de verdade (foco e Enter/Espaco de graca);
+     estas linhas desfazem o visual herdado da regra button{} */
   .card{
+    font:inherit;color:inherit;letter-spacing:normal;width:100%;display:block;
     border:1px solid var(--line);border-radius:10px;background:#0b1224;
     padding:9px 10px;text-align:left;cursor:pointer;transition:.15s;position:relative;
   }
   .card:hover{border-color:var(--neon);background:#101a35}
-  .card.max{opacity:.45;cursor:default}
+  .card.max{opacity:1;cursor:default}
+  .card.max h4, .card.max .pips{opacity:.5}
+  .card.max p{color:var(--dim)}
   .card.max:hover{border-color:var(--line);background:#0b1224}
   .card h4{font-size:12px;letter-spacing:1px;color:var(--txt);display:flex;justify-content:space-between;align-items:center}
   .card p{font-size:10px;color:var(--dim);margin-top:3px;line-height:1.4}
@@ -160,7 +181,11 @@
   .skin{border:1px solid var(--line);border-radius:10px;background:#0b1224;padding:8px 4px;cursor:pointer;transition:.15s}
   .skin:hover{border-color:var(--neon)}
   .skin.sel{border-color:var(--accent);box-shadow:0 0 14px rgba(255,210,63,.3)}
-  .skin.lock{opacity:.5}
+  /* opacity no pai nao se desfaz no filho: o fade vai so no que e decorativo,
+     senao o PRECO — o dado que decide a compra — fica em 2,3:1 */
+  .skin.lock{opacity:1}
+  .skin.lock canvas, .skin.lock b, .skin.lock .dsc{opacity:.45}
+  .skin.lock span{color:var(--accent)}
   .skin canvas{width:54px;height:54px;margin:0 auto;display:block}
   .skin b{display:block;font-size:10px;letter-spacing:.5px;margin-top:2px}
   .skin span{display:block;font-size:9px;color:var(--dim)}
@@ -186,6 +211,11 @@
   /* essências ativas */
   /* altura RESERVADA: sem isso, ganhar a 2a essência quebrava a linha,
      o HUD crescia ~31px e o mapa pulava na tela */
+  /* com 3 essencias os chips passavam de 236px numa caixa que negocia a
+     partir de 150px e o terceiro era cortado em silencio: a partir de 3 fica
+     so o icone, que cabe e mantem a altura */
+  .buffs:has(.buff:nth-child(3)) .buff{font-size:0;padding:3px 6px 4px}
+  .buffs:has(.buff:nth-child(3)) .buff b{font-size:13px}
   .buffs{display:flex;gap:5px;height:26px;align-items:center;overflow:hidden;
          flex:1 1 150px;min-width:0}
   .buff{flex:0 0 auto}
@@ -298,7 +328,7 @@
   .rk.p1 .pos,.rk.p1 .ini{color:#ffd23f}
   .rk.p2 .pos,.rk.p2 .ini{color:#cfd8e8}
   .rk.p3 .pos,.rk.p3 .ini{color:#e0955c}
-  .rk.novo{animation:pisca 1s steps(2) infinite;border-color:var(--ok)}
+  .rk.novo{animation:pisca 1s steps(2) 5;border-color:var(--ok)}
   @keyframes pisca{50%{background:#12321f}}
   .rk.vazio{opacity:.35}
 
@@ -319,13 +349,14 @@
   @media (hover:none){ .soDesktop{display:none} .soToque{display:inline} }
   kbd{background:#131c36;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;
       padding:1px 5px;font-family:inherit;font-size:10px;color:var(--txt)}
+  /* visibility (e nao so opacity) para o toast antigo sumir tambem do leitor de tela */
   .toast{
     position:absolute;top:14px;left:50%;transform:translateX(-50%);
     background:rgba(11,18,36,.92);border:1px solid var(--accent);color:var(--accent);
     padding:6px 14px;border-radius:8px;font-size:11px;letter-spacing:2px;
-    opacity:0;transition:.3s;pointer-events:none;white-space:nowrap;
+    opacity:0;visibility:hidden;transition:.3s;pointer-events:none;white-space:nowrap;
   }
-  .toast.on{opacity:1;top:22px}
+  .toast.on{opacity:1;visibility:visible;top:22px}
   /* bestiário animado do menu */
   .legend{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:100%;max-width:520px}
   .be{
@@ -374,18 +405,18 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     <div class="row">
       <div class="stat"><b id="hScore">0</b><span>Pontos</span></div>
       <div class="stat"><b id="hLevel">1</b><span id="hBioma">Fase</span></div>
-      <div class="stat"><b id="hLives">♥♥♥</b><span>Vidas</span></div>
+      <div class="stat"><b id="hLives" role="status" aria-live="polite">♥♥♥</b><span>Vidas</span></div>
       <!-- G.restantes já existia e nunca aparecia: sem ele o jogador não
            sabe se está no começo ou no fim da fase -->
-      <div class="stat"><b id="hCores">0</b><span>Núcleos</span></div>
+      <div class="stat"><b id="hCores" role="status" aria-live="polite">0</b><span>Núcleos</span></div>
       <div class="stat"><b id="hCoins">0</b><span>Créditos</span></div>
       <div class="grow"></div>
       <div class="abilities">
-        <div class="ab" id="abDash"  title="Dash (ESPAÇO)"><b>⚡</b>DASH<i>ESPAÇO</i><div class="cd"></div></div>
-        <div class="ab" id="abPulse" title="Pulso: atordoa os mobs (SHIFT)"><b>◎</b>PULSO<i>SHIFT</i><div class="cd"></div></div>
-        <div class="ab" id="abPhase" title="Atravessar paredes (E)"><b>◇</b>FASE<i>E</i><div class="cd"></div></div>
-        <div class="ab tela" id="btnTela" title="Tela cheia (F)"><b>⛶</b>TELA</div>
-        <div class="ab tela" id="btnPausa" title="Pausa / info da sala (P)"><b>❚❚</b>MENU</div>
+        <button type="button" class="ab" id="abDash" aria-label="Dash — tecla espaço"><b aria-hidden="true">⚡</b>DASH<i>ESPAÇO</i><div class="cd"></div></button>
+        <button type="button" class="ab" id="abPulse" aria-label="Pulso: atordoa os mobs — tecla shift"><b aria-hidden="true">◎</b>PULSO<i>SHIFT</i><div class="cd"></div></button>
+        <button type="button" class="ab" id="abPhase" aria-label="Modo fase: atravessa paredes — tecla E"><b aria-hidden="true">◇</b>FASE<i>E</i><div class="cd"></div></button>
+        <button type="button" class="ab tela" id="btnTela" aria-label="Tela cheia — tecla F"><b aria-hidden="true">⛶</b>TELA</button>
+        <button type="button" class="ab tela" id="btnPausa" aria-label="Pausar e ver a sala — tecla P"><b aria-hidden="true">❚❚</b>MENU</button>
       </div>
     </div>
     <div class="row">
@@ -404,12 +435,13 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
   <!-- ================= STAGE ================= -->
   <div id="stage">
-    <canvas id="game" width="550" height="462"></canvas>
-    <div class="toast" id="toast"></div>
+    <canvas id="game" width="550" height="462" role="img"
+      aria-label="Labirinto do jogo. O estado está no painel acima.">Jogo em canvas: use WASD ou as setas para mover, espaço para dash, shift para o pulso e P para pausar.</canvas>
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <!-- MENU -->
-    <div class="ov on" id="ovMenu">
-      <h1>NEON DEVOURER</h1>
+    <div class="ov on" id="ovMenu" role="dialog" aria-modal="true" aria-labelledby="ovMenuT">
+      <h1 id="ovMenuT">NEON DEVOURER</h1>
       <p class="sub">Cada fase é um <b style="color:var(--accent)">bioma</b> diferente — gelo,
       escuridão, portais, lasers, esteiras — com labirinto gerado do zero.
       Devore os mobs pra roubar a <b style="color:var(--accent)">essência</b> deles.</p>
@@ -434,7 +466,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     </div>
 
     <!-- UPGRADES -->
-    <div class="ov" id="ovUp">
+    <div class="ov" id="ovUp" role="dialog" aria-modal="true" aria-labelledby="upTitle">
       <h2 id="upTitle">FASE CONCLUÍDA</h2>
       <p class="sub">Pontos de talento disponíveis: <b id="upPts" style="color:var(--accent)">0</b></p>
       <div class="grid" id="upGrid"></div>
@@ -442,16 +474,16 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     </div>
 
     <!-- SKINS -->
-    <div class="ov" id="ovSkins">
-      <h2>SKINS</h2>
+    <div class="ov" id="ovSkins" role="dialog" aria-modal="true" aria-labelledby="ovSkinsT">
+      <h2 id="ovSkinsT">SKINS</h2>
       <p class="sub">Créditos: <b id="skCoins" style="color:var(--accent)">0</b> — ganhe devorando núcleos e completando fases.</p>
       <div class="skins" id="skGrid"></div>
       <button class="ghost" id="btnSkinsBack">VOLTAR</button>
     </div>
 
     <!-- PERFIL DO JOGADOR -->
-    <div class="ov" id="ovPerfil">
-      <h2>PERFIL</h2>
+    <div class="ov" id="ovPerfil" role="dialog" aria-modal="true" aria-labelledby="ovPerfilT">
+      <h2 id="ovPerfilT">PERFIL</h2>
       <div class="perfil">
         <canvas id="perfilSkin" width="140" height="140"></canvas>
         <div class="perfilCampos">
@@ -459,7 +491,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
           <input id="perfilNome" maxlength="10" autocomplete="off" spellcheck="false"
                  placeholder="SEU NOME">
           <small id="perfilContador">0/10</small>
-          <p class="dica" id="perfilAviso"></p>
+          <p class="dica" id="perfilAviso" role="alert"></p>
         </div>
       </div>
       <div class="fichas" id="perfilFichas"></div>
@@ -468,59 +500,59 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     </div>
 
     <!-- MULTIPLAYER: local ou online -->
-    <div class="ov" id="ovMulti">
-      <h2>MULTIPLAYER</h2>
+    <div class="ov" id="ovMulti" role="dialog" aria-modal="true" aria-labelledby="ovMultiT">
+      <h2 id="ovMultiT">MULTIPLAYER</h2>
       <p class="sub">Jogue com seus amigos no mesmo aparelho ou pela internet.</p>
       <div class="grid" style="max-width:400px">
-        <div class="card" id="cardLocal">
+        <button type="button" class="card" id="cardLocal">
           <h4>MODO LOCAL</h4>
           <p>Dois jogadores no mesmo teclado, dividindo a tela.
              Não precisa de internet.</p>
-        </div>
-        <div class="card" id="cardOnline">
+        </button>
+        <button type="button" class="card" id="cardOnline">
           <h4>MODO ONLINE</h4>
           <p>Até 4 jogadores, cada um no seu aparelho, com sala por código.
              Precisa de internet.</p>
-        </div>
+        </button>
       </div>
       <button class="ghost" id="btnMultiBack">VOLTAR</button>
     </div>
 
     <!-- ESCOLHA DO MODO DE DUPLA -->
-    <div class="ov" id="ovDupla">
-      <h2>2 JOGADORES</h2>
+    <div class="ov" id="ovDupla" role="dialog" aria-modal="true" aria-labelledby="ovDuplaT">
+      <h2 id="ovDuplaT">2 JOGADORES</h2>
       <p class="sub">No mesmo teclado: <b>P1</b> usa <kbd>WASD</kbd> +
         <kbd>ESPAÇO</kbd> <kbd>SHIFT esq</kbd> <kbd>E</kbd> &nbsp;·&nbsp;
         <b>P2</b> usa <kbd>← ↑ ↓ →</kbd> + <kbd>ENTER</kbd> <kbd>SHIFT dir</kbd></p>
       <div class="grid" style="max-width:400px">
-        <div class="card" id="cardCoop">
+        <button type="button" class="card" id="cardCoop">
           <h4>COOPERATIVO</h4>
           <p>Limpam o mapa juntos. Cada um tem as próprias vidas e a fase só
              acaba quando o último núcleo cair. Acaba quando os dois ficam sem vida.</p>
-        </div>
-        <div class="card" id="cardVersus">
+        </button>
+        <button type="button" class="card" id="cardVersus">
           <h4>COMPETITIVO</h4>
           <p>Mesmo mapa, cada um por si. Ganha quem tiver mais pontos quando o
              mapa acabar. Coroa marca quem está na frente.</p>
-        </div>
+        </button>
       </div>
       <button class="ghost" id="btnDuplaBack">VOLTAR</button>
     </div>
 
     <!-- ONLINE: criar ou entrar -->
-    <div class="ov" id="ovOnline">
-      <h2>JOGAR ONLINE</h2>
+    <div class="ov" id="ovOnline" role="dialog" aria-modal="true" aria-labelledby="ovOnlineT">
+      <h2 id="ovOnlineT">JOGAR ONLINE</h2>
       <p class="sub">Até 4 jogadores no mesmo labirinto, cada um no seu aparelho.
         Quem cria a sala vira o anfitrião e comanda a partida.</p>
       <div class="grid" style="max-width:400px">
-        <div class="card" id="cardCriar">
+        <button type="button" class="card" id="cardCriar">
           <h4>CRIAR SALA</h4>
           <p>Gera um código de 4 caracteres. Passe pros seus amigos e eles entram.</p>
-        </div>
-        <div class="card" id="cardEntrar">
+        </button>
+        <button type="button" class="card" id="cardEntrar">
           <h4>ENTRAR NUMA SALA</h4>
           <p>Digite o código que seu amigo te passou.</p>
-        </div>
+        </button>
       </div>
       <div id="caixaCodigo" style="display:none">
         <input id="codigoEntrada" class="codigo" maxlength="4"
@@ -534,8 +566,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     </div>
 
     <!-- SALA DE ESPERA -->
-    <div class="ov" id="ovSala">
-      <h2>SALA <b id="salaCodigo" style="color:var(--accent);letter-spacing:8px"></b></h2>
+    <div class="ov" id="ovSala" role="dialog" aria-modal="true" aria-labelledby="ovSalaT">
+      <h2 id="ovSalaT">SALA <b id="salaCodigo" style="color:var(--accent);letter-spacing:8px"></b></h2>
       <p class="sub" id="salaDica"></p>
       <div class="rank" id="salaLista" style="max-width:360px"></div>
       <div class="row" style="justify-content:center" id="salaModos">
@@ -547,15 +579,15 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     </div>
 
     <!-- ESPERANDO O ANFITRIAO -->
-    <div class="ov" id="ovEspera">
-      <h2>AGUARDE</h2>
+    <div class="ov" id="ovEspera" role="dialog" aria-modal="true" aria-labelledby="ovEsperaT">
+      <h2 id="ovEsperaT">AGUARDE</h2>
       <p class="sub" id="esperaTexto"></p>
       <p class="sub" style="font-size:10px">a próxima fase começa sozinha</p>
       <button class="ghost" id="btnEsperaSair">SAIR DA SALA</button>
     </div>
 
     <!-- PAUSE / INFORMAÇÕES DA SALA -->
-    <div class="ov" id="ovPause">
+    <div class="ov" id="ovPause" role="dialog" aria-modal="true" aria-labelledby="pauseTitulo">
       <h2 id="pauseTitulo">PAUSADO</h2>
       <p class="sub" id="pauseInfo"></p>
       <div class="rank" id="pauseJogadores" style="max-width:380px"></div>
@@ -570,8 +602,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     </div>
 
     <!-- GAME OVER -->
-    <div class="ov" id="ovOver">
-      <h2 style="color:var(--danger)">VOCÊ FOI DEVORADO</h2>
+    <div class="ov" id="ovOver" role="dialog" aria-modal="true" aria-labelledby="ovOverT">
+      <h2 id="ovOverT" style="color:var(--danger)">VOCÊ FOI DEVORADO</h2>
       <p class="sub" id="overStats"></p>
       <div class="row" style="justify-content:center">
         <button id="btnRetry">TENTAR DE NOVO</button>
@@ -582,8 +614,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
 
     <!-- RANKING -->
-    <div class="ov" id="ovRank">
-      <h2>RANKING</h2>
+    <div class="ov" id="ovRank" role="dialog" aria-modal="true" aria-labelledby="ovRankT">
+      <h2 id="ovRankT">RANKING</h2>
       <div class="rank" id="rankLista"></div>
       <button class="ghost" id="btnRankBack">VOLTAR</button>
     </div>
@@ -648,6 +680,9 @@ function reavaliarGrade(){
 const TOQUE = matchMedia('(hover:none)').matches;
 const FRACO = TOQUE || (navigator.hardwareConcurrency || 8) <= 4;
 const QUALIDADE = FRACO ? 0 : 1;
+// respeita "reduzir movimento" do sistema: tira o tremor de tela e corta as
+// particulas. O hit-stop fica — e pausa, nao movimento.
+const SEM_MOVIMENTO = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MAX_PARTS = FRACO ? 120 : 400;
 
 const cv = document.getElementById('game');
@@ -724,7 +759,9 @@ const BIOMAS = [
    desc:'piso de gelo: você derrapa nas curvas'},
   {id:'fissura',   nome:'FISSURA',   cor:'#ff3bd0', layout:'arena',    mod:'portais',
    desc:'pares de portais instáveis'},
-  {id:'blecaute',  nome:'BLECAUTE',  cor:'#7b5cff', layout:'dfs',      mod:'escuro',
+  // corHud: o roxo do mapa da 4,20:1 no rotulo do HUD, abaixo de AA. So o
+  // rotulo clareia; o labirinto continua com a cor original
+  {id:'blecaute',  nome:'BLECAUTE',  cor:'#7b5cff', corHud:'#8f74ff', layout:'dfs', mod:'escuro',
    desc:'só enxerga o que está perto'},
   {id:'corrente',  nome:'CORRENTE',  cor:'#ffd23f', layout:'cavernas', mod:'esteiras',
    desc:'esteiras empurram quem pisa'},
@@ -2175,6 +2212,7 @@ function usarFase(p){
 
 /* ------------------------------ PARTÍCULAS ----------------------------- */
 function explodir(x, y, cor, n){
+  if(SEM_MOVIMENTO) return;              // movimento reduzido: sem partículas
   if(FRACO) n = Math.ceil(n/2);          // metade das partículas no celular
   for(let i=0;i<n;i++){
     const ang = Math.random()*Math.PI*2, v = 30 + Math.random()*110;
@@ -3124,6 +3162,7 @@ function renderRanking(){
   [['global','🌎 GLOBAL'], ['local','ESTE APARELHO']].forEach(([id, txt]) => {
     const b = document.createElement('button');
     b.className = 'aba' + (G.aba === id ? ' at' : '');
+    b.setAttribute('aria-pressed', String(G.aba === id));   // o estado era so cor
     b.textContent = txt;
     b.onclick = () => {
       G.aba = id;
@@ -3574,7 +3613,7 @@ function desenhar(){
   }
   ctx.fillStyle = fundoCache; ctx.fillRect(0,0,W,H);
 
-  if(G.shake > 0){
+  if(G.shake > 0 && !SEM_MOVIMENTO){
     ctx.translate((Math.random()-0.5)*G.shake*10, (Math.random()-0.5)*G.shake*10);
   }
 
@@ -4148,12 +4187,15 @@ function atualizarHud(){
   if(G.bioma){
     const b = el('hBioma');
     b.textContent = 'Fase · ' + G.bioma.nome;
-    b.style.color = G.bioma.cor;
+    b.style.color = G.bioma.corHud || G.bioma.cor;
   }
   el('hLives').textContent = meu ? ('♥'.repeat(Math.max(0, meu.vidas)) || '—') : '—';
   const faltam = Math.max(0, G.restantes | 0);
   const nc = el('hCores');
   nc.textContent = faltam;
+  // leitor de tela le "coracao coracao coracao" e um numero solto sem contexto
+  nc.setAttribute('aria-label', faltam + ' núcleos restantes');
+  el('hLives').setAttribute('aria-label', (meu ? Math.max(0, meu.vidas) : 0) + ' vidas');
   // últimos 10: vira alerta, é quando o jogador precisa saber onde procurar
   nc.style.color = faltam === 0 ? 'var(--dim)' : faltam <= 10 ? '#ffd23f' : '';
   el('hCoins').textContent = save.coins;
@@ -4225,10 +4267,25 @@ function toast(txt){
   toastTimer = setTimeout(() => t.classList.remove('on'), 1400);
 }
 
+/* Trocar de tela era só ligar/desligar classe: o elemento focado saía do
+   fluxo e o foco DESABAVA no <body>. Quem usa leitor de tela não era levado
+   à tela nova — ficava em silêncio, e o próximo Tab recomeçava do topo. */
+let focoAnterior = null;
 function mostrar(id){
+  const abrindo = id && !el(id).classList.contains('on');
+  if(abrindo && document.activeElement && document.activeElement !== document.body)
+    focoAnterior = document.activeElement;
+
   ['ovMenu','ovUp','ovSkins','ovPause','ovOver','ovRank','ovPerfil','ovDupla','ovOnline','ovSala','ovEspera','ovMulti']
     .forEach(o => el(o).classList.toggle('on', o === id));
   if(id === 'ovMenu'){ renderMiniRanking(); atualizarContinuar(); }
+
+  if(id){
+    const primeiro = el(id).querySelector('input:not([disabled]),button:not([disabled])');
+    if(primeiro && primeiro.focus) primeiro.focus();
+  }else if(focoAnterior && focoAnterior.focus){
+    focoAnterior.focus(); focoAnterior = null;
+  }
 }
 /* Só oferece continuar quando vale a pena: abaixo da fase 4 o atalho pouparia
    nada e ainda tiraria o aquecimento de quem está começando. */
@@ -4258,8 +4315,10 @@ function renderUpgrades(){
     const nv = nivelUp(u.id);
     const bloqueado = save.charLevel < u.req;
     const cheio = nv >= u.max;
-    const d = document.createElement('div');
+    const d = document.createElement('button');
+    d.type = 'button';
     d.className = 'card' + ((cheio || bloqueado || save.pontos < 1) ? ' max' : '');
+    d.disabled = cheio || bloqueado || save.pontos < 1;
     d.innerHTML = `<h4>${u.nome} <span style="color:var(--accent)">${nv}/${u.max}</span></h4>
       <p>${bloqueado ? 'requer nível ' + u.req : (cheio ? 'máximo atingido' : u.desc(nv+1))}</p>
       <div class="pips">${Array.from({length:u.max},(_,i)=>`<i class="${i<nv?'on':''}"></i>`).join('')}</div>`;
@@ -4292,7 +4351,8 @@ function renderSkins(){
 
   for(const s of SKINS){
     const tem = save.skins.includes(s.id);
-    const d = document.createElement('div');
+    const d = document.createElement('button');
+    d.type = 'button';
     d.className = 'skin' + (save.skin === s.id ? ' sel' : '') + (tem ? '' : ' lock');
 
     const c = document.createElement('canvas');
@@ -4317,6 +4377,14 @@ function renderSkins(){
     s.cores.forEach((par, i) => {
       const dot = document.createElement('i');
       dot.style.background = par[0];
+      // sem isto o seletor informa APENAS por cor e nao alcanca o teclado
+      dot.tabIndex = 0;
+      dot.setAttribute('role', 'button');
+      dot.setAttribute('aria-label', 'Cor ' + (i + 1) + ' de ' + s.nome);
+      dot.setAttribute('aria-pressed', String((save.cores[s.id]||0) === i));
+      dot.addEventListener('keydown', ev => {
+        if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); dot.click(); }
+      });
       if((save.cores[s.id]||0) === i) dot.className = 'on';
       dot.onclick = ev => {
         ev.stopPropagation();
@@ -4881,10 +4949,14 @@ function donoDoTeclado(esquema){
 }
 window.addEventListener('keydown', e => {
 
-  // direção: descobre de qual esquema veio e entrega ao dono dele
+  /* O preventDefault SÓ vale dentro da partida. Antes ele rodava primeiro e
+     engolia a tecla no menu também: ESPAÇO é metade do que ativa um <button>,
+     então quem navega por teclado clicava em CAMPANHA e nada acontecia. As
+     setas idem — travavam a rolagem das telas, que têm overflow-y:auto. */
   for(const esquema of ['wasd','setas']){
     const dir = TECLAS[esquema][e.code];
     if(!dir) continue;
+    if(G.estado !== 'jogando' && G.estado !== 'pausado') break;
     e.preventDefault();
     const p = donoDoTeclado(esquema);
     if(p && !p.fora){ p.quer = DIRS[dir]; p.querT = G.tempo; }
@@ -4894,8 +4966,8 @@ window.addEventListener('keydown', e => {
   for(const esquema of ['wasd','setas']){
     const acao = TECLAS[esquema].acoes[e.code];
     if(!acao) continue;
-    if(e.code === 'Space') e.preventDefault();
     if(G.estado !== 'jogando') break;
+    if(e.code === 'Space') e.preventDefault();
     const p = donoDoTeclado(esquema);
     if(!p) break;
     if(acao === 'dash')  usarDash(p);
@@ -4906,7 +4978,17 @@ window.addEventListener('keydown', e => {
 
   switch(e.code){
     case 'KeyP':
-    case 'Escape':     G.estado === 'jogando' ? pausar() : retomar(); break;
+    case 'Escape':
+      /* Escape só fechava a pausa; nas outras 10 telas não fazia nada.
+         Cada tela sobreposta tem exatamente um botão .ghost de voltar/sair. */
+      if(G.estado === 'jogando') pausar();
+      else if(G.estado === 'pausado') retomar();
+      else {
+        const tela = document.querySelector('.ov.on');
+        const voltar = tela && tela.querySelector('button.ghost');
+        if(voltar) voltar.click();
+      }
+      break;
     case 'KeyM':
       save.som = !save.som; gravarSave();
       toast(save.som ? 'SOM LIGADO' : 'SOM DESLIGADO');
