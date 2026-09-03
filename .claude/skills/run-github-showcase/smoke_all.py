@@ -204,12 +204,87 @@ def smoke_sprite_animator():
     return errors
 
 
+def smoke_neon_devourer():
+    """O jogo mais complexo do repo: confere save, os 10 biomas e as regras
+    dos dois mods que mudam o mapa durante a fase (FRATURA e ESTOPIM)."""
+    pw, browser, page, errors = open_page("minijogos/neon-devourer/index.html",
+                                          viewport=(900, 760))
+    page.wait_for_timeout(900)
+
+    # o save tem que sobreviver ao reload -- ja quebrou uma vez, em silencio
+    page.evaluate("() => { save.recorde = 8800; save.coins = 500; gravarSave(); }")
+    page.reload()
+    page.wait_for_timeout(900)
+    if page.evaluate("save.recorde") != 8800 or page.evaluate("save.coins") != 500:
+        errors.append("save nao sobreviveu ao reload")
+
+    if page.evaluate("BIOMAS.length") != 10:
+        errors.append("esperava 10 biomas, veio %s" % page.evaluate("BIOMAS.length"))
+    if not page.evaluate("BIOMAS.every(b => !!ESCALAS[b.id])"):
+        errors.append("bioma sem escala de trilha em ESCALAS")
+
+    # FRATURA: o piso colapsa sem nunca ilhar um nucleo
+    ilhados = page.evaluate("""() => {
+        novoJogo('solo', 1); G.fase = 20;
+        G.bioma = BIOMAS.find(b => b.id === 'fratura'); montarFase();
+        G.bioma = BIOMAS.find(b => b.id === 'fratura'); G.paleta = G.bioma.cor;
+        montarModificador(); G.mazeCanvas = renderMaze();
+        let n = Math.floor(G.restantes * 0.7);          // simula o jogador comendo
+        for(let y=0;y<ROWS && n>0;y++) for(let x=0;x<COLS && n>0;x++)
+          if(G.pellets[y][x]){ G.pellets[y][x]=0; G.restantes--; n--; }
+        let ilhado = 0;
+        for(let t=0;t<300;t++){
+          atualizarColapso(0.25);
+          const campo = calcularCampo(G.spawn.x, G.spawn.y);
+          for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++)
+            if(G.pellets[y][x] && campo[y][x] < 0) ilhado++;
+        }
+        return {ilhado, colapsou: G.colapsados, teto: G.colapsoMax};
+    }""")
+    if ilhados["ilhado"]:
+        errors.append("FRATURA ilhou %d nucleos" % ilhados["ilhado"])
+    if ilhados["colapsou"] > ilhados["teto"]:
+        errors.append("FRATURA passou do teto de colapso")
+    if ilhados["colapsou"] == 0:
+        errors.append("FRATURA nao colapsou nada -- mod inerte")
+
+    # ESTOPIM: mina e consumivel e nao cobra pedagio duas vezes
+    mina = page.evaluate("""() => {
+        novoJogo('solo', 1); G.fase = 24;
+        G.bioma = BIOMAS.find(b => b.id === 'estopim'); montarFase();
+        G.bioma = BIOMAS.find(b => b.id === 'estopim'); montarModificador();
+        const p = G.players[0], m = G.minas[0];
+        p.invuln = 0; p.escudo = 0; p.faseT = 0;
+        const antes = p.vidas;
+        p.x = centro(m.x); p.y = centro(m.y); checarMinas(p);
+        const tirou = p.vidas < antes;
+        p.invuln = 0; const v2 = p.vidas; checarMinas(p);
+        return {minas: G.minas.length, tirou, desarmou: !m.armada, denovo: p.vidas < v2};
+    }""")
+    if not mina["minas"]:
+        errors.append("ESTOPIM sem minas plantadas")
+    if not mina["tirou"] or not mina["desarmou"]:
+        errors.append("mina nao detonou direito: %s" % mina)
+    if mina["denovo"]:
+        errors.append("mina cobrou vida duas vezes no mesmo tile")
+
+    shot(page, OUT, "neon-devourer")
+    browser.close()
+    pw.stop()
+    # Fora de attract o jogo busca o ranking global no Supabase, de proposito.
+    # Sem rede (sandbox, CI, avião) isso vira erro de console -- reprovar por
+    # isso seria reprovar por falta de internet, nao por defeito do jogo.
+    return [e for e in errors if "ERR_NAME_NOT_RESOLVED" not in e
+                             and "Failed to load resource" not in e]
+
+
 CHECKS = {
     "reflex-rush": smoke_reflex_rush,
     "mata-barata": smoke_mata_barata,
     "fusion-rush": smoke_fusion_rush,
     "bubble-crane": smoke_bubble_crane,
     "cosmic-crush": smoke_cosmic_crush,
+    "neon-devourer": smoke_neon_devourer,
     "gerador-titulo-seo": smoke_gerador_titulo,
     "assinador-mtr": smoke_assinador_mtr,
     "gerador-relatorio-fotografico": smoke_gerador_relatorio,

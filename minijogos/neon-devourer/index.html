@@ -768,6 +768,10 @@ const BIOMAS = [
    desc:'só enxerga o que está perto'},
   {id:'corrente',  nome:'CORRENTE',  cor:'#ffd23f', layout:'cavernas', mod:'esteiras',
    desc:'esteiras empurram quem pisa'},
+  {id:'fratura',   nome:'FRATURA',   cor:'#aab4c2', layout:'cavernas', mod:'colapso',
+   desc:'rachaduras avisam antes do chão sumir'},
+  {id:'estopim',   nome:'ESTOPIM',   cor:'#c6ff3b', layout:'arena',    mod:'minas',
+   desc:'minas visíveis: o losango pulsa antes de estourar'},
   {id:'fornalha',  nome:'FORNALHA',  cor:'#ff5d3b', layout:'arena',    mod:'lasers',
    desc:'feixes varrem os corredores'},
   {id:'purga',     nome:'PURGA',     cor:'#ff3b6b', layout:'dfs',      mod:'purga',
@@ -897,6 +901,11 @@ const ESCALAS = {
   fissura:  [51.9, 61.7, 69.3, 82.4],
   blecaute: [49.0, 58.3, 65.4, 73.4],      // mais grave: pesa mais
   corrente: [65.4, 73.4, 87.3, 98.0],
+  // A1 com Bb1 colado: segunda menor e a unica escala que "range", combina
+  // com estrutura se despedacando
+  fratura:  [55.0, 58.3, 69.3, 82.4],
+  // tritono B1-F2: a mesma dissonancia de sirene, para campo minado
+  estopim:  [61.7, 87.3, 73.4, 98.0],
   fornalha: [55.0, 61.7, 73.4, 92.5],
   purga:    [46.2, 55.0, 61.7, 69.3]
 };
@@ -1104,6 +1113,8 @@ const G = {
   restantes:0,
   fase:1, score:0, vidas:3,
   bioma:null, portais:[], lasers:[], esteiras:null, purgaT:0,
+  colapso:[], colapsoMax:0, colapsoT:0,   // FRATURA: tiles rachando e o teto do estrago
+  minas:[],                               // ESTOPIM: {x,y,armada,pulso}
   players:[], eu:0, modo:'solo',      // solo | coop | versus
   player:null, mobs:[], tiros:[], parts:[],
   devorar:0, combo:0, congela:0,
@@ -1602,7 +1613,44 @@ function montarFase(){
    ========================================================================== */
 function montarModificador(){
   G.portais = []; G.lasers = []; G.esteiras = null; G.purgaT = 0;
+  G.colapso = []; G.colapsoT = 0; G.colapsoMax = 0; G.colapsados = 0; G.minas = [];
   const mod = G.bioma.mod;
+
+  if(mod === 'colapso'){
+    /* Teto de 20% do chao livre: sem ele a fase vira campo de buracos e a
+       corrida pelos ultimos nucleos deixa de ser jogavel. */
+    let abertos = 0;
+    for(let y=1;y<ROWS-1;y++) for(let x=1;x<COLS-1;x++) if(G.grid[y][x] === 0) abertos++;
+    G.colapsoMax = Math.floor(abertos * 0.20);
+    G.colapsoT = 3.5;                        // folga antes da primeira rachadura
+  }
+
+  if(mod === 'minas'){
+    const n = 5 + Math.min(5, (G.fase/4)|0);
+    const livres = [];
+    for(let y=1;y<ROWS-1;y++)
+      for(let x=1;x<COLS-1;x++)
+        if(G.grid[y][x] === 0 &&
+           Math.max(Math.abs(x-G.spawn.x), Math.abs(y-G.spawn.y)) > 3 &&
+           !(x>=G.casa.x0-1 && x<=G.casa.x1+1 && y>=G.casa.y0-1 && y<=G.casa.y1+1))
+          livres.push({x,y});
+    embaralhar(livres);
+    /* No maximo 2 minas em passagem obrigatoria (tile com menos de 2 saidas).
+       Sem esse teto, um labirinto apertado podia cobrar pedagio em vida em
+       todo corredor -- dano garantido, nao dano por leitura ruim. */
+    let pedagios = 0;
+    const saidasDe = (x,y) => ['up','down','left','right'].map(k => DIRS[k])
+                        .filter(d => livre(x+d.x, y+d.y, false)).length;
+    for(const c of livres){
+      if(G.minas.length >= n) break;
+      if(G.minas.some(m => Math.abs(m.x-c.x)+Math.abs(m.y-c.y) < 3)) continue;
+      if(saidasDe(c.x, c.y) < 2){
+        if(pedagios >= 2) continue;
+        pedagios++;
+      }
+      G.minas.push({x:c.x, y:c.y, armada:true, pulso:Math.random()*6.28});
+    }
+  }
 
   if(mod === 'portais'){
     // 2 pares, cada par o mais distante possível dentro do mapa
@@ -1657,6 +1705,132 @@ function montarModificador(){
       for(let y=1;y<ROWS-1;y++) if(G.grid[y][x] === 0) G.esteiras[y][x] = dir;
     }
   }
+}
+
+/* ---- FRATURA: o piso racha, avisa, e some ----------------------------
+   A celula que termina de romper vira parede pelo resto da fase. O risco
+   obvio e fechar o mapa e deixar nucleo inalcancavel, entao nenhum tile cai
+   sem antes passar pelo mesmo teste de conectividade que o gerador ja usa:
+   simula a remocao, roda calcularCampo() a partir do spawn, e so confirma se
+   nada ficou inalcancavel. */
+function abertosNoGrid(){
+  let n = 0;
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(G.grid[y][x] === 0) n++;
+  return n;
+}
+function naoFragmenta(tx, ty){
+  const antes = abertosNoGrid();
+  G.grid[ty][tx] = 1;
+  const campo = calcularCampo(G.spawn.x, G.spawn.y);
+  let alcancados = 0;
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(campo[y][x] >= 0) alcancados++;
+  G.grid[ty][tx] = 0;                                  // desfaz a simulacao
+  return alcancados === antes - 1;
+}
+function candidatoColapso(tx, ty){
+  if(tx < 1 || ty < 1 || tx >= COLS-1 || ty >= ROWS-1) return false;
+  if(G.grid[ty][tx] !== 0) return false;
+  if(G.pellets[ty][tx] !== 0) return false;            // nunca some com um premio
+  if(tx >= G.casa.x0-1 && tx <= G.casa.x1+1 && ty >= G.casa.y0-1 && ty <= G.casa.y1+1) return false;
+  if(G.colapso.some(c => c.x === tx && c.y === ty)) return false;
+  for(const p of G.players) if(!p.fora && tileDe(p.x) === tx && tileDe(p.y) === ty) return false;
+  for(const m of G.mobs) if(tileDe(m.x) === tx && tileDe(m.y) === ty) return false;
+  return true;
+}
+function escolherColapso(){
+  // 70% cresce a partir de uma rachadura ja aberta: o estrago fica legivel
+  // como mancha, em vez de pipocar sozinho pelo mapa
+  const tentativas = [];
+  if(G.colapso.length && Math.random() < .7){
+    const base = G.colapso[(Math.random()*G.colapso.length)|0];
+    for(const d of embaralhar([[1,0],[-1,0],[0,1],[0,-1]]))
+      tentativas.push([base.x + d[0], base.y + d[1]]);
+  }
+  for(let i=0;i<20;i++)
+    tentativas.push([1 + ((Math.random()*(COLS-2))|0), 1 + ((Math.random()*(ROWS-2))|0)]);
+  // o teste de conectividade e o caro: so roda em quem passou no barato,
+  // e no maximo 6 vezes por geracao
+  let caros = 0;
+  for(const t of tentativas){
+    if(!candidatoColapso(t[0], t[1])) continue;
+    if(caros++ >= 6) return null;
+    if(naoFragmenta(t[0], t[1])) return {x:t[0], y:t[1]};
+  }
+  return null;
+}
+function quedaNoBuraco(p){
+  if(p.faseT > 0) return;                              // intangivel atravessa o vazio
+  if(p.invuln > 0) return;
+  if(temBuff(p, 'casco')){ consumirBuff(p,'casco'); p.invuln = 1.8; if(p.local) toast('CASCO ABSORVEU'); }
+  else if(p.escudo > 0){ p.escudo--; p.escudoT = 0; p.invuln = 1.6; if(p.local) toast('ESCUDO ABSORVEU'); }
+  else { perderVida(p); }
+  const seguro = tileLivreProximo(tileDe(p.x), tileDe(p.y));
+  if(seguro){ p.x = centro(seguro.x); p.y = centro(seguro.y); p.lastTile = ''; }
+}
+function colapsarTile(x, y){
+  G.grid[y][x] = 1;
+  pintarTileColapsado(x, y);
+  explodir(centro(x), centro(y), G.bioma ? G.bioma.cor : '#aab4c2', 10);
+  for(const p of G.players)
+    if(!p.fora && p.morto <= 0 && tileDe(p.x) === x && tileDe(p.y) === y) quedaNoBuraco(p);
+}
+function atualizarColapso(dt){
+  for(let i=G.colapso.length-1;i>=0;i--){
+    const c = G.colapso[i];
+    c.t -= dt;
+    if(c.t > 0) continue;
+    G.colapso.splice(i, 1);
+    colapsarTile(c.x, c.y);
+    if(ONLINE() && SOU_HOST()) RT.enviar('colapso', {x:c.x, y:c.y, h:RT.uid});
+  }
+  if(ONLINE() && !SOU_HOST()) return;                  // convidado so aplica o que chega
+  if(G.restantes <= 14) return;                        // nao fecha o fim da fase
+  if(G.colapsados >= G.colapsoMax) return;
+  G.colapsoT -= dt;
+  if(G.colapsoT > 0) return;
+  G.colapsoT = 2.4;
+  const c = escolherColapso();
+  if(c){
+    G.colapso.push({x:c.x, y:c.y, t:1.8});
+    G.colapsados++;
+    if(ONLINE() && SOU_HOST()) RT.enviar('racha', {x:c.x, y:c.y, h:RT.uid});
+  }
+}
+
+/* ---- ESTOPIM: minas armadas, visiveis desde o inicio -------------------
+   Nao mexem no grid, entao a fase nunca fica estruturalmente impossivel. A
+   injustica a evitar aqui e a outra: dano garantido. Dai o teto de pedagios
+   em montarModificador e a mina ser consumivel -- detonou, virou chao seguro. */
+function atualizarMinas(dt){
+  for(const m of G.minas) if(m.armada) m.pulso = (m.pulso + dt*3) % 6.283;
+}
+function detonarMina(m, alvo){
+  if(!m || !m.armada) return;
+  m.armada = false;
+  explodir(centro(m.x), centro(m.y), '#c6ff3b', 18);
+  G.shake = Math.max(G.shake, 0.5);
+  sfx('hit');
+  if(ONLINE() && SOU_HOST()) RT.enviar('detona', {x:m.x, y:m.y, h:RT.uid});
+  // a onda atordoa quem estiver perto, com a mesma carencia do Pulso
+  for(const mm of G.mobs){
+    if(mm.estado === 'olhos' || mm.stun > 0 || mm.imunePulso > 0) continue;
+    if(distWrap(centro(m.x), centro(m.y), mm.x, mm.y) <= TILE*2.2){
+      mm.stun = 2.6; mm.imunePulso = 5.6; mm.lastTile = '';
+      explodir(mm.x, mm.y, '#ffffff', 6);
+    }
+  }
+  if(!alvo || alvo.vidas === undefined) return;        // era mob: ja tratado acima
+  if(alvo.invuln > 0) return;
+  if(temBuff(alvo,'casco')){ consumirBuff(alvo,'casco'); alvo.invuln = 1.8; if(alvo.local) toast('CASCO ABSORVEU'); }
+  else if(alvo.escudo > 0){ alvo.escudo--; alvo.escudoT = 0; alvo.invuln = 1.6; if(alvo.local) toast('ESCUDO ABSORVEU'); }
+  else { perderVida(alvo); }
+}
+function checarMinas(alvo){
+  if(!G.minas.length) return;
+  if(alvo.faseT > 0) return;                           // Fase atravessa sem acionar
+  const tx = tileDe(alvo.x), ty = tileDe(alvo.y);
+  for(const m of G.minas)
+    if(m.armada && m.x === tx && m.y === ty){ detonarMina(m, alvo); return; }
 }
 
 // ---- portais: teleporta quem pisa no par ----
@@ -1756,8 +1930,10 @@ function atualizar(dt){
 
   // modificadores que valem pro mapa inteiro, não por jogador
   const modG = G.bioma ? G.bioma.mod : null;
-  if(modG === 'lasers') atualizarLasers(dt);
-  if(modG === 'purga')  atualizarPurga(dt);
+  if(modG === 'lasers')  atualizarLasers(dt);
+  if(modG === 'purga')   atualizarPurga(dt);
+  if(modG === 'colapso') atualizarColapso(dt);
+  if(modG === 'minas')   atualizarMinas(dt);
 
   if(G.devorar > 0){
     G.devorar -= dt;
@@ -1766,6 +1942,11 @@ function atualizar(dt){
       G.mobs.forEach(m => { if(m.estado === 'assustado') m.estado = 'normal'; });
     }
   }
+
+  // mob que pisa em mina detona junto: a mina nao distingue quem pisou
+  if(modG === 'minas')
+    for(const m of G.mobs)
+      if(m.estado !== 'olhos' && m.saida <= 0) checarMinas(m);
 
   // cada jogador é atualizado de forma independente
   for(const p of G.players) atualizarJogador(p, dt, a);
@@ -1853,6 +2034,7 @@ function atualizarJogador(p, dt, a){
   p.portalCd = Math.max(0, (p.portalCd || 0) - dt);
   if(mod === 'portais') checarPortais(p);
   if(mod === 'lasers')  checarLasers(p);
+  if(mod === 'minas')   checarMinas(p);
   if(p.morto > 0) return;                       // laser pode ter matado
 
   /* --- coleta --- */
@@ -2191,6 +2373,21 @@ function usarPulso(p){
 
 function pulsoOnda(p, raio, stun){
   G.parts.push({onda:true, x:p.x, y:p.y, r:0, rMax:raio, vida:0.5, vidaMax:0.5, cor:p.par[1]});
+  const modP = G.bioma ? G.bioma.mod : null;
+  /* Na FRATURA a onda estabiliza a estrutura: adia as rachaduras do raio.
+     E o unico bioma onde o Pulso tem papel defensivo/territorial. */
+  if(modP === 'colapso'){
+    let adiadas = 0;
+    for(const c of G.colapso)
+      if(distWrap(p.x, p.y, centro(c.x), centro(c.y)) <= raio){ c.t = Math.min(1.8, c.t + 2.5); adiadas++; }
+    if(adiadas && p.local) toast(adiadas + ' RACHADURA' + (adiadas>1?'S':'') + ' ADIADA' + (adiadas>1?'S':''));
+  }
+  /* No ESTOPIM a onda detona minas a distancia: da pra limpar o campo sem
+     se expor. Combo de assinatura: Sobrecarga deixa o Pulso de graca. */
+  if(modP === 'minas'){
+    for(const m of G.minas.slice())
+      if(m.armada && distWrap(p.x, p.y, centro(m.x), centro(m.y)) <= raio) detonarMina(m, null);
+  }
   if(!stun) return;
   let n = 0;
   for(const m of G.mobs){
@@ -2584,7 +2781,10 @@ function serializarMapa(){
     mo: G.modo,
     po: G.portais.map(p => [p.a.x, p.a.y, p.b.x, p.b.y, p.cor]),
     la: G.lasers.map(l => [l.horiz?1:0, l.idx, l.ciclo]),
-    es: G.esteiras ? G.esteiras.map(lin => lin.map(d => d ? (d.x?(d.x>0?'R':'L'):(d.y>0?'D':'U')) : '.').join('')) : null
+    es: G.esteiras ? G.esteiras.map(lin => lin.map(d => d ? (d.x?(d.x>0?'R':'L'):(d.y>0?'D':'U')) : '.').join('')) : null,
+    // FRATURA e ESTOPIM mudam o mapa DURANTE a fase, ao contrario dos outros
+    // mods. O pacote leva o estado inicial; o que muda depois vai por evento.
+    mi: G.minas.map(m => [m.x, m.y])
   };
 }
 
@@ -2618,6 +2818,9 @@ function aplicarMapa(d){
 
   G.portais = (d.po||[]).map(p => ({a:{x:p[0],y:p[1]}, b:{x:p[2],y:p[3]}, cor:p[4]}));
   G.lasers  = (d.la||[]).map(l => ({horiz:!!l[0], idx:l[1], ciclo:l[2], t:0, ativo:false, aviso:false}));
+  G.minas = (d.mi||[]).map(m => ({x:m[0], y:m[1], armada:true, pulso:Math.random()*6.28}));
+  // convidado nunca gera rachadura: colapsoT gigante desliga o gerador dele
+  G.colapso = []; G.colapsados = 0; G.colapsoMax = 0; G.colapsoT = 1e9;
   G.esteiras = null;
   if(d.es){
     G.esteiras = d.es.map(lin => lin.split('').map(c =>
@@ -2750,7 +2953,7 @@ function aplicarEntrada(d){
    expulsava a vítima, ou 'acabou'/'fim' e encerrava a partida de todos.
    O host carimba 'h' com o próprio uid; o convidado fixa esse uid no
    primeiro 'time' e ignora comando autoritativo que venha de outro. */
-const EVENTOS_DO_HOST = ['time','mapa','estado','espera','acabou','fim','cheio','vivo'];
+const EVENTOS_DO_HOST = ['time','mapa','estado','espera','acabou','fim','cheio','vivo','racha','colapso','detona'];
 function doHost(evento, d){
   if(!EVENTOS_DO_HOST.includes(evento)) return true;
   if(!RT.hostUid) return true;                 // ainda não sei quem é: aceito o 1º
@@ -2837,6 +3040,33 @@ function receberDaRede(evento, d){
       esconderTudo();
       break;
 
+    /* O convidado nao gera rachadura nem detonacao: so reproduz o que o host
+       mandou. Sem isto os dois lados divergem -- um enxerga parede onde o
+       outro tem chao, e a partida deixa de fazer sentido. Os tres eventos
+       estao em EVENTOS_DO_HOST, entao ja chegam aqui validados. */
+    case 'racha': {
+      if(SOU_HOST()) break;
+      if(!G.colapso.some(c => c.x === d.x && c.y === d.y)) G.colapso.push({x:d.x, y:d.y, t:1.8});
+      break;
+    }
+    case 'colapso': {
+      if(SOU_HOST()) break;
+      const ic = G.colapso.findIndex(c => c.x === d.x && c.y === d.y);
+      if(ic >= 0) G.colapso.splice(ic, 1);
+      if(G.grid && G.grid[d.y] && G.grid[d.y][d.x] === 0) colapsarTile(d.x, d.y);
+      break;
+    }
+    case 'detona': {
+      if(SOU_HOST()) break;
+      const mina = G.minas.find(m => m.x === d.x && m.y === d.y && m.armada);
+      if(mina){
+        mina.armada = false;
+        explodir(centro(d.x), centro(d.y), '#c6ff3b', 18);
+        G.shake = Math.max(G.shake, 0.5);
+        sfx('hit');
+      }
+      break;
+    }
     case 'estado':
       if(SOU_HOST()) return;
       // pacote atrasado que chega depois de um mais novo rebobinava tudo
@@ -3400,6 +3630,26 @@ function renderMaze(){
   return c;
 }
 
+/* Um tile que colapsou vira parede. Redesenhar o labirinto inteiro por isso
+   custaria caro num bioma que muda o mapa a cada 2,4s -- entao so o tile novo
+   e pintado por cima do bitmap ja assado, com o mesmo tracado do renderMaze. */
+function pintarTileColapsado(tx, ty){
+  if(!G.mazeCanvas) return;
+  const x2 = G.mazeCanvas.getContext('2d');
+  const px = tx*TILE, py = ty*TILE;
+  const cor = G.paleta;
+  x2.clearRect(px, py, TILE, TILE);
+  x2.fillStyle = '#0a1226';
+  x2.strokeStyle = cor;
+  x2.lineWidth = 1.4;
+  x2.globalAlpha = .95;
+  roundRect(x2, px+2, py+2, TILE-4, TILE-4, 5);
+  x2.fill();
+  x2.globalAlpha = .55;
+  x2.stroke();
+  x2.globalAlpha = 1;
+}
+
 function roundRect(c, x, y, w, h, r){
   c.beginPath();
   c.moveTo(x+r, y);
@@ -3754,6 +4004,43 @@ function desenharModificadores(){
       ctx.moveTo(centro(L.idx), 0); ctx.lineTo(centro(L.idx), y*TILE);
       ctx.stroke();
     }
+    ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
+  }
+
+  // --- FRATURA: rachadura em raio, forma propria (nao e anel nem linha) ---
+  for(const c of G.colapso){
+    const x = centro(c.x), y = centro(c.y);
+    const alerta = 1 - Math.max(0, c.t)/1.8;          // 0 -> 1 conforme cede
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = G.bioma.cor; ctx.shadowColor = G.bioma.cor;
+    ctx.shadowBlur = QUALIDADE*(6 + alerta*14);
+    ctx.lineWidth = 1.2 + alerta*1.6;
+    ctx.globalAlpha = Math.min(1, .4 + Math.sin(G.tempo*(6 + alerta*10))*.25 + alerta*.3);
+    ctx.beginPath();
+    for(let i=0;i<5;i++){
+      const ang = i*1.256 + c.x*0.7;
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(ang)*TILE*0.42*alerta, Math.sin(ang)*TILE*0.42*alerta);
+    }
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
+  }
+
+  // --- ESTOPIM: losango pulsante, distinto por FORMA do nucleo e do super ---
+  for(const m of G.minas){
+    if(!m.armada) continue;
+    const x = centro(m.x), y = centro(m.y);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI/4);
+    ctx.fillStyle = '#c6ff3b'; ctx.shadowColor = '#c6ff3b';
+    ctx.shadowBlur = QUALIDADE*12;
+    ctx.globalAlpha = .55 + Math.sin(m.pulso)*.25;
+    const r = TILE*0.17;
+    ctx.fillRect(-r, -r, r*2, r*2);
+    ctx.restore();
     ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
   }
 
