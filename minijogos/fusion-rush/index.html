@@ -260,7 +260,10 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   const now = new Date();
   const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
   const seedFn = hashStr(todayStr);
-  const rng = mulberry32(seedFn());
+  /* SEMENTE_DIA guardada num const: hashStr devolve um gerador COM ESTADO, entao
+     chamar seedFn() de novo daria outro numero e nao daria pra reproduzir o dia. */
+  const SEMENTE_DIA = seedFn();
+  let rng = mulberry32(SEMENTE_DIA);
 
   const epoch = new Date(2026, 0, 1);
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -275,6 +278,21 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   }
   ensureQueue(260);
   let queuePos = 0;
+
+  /* O day-tag promete "mesma sequencia de bolhas (e do gato) pra todo mundo
+     hoje". Isso valia so na PRIMEIRA partida: startGame() resetava bolas,
+     placar, combo e o gato, mas nao queuePos -- entao a segunda partida do dia
+     continuava de onde a fila parou, e quem jogou tres vezes comparava uma
+     sequencia diferente de quem abriu o jogo agora. Pior: startGame() consome
+     rng() para sortear o primeiro ataque do gato, o que empurrava o proprio
+     fluxo compartilhado e mudava a fila dali pra frente.
+     Recomecar o dia do zero conserta os dois de uma vez. */
+  function reiniciarDia(){
+    rng = mulberry32(SEMENTE_DIA);
+    spawnQueue.length = 0;
+    queuePos = 0;
+    ensureQueue(260);
+  }
   function nextTier(){
     ensureQueue(queuePos + 5);
     return spawnQueue[queuePos++];
@@ -944,6 +962,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   }
 
   function startGame(){
+    reiniciarDia();          // toda tentativa do dia joga a MESMA sequencia
     balls = [];
     particles = [];
     popups = [];
