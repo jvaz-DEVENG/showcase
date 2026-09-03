@@ -2196,6 +2196,43 @@ function alvoDoMob(m){
    CICLO DE FASE
    ========================================================================== */
 function tiposDaFase(n){
+  /* O elenco tambem tinha plato: saturava em 10 tipos na fase 20 e o slice
+     cortava duro, entao do capitulo 3 ao 10 a composicao era identica -- o
+     mesmo defeito que a agressao e a economia tinham.
+
+     A correcao NAO e jogar mais mob na tela. Isso pesaria no render (que acabou
+     de ser espremido) e deixaria a fase ilegivel. O que cresce e QUEM aparece:
+     os capitulos finais trocam cacador, que persegue reto e e o mais simples de
+     ler, pelos que exigem leitura -- sentinela atira, divisor racha em dois ao
+     morrer, emboscador corta o caminho. Mesma quantidade, elenco mais duro. */
+  if(naFaseDeCampanha()){
+    const cap = capituloDaFase(n), sub = subDaFase(n);
+    /* A rampa DENTRO do capitulo e a mesma de sempre, lida por sub em vez de
+       fase absoluta. No capitulo 1 isso reproduz o jogo de hoje fase a fase --
+       o mesmo invariante que a agressao, a escala e a economia respeitam. */
+    const l = ['cacador','emboscador'];
+    if(sub >= 2) l.push('errante');
+    if(sub >= 3) l.push('guardiao');
+    if(sub >= 4) l.push('divisor');
+    if(sub >= 5) l.push('sentinela');
+    if(sub >= 7) l.push('cacador');
+    if(sub >= 9) l.push('emboscador');
+    // e o capitulo endurece o elenco por cima disso
+    if(cap >= 3) l.push('sentinela');      // 2a sentinela cobre outro eixo
+    if(cap >= 5) l.push('divisor');
+    if(cap >= 7) l.push('emboscador');
+    if(cap >= 9) l.push('sentinela');
+    /* Do capitulo 6 em diante o cacador cede lugar: ele persegue reto e e o
+       unico que nao pede leitura nenhuma. No fim da campanha isso e espaco
+       gasto com o mob mais facil do jogo. */
+    if(cap >= 6){
+      const i = l.indexOf('cacador');
+      if(i >= 0) l.splice(i, 1, cap >= 8 ? 'sentinela' : 'divisor');
+    }
+    return l.slice(0, cap >= 7 ? 12 : 10);
+  }
+
+  // Modo Infinito: exatamente como sempre foi
   const l = ['cacador','emboscador'];
   if(n >= 2) l.push('errante');
   if(n >= 3) l.push('guardiao');
