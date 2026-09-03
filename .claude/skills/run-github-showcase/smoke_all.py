@@ -134,11 +134,43 @@ def smoke_gerador_relatorio():
     return errors
 
 
+def smoke_cosmic_crush():
+    """Match-3: navigate every screen, then play a few real drag-swaps."""
+    pw, browser, page, errors = open_page("minijogos/cosmic-crush/index.html")
+    page.wait_for_timeout(500)
+    # every screen has to mount without throwing
+    for label in ["Loja", "Voltar", "Perfil", "Voltar", "Conquistas", "Voltar",
+                  "Como jogar", "Voltar"]:
+        try:
+            page.locator("button", has_text=label).first.click(timeout=2000)
+            page.wait_for_timeout(200)
+        except Exception:
+            pass
+    page.locator("button", has_text="Jogar fase").first.click()
+    page.wait_for_timeout(400)
+    box = page.locator("#arena").bounding_box()
+    cell = box["width"] / 8.0
+    for i in range(24):  # blind swaps; some land, enough to exercise the engine
+        r, c = i % 7, (i * 3) % 7
+        x1, y1 = box["x"] + (c + .5) * cell, box["y"] + (r + .5) * cell
+        x2, y2 = x1 + cell, y1
+        page.mouse.move(x1, y1)
+        page.mouse.down()
+        page.mouse.move(x2, y2, steps=3)
+        page.mouse.up()
+        page.wait_for_timeout(90)
+    shot(page, OUT, "cosmic-crush")
+    browser.close()
+    pw.stop()
+    return errors
+
+
 CHECKS = {
     "reflex-rush": smoke_reflex_rush,
     "mata-barata": smoke_mata_barata,
     "fusion-rush": smoke_fusion_rush,
     "bubble-crane": smoke_bubble_crane,
+    "cosmic-crush": smoke_cosmic_crush,
     "gerador-titulo-seo": smoke_gerador_titulo,
     "assinador-mtr": smoke_assinador_mtr,
     "gerador-relatorio-fotografico": smoke_gerador_relatorio,
