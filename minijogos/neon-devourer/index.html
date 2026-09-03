@@ -636,6 +636,9 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
 <script>
 "use strict";
+/* Uma flag so para o modo vitrine: o regex aparecia solto em mais de um lugar
+   e cada ponto novo corria o risco de esquecer de checar. */
+const ATTRACT = /[?&]attract=1(&|$)/.test(location.search);
 /* =========================================================================
    NEON DEVOURER  —  jogo completo em arquivo único
    Mecânicas próprias: habilidades ativas com recurso (Carga), árvore de
@@ -796,6 +799,17 @@ const ESSENCIA_DE = {
   guardiao:'casco', divisor:'vortice', sentinela:'sobrecarga'
 };
 
+/* Estas tres moram aqui, e nao la embaixo na secao RANKING ARCADE, porque
+   carregarSave() -- que roda logo abaixo -- chama consolidarRanking(), que le
+   RANK_GUARDA. const nao e hoisted: fica em Temporal Dead Zone ate a linha da
+   declaracao rodar. Com elas declaradas depois, o acesso estourava
+   ReferenceError, o catch de carregarSave engolia, e o save virava saveBase()
+   em TODO boot -- ninguem nunca manteve recorde, credito ou skin comprada.
+   Se mover isto de volta para baixo, o bug volta. */
+const RANK_MOSTRA = 10;    // quantos aparecem na tela cheia de ranking
+const RANK_GUARDA = 50;    // quantos ficam salvos (não perde o acumulado de ninguém)
+const chaveNome = n => limparNome(n) || 'JOGADOR';
+
 /* ------------------------------- SAVE --------------------------------- */
 const SAVE_KEY = 'neonDevourer_v1';
 let save = carregarSave();
@@ -808,7 +822,9 @@ function saveBase(){
 function carregarSave(){
   try{
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if(!s || typeof s !== 'object') return saveBase();
+    // Array.isArray na guarda: [1,2,3] passa por typeof 'object' e o
+    // Object.assign espalharia as posicoes como chaves "0","1","2"
+    if(!s || typeof s !== 'object' || Array.isArray(s)) return saveBase();
     const novo = Object.assign(saveBase(), s, {
       up: Object.assign({}, s.up),
       cores: Object.assign({}, s.cores),
@@ -828,7 +844,11 @@ function carregarSave(){
       setTimeout(() => toast('+' + reembolso + '¢ DE REEMBOLSO'), 900);
     }
     return novo;
-  }catch(e){ return saveBase(); }
+  }catch(e){
+    // mudo, este catch escondeu por meses o bug de TDZ acima
+    console.error('save ilegivel, comecando do zero:', e);
+    return saveBase();
+  }
 }
 function gravarSave(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){}
@@ -3066,10 +3086,6 @@ function atualizarConvidado(dt){
 /* ==========================================================================
    RANKING ARCADE
    ========================================================================== */
-const RANK_MOSTRA = 10;    // quantos aparecem na tela cheia de ranking
-const RANK_GUARDA = 50;    // quantos ficam salvos (não perde o acumulado de ninguém)
-
-const chaveNome = n => limparNome(n) || 'JOGADOR';
 const achaJogador = n => save.ranking.find(r => r.nome === chaveNome(n));
 
 // junta linhas repetidas do mesmo nome num só jogador acumulado
@@ -5215,12 +5231,21 @@ G.estado = 'menu';
 renderMiniRanking();          // o menu já abre com o top 5 preenchido
 atualizarHud();
 ajustarAltura();
+/* #ovMenu ja nasce com a classe .on no HTML, entao mostrar('ovMenu') -- que e
+   quem chama estes dois -- nunca roda no boot. Sem isto, quem volta ao jogo
+   nao ve o botao CONTINUAR nem o mini-ranking ate sair do menu e voltar. */
+atualizarContinuar();
+renderMiniRanking();
 
-// busca o placar global e reenvia o que ficou preso offline
-buscarRankingGlobal().then(() => {
-  renderMiniRanking();
-  enviarPendentes();
-});
+// busca o placar global e reenvia o que ficou preso offline.
+// Em modo vitrine nao: o card do portfolio e decorativo, e cada card montado
+// dispararia uma chamada real ao Supabase (que erra no console quando offline).
+if(!ATTRACT){
+  buscarRankingGlobal().then(() => {
+    renderMiniRanking();
+    enviarPendentes();
+  });
+}
 requestAnimationFrame(loop);
 
 /* ---------- modo vitrine (?attract=1) ----------
@@ -5228,7 +5253,7 @@ requestAnimationFrame(loop);
    da meia-volta, que e o que faz o movimento parecer intencional. O proprio
    jogo ja bufferiza `quer` e so vira quando o corredor permite. */
 (function(){
-  if(!/[?&]attract=1(&|$)/.test(location.search)) return;
+  if(!ATTRACT) return;
   document.body.classList.add('attract');
 
   const NOMES = ['up','down','left','right'];
