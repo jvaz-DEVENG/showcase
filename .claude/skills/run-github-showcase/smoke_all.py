@@ -165,6 +165,45 @@ def smoke_cosmic_crush():
     return errors
 
 
+def smoke_sprite_animator():
+    """Gera uma spritesheet 6x6 na hora e confere que a ferramenta a corta e toca."""
+    import math, tempfile
+    from pathlib import Path as _P
+    from PIL import Image, ImageDraw
+
+    F, COLS, ROWS = 96, 6, 6
+    sheet = Image.new("RGBA", (F * COLS, F * ROWS), (0, 0, 0, 0))
+    d = ImageDraw.Draw(sheet)
+    for i in range(COLS * ROWS):
+        ox, oy = (i % COLS) * F, (i // COLS) * F
+        cx, cy, t = ox + F / 2, oy + F / 2, i / (COLS * ROWS)
+        r = 15 + 4 * math.sin(t * 2 * math.pi)
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(244, 180, 0, 255))
+        for k in range(3):
+            a = t * 2 * math.pi + k * 2 * math.pi / 3
+            sx, sy = cx + 33 * math.cos(a), cy + 33 * math.sin(a)
+            d.ellipse([sx - 6, sy - 6, sx + 6, sy + 6], fill=(30, 58, 95, 255))
+    folha = _P(tempfile.gettempdir()) / "smoke_spritesheet_6x6.png"
+    sheet.save(folha)
+
+    pw, browser, page, errors = open_page("ferramentas/sprite-animator/index.html",
+                                          viewport=(1280, 900))
+    page.locator("#file").set_input_files(str(folha))
+    page.wait_for_timeout(1200)
+    # a deteccao automatica tem que achar os 36 frames sozinha
+    info = page.locator("#frameInfo").inner_text()
+    if "/ 35" not in info:
+        errors.append(f"grade nao detectada: esperava 36 frames, veio {info!r}")
+    page.locator("#playBtn").click()
+    page.wait_for_timeout(600)
+    if page.locator("#playBtn").is_disabled():
+        errors.append("botao de tocar continuou desabilitado depois de carregar a folha")
+    shot(page, OUT, "sprite-animator")
+    browser.close()
+    pw.stop()
+    return errors
+
+
 CHECKS = {
     "reflex-rush": smoke_reflex_rush,
     "mata-barata": smoke_mata_barata,
@@ -174,6 +213,7 @@ CHECKS = {
     "gerador-titulo-seo": smoke_gerador_titulo,
     "assinador-mtr": smoke_assinador_mtr,
     "gerador-relatorio-fotografico": smoke_gerador_relatorio,
+    "sprite-animator": smoke_sprite_animator,
 }
 
 if __name__ == "__main__":
