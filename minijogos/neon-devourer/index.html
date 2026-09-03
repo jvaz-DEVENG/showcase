@@ -80,7 +80,8 @@
   .barwrap{flex:1;min-width:90px}
   .barwrap small{font-size:9px;color:var(--dim);letter-spacing:1px}
 
-  .abilities{display:flex;gap:6px}
+  /* com o 5o botao a fileira precisa poder quebrar em tela estreita */
+  .abilities{flex-wrap:wrap;display:flex;gap:6px}
   .ab{
     font-family:inherit;font-weight:400;
     width:44px;height:42px;border-radius:9px;border:1px solid var(--line);
@@ -455,6 +456,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         <button type="button" class="ab" id="abDash" aria-label="Dash — tecla espaço"><b aria-hidden="true">⚡</b>DASH<i>ESPAÇO</i><div class="cd"></div></button>
         <button type="button" class="ab" id="abPulse" aria-label="Pulso: atordoa os mobs — tecla shift"><b aria-hidden="true">◎</b>PULSO<i>SHIFT</i><div class="cd"></div></button>
         <button type="button" class="ab" id="abPhase" aria-label="Modo fase: atravessa paredes — tecla E"><b aria-hidden="true">◇</b>FASE<i>E</i><div class="cd"></div></button>
+        <button type="button" class="ab" id="abEstase" aria-label="Estase: congela o ritmo do bioma — tecla Q"><b aria-hidden="true">❄</b>ESTASE<i>Q</i><div class="cd"></div></button>
         <button type="button" class="ab tela" id="btnTela" aria-label="Tela cheia — tecla F"><b aria-hidden="true">⛶</b>TELA</button>
         <button type="button" class="ab tela" id="btnPausa" aria-label="Pausar e ver a sala — tecla P"><b aria-hidden="true">❚❚</b>MENU</button>
       </div>
@@ -521,7 +523,11 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     <!-- UPGRADES -->
     <div class="ov" id="ovUp" role="dialog" aria-modal="true" aria-labelledby="upTitle">
       <h2 id="upTitle">FASE CONCLUÍDA</h2>
-      <p class="sub">Pontos de talento disponíveis: <b id="upPts" style="color:var(--accent)">0</b></p>
+      <div class="row" style="justify-content:center;gap:6px">
+        <button class="mini aba at" id="abaT1" type="button">TALENTOS</button>
+        <button class="mini aba" id="abaT2" type="button">NÚCLEOS</button>
+      </div>
+      <p class="sub" id="upPtsLinha">Pontos de talento disponíveis: <b id="upPts" style="color:var(--accent)">0</b></p>
       <div class="grid" id="upGrid"></div>
       <button id="btnNext">PRÓXIMA FASE</button>
     </div>
@@ -926,6 +932,38 @@ function biomaDaFase(n, anterior){
 /* ------------------------- ESSÊNCIAS (BUFFS) --------------------------
    Cada espécie devorada solta uma essência diferente e temporária.
    ---------------------------------------------------------------------- */
+/* ====================== TIER 2 — NUCLEO INSTAVEL =====================
+   Os 6 talentos do tier 1 somam 26 pontos de teto, e pontos vem de nivel, que
+   nao tem fim: com 100 fases de XP o jogador enchia tudo antes do capitulo 5 e
+   atravessava metade da campanha sem nada para gastar.
+
+   O tier 2 corta isso pela raiz: a moeda e o FRAGMENTO DE CHEFE, que so nasce
+   do primeiro abate de cada capitulo. Sao 10 numa campanha inteira, e os 6
+   talentos custam 16 -- ninguem compra tudo. Vira escolha de build, nao lista
+   de compras, e e ai que ele difere do tier 1.
+
+   Cada um e amarrado a um bioma e cobra um preco de verdade. Passiva sem
+   contrapartida e so "+10%", e isso nao e profundidade. */
+const UPGRADES2 = [
+  {id:'garra', nome:'BOTAS DE GARRA', custo:2, bioma:'criogenia',
+   desc:'sem derrapagem nas curvas do gelo', contra:'−6% de velocidade fora da CRIOGENIA'},
+  {id:'contrafluxo', nome:'CONTRAFLUXO', custo:3, bioma:'corrente',
+   desc:'esteiras empurram os mobs também, e a favor você acelera', contra:'contra a esteira empurra mais forte'},
+  {id:'pararraios', nome:'PARA-RAIOS', custo:2, bioma:'fornalha',
+   desc:'parado no aviso, você absorve o feixe e vira carga', contra:'ficar parado é janela para o mob'},
+  {id:'colheita', nome:'COLHEITA AMARGA', custo:3, bioma:'purga',
+   desc:'núcleo comido quase apagando vale 3×', contra:'o núcleo seguinte vale metade'},
+  {id:'ondadechoque', nome:'ONDA DE CHOQUE', custo:4, bioma:'estopim',
+   desc:'rachadura e mina atordoam num raio maior', contra:'o primeiro estouro perto ignora o Escudo'},
+  {id:'visaonoturna', nome:'OLHOS NA ESCURIDÃO', custo:2, bioma:'blecaute',
+   desc:'enxerga mais longe no escuro e os núcleos brilham', contra:'os mobs também te enxergam de mais longe'}
+];
+const CUSTO_ESTASE = 50;
+const nivelUp2 = id => (save.up2 && save.up2[id]) ? 1 : 0;
+/* A Estase nao e comprada: e o proprio premio de destravar o tier, no chefe do
+   capitulo 5. O jogador ve a camada nova no HUD, nao so numa tela de talento. */
+const temTier2 = () => (save.chefes || []).length >= 5;
+
 const BUFFS = {
   furia:      {nome:'FÚRIA',      icone:'⚡', cor:'#ff3b6b', dur:6, desc:'+35% de velocidade'},
   impulso:    {nome:'IMPULSO',    icone:'»',  cor:'#ff8ad4', dur:7, desc:'dash sem espera e mais longo'},
@@ -967,6 +1005,7 @@ function saveBase(){
           conquistas:[],
           melhorias:{},           // compras permanentes da loja
           itens:{},               // consumiveis em estoque
+          up2:{}, fragmentos:0,             // tier 2: moeda vinda dos chefes
           repescagem:{fase:0, vezes:0},   // decaimento por repetir a MESMA fase
           estat:{mobs:0, chefes:0, fasesSemDano:0, maiorCombo:0}};
 }
@@ -978,6 +1017,7 @@ function carregarSave(){
     if(!s || typeof s !== 'object' || Array.isArray(s)) return saveBase();
     const novo = Object.assign(saveBase(), s, {
       up: Object.assign({}, s.up),
+      up2: Object.assign({}, s.up2),
       cores: Object.assign({}, s.cores),
       // consolida rankings antigos: uma linha por partida virou uma por jogador
       ranking: consolidarRanking(Array.isArray(s.ranking) ? s.ranking : [])
@@ -1265,6 +1305,7 @@ const G = {
   players:[], eu:0, modo:'solo',      // solo | coop | versus
   trilha:'infinito',                 // campanha (fases 1-100) | infinito (101+)
   chefe:null,                        // {def, hp, hpMax, fase, t, estagio, nucleos, gT}
+  estase:null,                       // {x, y, t, raio} — o campo que para o bioma
   player:null, mobs:[], tiros:[], parts:[],
   devorar:0, combo:0, congela:0,
   carga:0,
@@ -1862,6 +1903,32 @@ function montarModificador(){
   }
 }
 
+/* ---- ESTASE: congela o ritmo do bioma, nao a estrutura -----------------
+   Dash resolve posicao, Pulso resolve estrutura (atordoa mob, adia rachadura,
+   detona mina) e Fase resolve escape. Faltava um verbo para o FLUXO: esteira,
+   laser, decaimento da purga, escuridao e gelo sao todos o cenario se movendo,
+   e nenhuma habilidade respondia a isso. A Estase para o cenario num raio. */
+const RAIO_ESTASE = () => TILE * 3.2;
+function usarEstase(p){
+  if(!p || !p.local || !temTier2()) return;
+  if(p.estaseCd > 0) return;
+  const custo = temBuff(p, 'sobrecarga') ? 0 : CUSTO_ESTASE;
+  if(p.carga < custo){ toast('CARGA INSUFICIENTE'); return; }
+  p.carga -= custo;
+  p.estaseCd = 14;
+  G.estase = {x:p.x, y:p.y, t:3.2, raio:RAIO_ESTASE()};
+  G.parts.push({onda:true, x:p.x, y:p.y, r:0, rMax:RAIO_ESTASE(), vida:0.6, vidaMax:0.6, cor:'#8ad4ff'});
+  beep(180, .5, 'sine', .05);
+  setTimeout(() => beep(240, .4, 'sine', .04), 120);
+  toast('ESTASE');
+}
+const sobEstase = (x, y) => !!(G.estase && G.estase.t > 0 && distWrap(G.estase.x, G.estase.y, x, y) <= G.estase.raio);
+function atualizarEstase(dt){
+  if(!G.estase) return;
+  G.estase.t -= dt;
+  if(G.estase.t <= 0) G.estase = null;
+}
+
 /* ========================== CHEFE DE CAPITULO =========================
    O chefe nao ganhou um verbo novo: ele e mordido com o mesmo gesto do jogo,
    comer. Fica no ninho e alterna entre BLINDADO (intocavel, guardioes saem) e
@@ -2086,6 +2153,7 @@ function colapsarTile(x, y){
 function atualizarColapso(dt){
   for(let i=G.colapso.length-1;i>=0;i--){
     const c = G.colapso[i];
+    if(sobEstase(centro(c.x), centro(c.y))) continue;   // Estase segura o piso
     c.t -= dt;
     if(c.t > 0) continue;
     G.colapso.splice(i, 1);
@@ -2208,6 +2276,7 @@ function checarLasers(p){
 
 // ---- purga: os núcleos se apagam sozinhos, virando corrida por pontos ----
 function atualizarPurga(dt){
+  // dentro da Estase os nucleos param de apagar: e o uso dela na PURGA
   G.purgaT += dt;
   if(G.purgaT < 1.1) return;
   G.purgaT = 0;
@@ -2241,6 +2310,7 @@ function atualizar(dt){
   // o Voraz usa o repertorio inteiro sem a gente escrever hazard novo.
   const modG = G.chefe ? modDoChefe() : (G.bioma ? G.bioma.mod : null);
   if(G.chefe) atualizarChefe(dt);
+  atualizarEstase(dt);
   if(modG === 'lasers')  atualizarLasers(dt);
   if(modG === 'purga')   atualizarPurga(dt);
   if(modG === 'colapso') atualizarColapso(dt);
@@ -2297,6 +2367,7 @@ function atualizarJogador(p, dt, a){
   p.invuln  = Math.max(0, p.invuln - dt);
   p.dashCd  = Math.max(0, p.dashCd - dt);
   p.pulsoCd = Math.max(0, p.pulsoCd - dt);
+  p.estaseCd = Math.max(0, (p.estaseCd || 0) - dt);
   p.faseCd  = Math.max(0, p.faseCd - dt);
   p.lento   = Math.max(0, p.lento - dt);
   if(p.faseT > 0){
@@ -2318,11 +2389,11 @@ function atualizarJogador(p, dt, a){
         * (p.lento > 0 ? 0.55 : 1)
         * (G.devorar > 0 ? 1.06 : 1)
         * (temBuff(p, 'furia') ? 1.35 : 1)
-        * (mod === 'gelo' ? 1.18 : 1);        // no gelo você anda mais rápido
+        * (mod === 'gelo' && !sobEstase(p.x, p.y) ? 1.18 : 1);   // no gelo você anda mais rápido
   p.derrapa = Math.max(0, (p.derrapa || 0) - dt);
 
   // esteiras agem na VELOCIDADE (empurrar a posição quebraria a grade)
-  if(mod === 'esteiras' && G.esteiras){
+  if(mod === 'esteiras' && G.esteiras && !sobEstase(p.x, p.y)){
     const tx = tileDe(p.x), ty = tileDe(p.y);
     const e = (ty >= 0 && ty < ROWS) ? G.esteiras[ty][((tx % COLS)+COLS)%COLS] : null;
     if(e){
@@ -3280,9 +3351,10 @@ function aplicarEntrada(d){
   p.quer = (dx && dy) ? DIRS.none : {x: dx, y: dy};
   const acoes = Array.isArray(d.a) ? d.a.slice(0, 3) : [];
   for(const a of acoes){
-    if(a === 'dash')  usarDash(p);
-    if(a === 'pulso') usarPulso(p);
-    if(a === 'fase')  usarFase(p);
+    if(a === 'dash')   usarDash(p);
+    if(a === 'pulso')  usarPulso(p);
+    if(a === 'fase')   usarFase(p);
+    if(a === 'estase') usarEstase(p);
   }
 }
 
@@ -4346,6 +4418,31 @@ function desenharModificadores(){
     ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
   }
 
+  // --- ESTASE: o campo que segura o ritmo do bioma ---
+  if(G.estase && G.estase.t > 0){
+    const e = G.estase, viva = Math.min(1, e.t / 3.2);
+    ctx.save();
+    ctx.strokeStyle = '#8ad4ff'; ctx.shadowColor = '#8ad4ff'; ctx.shadowBlur = QUALIDADE*14;
+    ctx.globalAlpha = .18 + viva*.25;
+    ctx.fillStyle = 'rgba(138,212,255,0.07)';
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.raio, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = .5 + Math.sin(G.tempo*5)*.2;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.raio, 0, 6.283); ctx.stroke();
+    // cristais na borda: forma propria, nao confunde com a onda do Pulso
+    for(let i=0;i<8;i++){
+      const a = i*0.785 + G.tempo*0.4;
+      const bx = e.x + Math.cos(a)*e.raio, by = e.y + Math.sin(a)*e.raio;
+      ctx.save(); ctx.translate(bx, by); ctx.rotate(a);
+      ctx.fillStyle = '#8ad4ff';
+      ctx.beginPath(); ctx.moveTo(0,-5); ctx.lineTo(3,0); ctx.lineTo(0,5); ctx.lineTo(-3,0);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
+  }
+
   // --- CHEFE: um nucleo grande no ninho, que abre quando pode ser mordido ---
   if(G.chefe){
     const c = G.chefe;
@@ -4908,6 +5005,7 @@ function atualizarHud(){
   atualizarAb('abDash',  true,        p ? p.dashCd : 0,  (p && p.dashEspera) || a.dashCd);
   atualizarAb('abPulse', temPulso(p), p ? p.pulsoCd : 0, 1.2, !p || p.carga < custoP);
   atualizarAb('abPhase', temFase(p),  p ? p.faseCd : 0,  10,  !p || p.carga < CUSTO_FASE);
+  atualizarAb('abEstase', temTier2(), p ? (p.estaseCd||0) : 0, 14, !p || p.carga < CUSTO_ESTASE);
 }
 
 /* placar do time: só aparece quando tem mais de um jogador */
@@ -5080,8 +5178,51 @@ function abrirUpgrades(titulo){
   renderUpgrades();
   mostrar('ovUp');
 }
+let abaUp = 't1';
+function trocarAbaUp(qual){
+  abaUp = qual;
+  el('abaT1').classList.toggle('at', qual === 't1');
+  el('abaT2').classList.toggle('at', qual === 't2');
+  renderUpgrades();
+}
+/* A aba NUCLEOS e o tier 2: moeda de chefe, compra unica, e cada talento
+   amarrado a um bioma com contrapartida escrita no proprio card -- o jogador
+   decide vendo o preco, nao descobrindo depois. */
+function renderTier2(){
+  const grid = el('upGrid');
+  grid.innerHTML = '';
+  el('upPtsLinha').innerHTML = temTier2()
+    ? 'Fragmentos de chefe: <b id="upPts" style="color:var(--accent)">' + (save.fragmentos||0) + '</b> · 10 numa campanha, 16 para comprar tudo'
+    : 'Derrote o chefe do <b style="color:var(--accent)">capítulo 5</b> para abrir esta camada.';
+  for(const u of UPGRADES2){
+    const tem = nivelUp2(u.id) > 0;
+    const bioma = BIOMAS.find(b => b.id === u.bioma);
+    const podeComprar = temTier2() && !tem && (save.fragmentos||0) >= u.custo;
+    const d = document.createElement('button');
+    d.type = 'button';
+    d.className = 'card' + (podeComprar ? '' : ' max');
+    d.disabled = !podeComprar;
+    d.innerHTML = '<h4>' + u.nome + ' <span style="color:' + (tem ? 'var(--ok)' : 'var(--accent)') + '">' +
+        (tem ? 'ATIVO' : u.custo + '◈') + '</span></h4>' +
+      '<p>' + u.desc + '</p>' +
+      '<p style="color:#ff8a3d">custa: ' + u.contra + '</p>' +
+      '<p style="color:' + (bioma.corHud || bioma.cor) + ';opacity:.8">brilha em ' + bioma.nome + '</p>';
+    if(podeComprar){
+      d.onclick = () => {
+        save.fragmentos -= u.custo;
+        save.up2[u.id] = 1;
+        gravarSave(); sfx('level');
+        toast(u.nome + ' ATIVO');
+        renderTier2();
+        sincronizarAtributosLocais();
+      };
+    }
+    grid.appendChild(d);
+  }
+}
 function renderUpgrades(){
-  el('upPts').textContent = save.pontos;
+  if(abaUp === 't2') return renderTier2();
+  el('upPtsLinha').innerHTML = 'Pontos de talento disponíveis: <b id="upPts" style="color:var(--accent)">' + save.pontos + '</b>';
   const grid = el('upGrid');
   grid.innerHTML = '';
   for(const u of UPGRADES){
@@ -5641,6 +5782,8 @@ function destravarAudio(){
 }
 el('btnPlay').onclick   = () => { destravarAudio(); abrirMapa(); };
 el('btnMapaVoltar').onclick = () => mostrar('ovMenu');
+el('abaT1').onclick = () => trocarAbaUp('t1');
+el('abaT2').onclick = () => trocarAbaUp('t2');
 el('btnContinuar').onclick = () => { destravarAudio(); novoJogo('solo', faseDeRetomada()); };
 el('btnSkins').onclick  = () => { renderSkins(); mostrar('ovSkins'); };
 el('btnPerfil').onclick = () => abrirPerfil();
@@ -5751,6 +5894,13 @@ window.addEventListener('keydown', e => {
     if(acao === 'dash')  usarDash(p);
     if(acao === 'pulso') usarPulso(p);
     if(acao === 'fase')  usarFase(p);
+    return;
+  }
+
+  // Q e a Estase: fica ao lado do E da Fase, as duas do mesmo lado do teclado
+  if(e.code === 'KeyQ' && G.estado === 'jogando'){
+    const p = euJogador();
+    if(p) usarEstase(p);
     return;
   }
 
