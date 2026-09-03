@@ -1,0 +1,425 @@
+:root {
+  --bg: #0d0f12;
+  --painel: #16191f;
+  --linha: #262b34;
+  --texto: #e8eaed;
+  --fraco: #9aa3b0;
+  --acento: #f2c14e;
+  --perigo: #e5484d;
+  --ok: #8ce07a;
+  --foco: #8fe3ff;   /* anel de foco do teclado */
+  --fonte: 'Segoe UI', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--texto);
+  font-family: var(--fonte);
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.hidden { display: none !important; }
+
+.screen {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+/* o campo mais o HUD passam de 900px em tela grande — senão sai do centro */
+#jogo.screen { max-width: 1200px; }
+
+/* ------------------------------------------------------------- menu */
+
+.logo { text-align: center; }
+
+.logo h1 {
+  margin: 0;
+  font-size: clamp(32px, 8vw, 56px);
+  letter-spacing: 6px;
+  font-weight: 800;
+}
+.logo h1 span { color: var(--acento); }
+
+.sub { color: var(--fraco); margin: 6px 0 0; font-size: 14px; }
+
+.panel {
+  background: var(--painel);
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  padding: 22px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel.largo { max-width: 560px; }
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--fraco);
+}
+
+input {
+  background: #0d0f12;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  color: var(--texto);
+  padding: 11px 12px;
+  font-size: 16px;
+  font-family: inherit;
+}
+/* ------------------------------------------------------------- foco
+   Anel de duas camadas: escuro colado no elemento, claro por fora. Um anel de
+   uma cor só some ou no painel escuro ou no botão dourado — este funciona nos
+   dois. `:focus-visible` e não `:focus`: quem clica com o mouse não vê anel,
+   quem navega por teclado vê. */
+:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #0b0d10;
+}
+/* o container da tela recebe foco na troca, só pra levar o leitor junto —
+   isso não é um controle, não desenha anel */
+.screen:focus, .screen:focus-visible { outline: none; box-shadow: none; }
+input:focus-visible { outline-offset: 0; }
+#codigo { text-transform: uppercase; letter-spacing: 8px; font-weight: 700; text-align: center; }
+
+button {
+  background: #21262f;
+  border: 1px solid var(--linha);
+  color: var(--texto);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter .12s, transform .06s;
+}
+button:hover { filter: brightness(1.25); }
+button:active { transform: translateY(1px); }
+button.primary { background: var(--acento); color: #191100; border-color: transparent; }
+button.ghost { background: transparent; color: var(--fraco); }
+button.pequeno { padding: 8px; font-size: 13px; }
+
+.divisor { display: flex; align-items: center; gap: 10px; color: var(--fraco); font-size: 12px; }
+.divisor::before, .divisor::after { content: ''; flex: 1; height: 1px; background: var(--linha); }
+
+.erro { color: var(--perigo); font-size: 13px; min-height: 18px; margin: 0; }
+.aviso { color: var(--fraco); font-size: 13px; text-align: center; margin: 4px 0 0; }
+
+/* ------------------------------------------------------------- lobby */
+
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--fraco); margin: 6px 0 0; font-weight: 600; }
+h2 small { color: #8a93a3; font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+.codigo-box {
+  display: flex; align-items: center; gap: 12px;
+  background: #0d0f12; border: 1px solid var(--linha); border-radius: 10px; padding: 12px 14px;
+}
+.codigo-box .rotulo { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--fraco); }
+.codigo-box strong { font-size: 26px; letter-spacing: 8px; color: var(--acento); flex: 1; }
+
+.jogadores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.jogadores li {
+  display: flex; align-items: center; gap: 10px;
+  background: #0d0f12; border: 1px solid var(--linha); border-radius: 8px; padding: 9px 12px; font-size: 14px;
+}
+.bolinha { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+/* jogador que caiu: a vaga fica guardada, mas dá pra ver que ele não está */
+.jogadores li.caiu { opacity: .5; border-style: dashed; }
+.jogadores li.caiu .tag { color: var(--acento); }
+.tag { margin-left: auto; font-size: 11px; color: var(--fraco); text-transform: uppercase; letter-spacing: 1px; }
+
+.classes { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.classe {
+  text-align: left; padding: 10px; line-height: 1.35; display: flex; flex-direction: column; gap: 3px;
+}
+.classe.on { border-color: var(--acento); background: #2a2412; }
+.classe b { font-size: 14px; }
+.classe span { font-size: 11px; color: var(--fraco); font-weight: 400; }
+
+.mapas { display: flex; gap: 8px; flex-wrap: wrap; }
+.mapas button.on { border-color: var(--acento); color: var(--acento); }
+
+.host-area { display: flex; flex-direction: column; gap: 10px; }
+
+.modos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.modo { text-align: left; display: flex; flex-direction: column; gap: 3px; line-height: 1.35; }
+.modo.on { border-color: var(--acento); background: #2a2412; }
+.modo b { font-size: 14px; }
+.modo span { font-size: 11px; color: var(--fraco); font-weight: 400; }
+
+/* trilha da campanha: as 5 fases em fila */
+.campanha { display: flex; gap: 6px; }
+.campanha .fase-chip {
+  flex: 1; background: #0d0f12; border: 1px solid var(--linha); border-radius: 8px;
+  padding: 8px 6px; text-align: center; line-height: 1.3;
+}
+.campanha .fase-chip b { display: block; font-size: 12px; }
+.campanha .fase-chip small { font-size: 9px; color: #8a93a3; }
+.campanha .fase-chip.chefe { border-color: var(--perigo); }
+.campanha .fase-chip.chefe b { color: var(--perigo); }
+
+/* ------------------------------------------------------------- jogo */
+
+.arena { display: flex; gap: 14px; align-items: flex-start; }
+
+/* A moldura fica na caixa, não no canvas: assim a faixa de fase e a barra do
+   chefe se apoiam por cima da tela sem mexer no tamanho do campo. */
+.tela-caixa {
+  position: relative;
+  padding: 4px;
+  background: linear-gradient(#3f4551, #23272f);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #14171c, 0 10px 30px #0008;
+}
+
+#tela {
+  image-rendering: pixelated;
+  background: #000;
+  display: block;
+  touch-action: none;
+}
+
+/* faixa de "FASE 2 — Pântano" que entra e sai no começo de cada fase */
+.faixa {
+  position: absolute; left: 0; right: 0; top: 34%;
+  background: #0b0d10e8; border-top: 2px solid var(--acento); border-bottom: 2px solid var(--acento);
+  padding: 12px 10px; text-align: center; pointer-events: none;
+}
+.faixa b { display: block; font-size: 20px; letter-spacing: 4px; }
+.faixa span { font-size: 12px; color: var(--fraco); letter-spacing: 2px; text-transform: uppercase; }
+
+.chefe-barra { position: absolute; left: 10px; right: 10px; top: 10px; pointer-events: none; }
+.chefe-nome { font-size: 10px; letter-spacing: 3px; color: var(--perigo); font-weight: 700; }
+.chefe-trilho { height: 8px; background: #0b0d10cc; border: 1px solid var(--perigo); border-radius: 2px; overflow: hidden; }
+.chefe-trilho i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #e5484d, #ff9f45); transition: width .2s; }
+
+#hud {
+  display: flex; flex-direction: column; gap: 14px;
+  min-width: 132px;
+  font-size: 12px;
+}
+.hud-bloco { display: flex; flex-direction: column; gap: 6px; }
+.hud-bloco .rotulo { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--fraco); }
+.hud-bloco strong { font-size: 14px; }
+
+.pontinhos { display: flex; flex-wrap: wrap; gap: 3px; max-width: 132px; }
+.pontinhos i { width: 9px; height: 9px; background: #7d8694; border-radius: 2px; display: block; }
+
+.hud-times { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.hud-times li { display: flex; align-items: center; gap: 6px; }
+.hud-times .vidas { margin-left: auto; color: var(--fraco); font-variant-numeric: tabular-nums; }
+.hud-times li.morto { opacity: .4; }
+
+.hud-bloco.fase strong { font-size: 20px; letter-spacing: 2px; color: var(--acento); }
+.hud-bloco.fase small { color: var(--fraco); font-size: 11px; }
+
+.pontinhos.aguia i { background: var(--ok); }
+.efeitos { display: flex; gap: 4px; flex-wrap: wrap; min-height: 16px; }
+.efeitos i {
+  font-style: normal; font-size: 11px; background: #21262f; border: 1px solid var(--linha);
+  border-radius: 4px; padding: 1px 5px; color: var(--acento);
+}
+
+/* a faixa de fase fica em cima e a de pausa embaixo: pausar nos primeiros
+   segundos de uma fase mostrava as duas empilhadas no mesmo lugar */
+.faixa.pausa { top: auto; bottom: 22%; border-color: var(--perigo); }
+.faixa.pausa b { color: var(--perigo); }
+
+/* botão da habilidade: a recarga escurece de baixo pra cima */
+.hab {
+  position: relative; overflow: hidden; text-align: left;
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+  gap: 0 8px; padding: 8px 10px; align-items: center;
+}
+.hab i { grid-row: 1 / 3; font-size: 20px; font-style: normal; color: var(--acento); }
+.hab span { font-size: 13px; font-weight: 700; }
+.hab b { font-size: 10px; color: var(--fraco); font-weight: 500; letter-spacing: 1px; }
+.hab.pronta { border-color: var(--acento); box-shadow: 0 0 12px #f2c14e33; }
+.hab.pronta i { animation: pulsa 1.4s ease-in-out infinite; }
+@keyframes pulsa { 50% { opacity: .45; } }
+.hab-recarga {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
+  background: #0d0f12cc; pointer-events: none;
+}
+
+.ajuda { color: #8a93a3; font-size: 12px; margin: 0; text-align: center; }
+
+/* ------------------------------------------------ perfil e manual */
+
+.titulo-tela { margin: 0; font-size: 26px; letter-spacing: 4px; }
+.recorde { color: var(--fraco); font-size: 12px; margin: 8px 0 0; letter-spacing: 1px; }
+.recorde strong { color: var(--acento); }
+.linha-botoes { display: flex; gap: 8px; }
+.linha-botoes button { flex: 1; }
+
+.skins { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 8px; }
+.skin { display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 10px; }
+/* 24px de canvas em 48px de tela: dobro exato, senão o pixel art borra */
+.skin img { image-rendering: pixelated; width: 48px; height: 48px; flex: none; }
+.skin b { font-size: 13px; display: block; }
+.skin span { font-size: 10px; color: var(--fraco); font-weight: 400; }
+.skin.on { border-color: var(--acento); background: #2a2412; }
+
+.ficha { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ficha li {
+  display: flex; justify-content: space-between; gap: 8px;
+  background: #0d0f12; border: 1px solid var(--linha); border-radius: 8px; padding: 8px 10px; font-size: 13px;
+}
+.ficha li span { color: var(--fraco); }
+.ficha li strong { font-variant-numeric: tabular-nums; }
+
+.abas { display: flex; gap: 6px; flex-wrap: wrap; }
+.abas button { padding: 8px 12px; font-size: 13px; }
+.abas button.on { border-color: var(--acento); color: var(--acento); }
+.manual-corpo { display: flex; flex-direction: column; gap: 8px; }
+.verbete {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: #0d0f12; border: 1px solid var(--linha); border-radius: 8px; padding: 10px 12px;
+}
+.verbete i { font-style: normal; font-size: 20px; color: var(--acento); flex: none; width: 24px; text-align: center; }
+.verbete b { font-size: 13px; display: block; }
+.verbete span { font-size: 12px; color: var(--fraco); }
+
+/* ------------------------------------------------ modo construção */
+
+.build-topo { display: flex; gap: 12px; align-items: center; }
+.caixa-sucata {
+  flex: 1; background: #0d0f12; border: 1px solid var(--linha); border-radius: 10px; padding: 12px 14px;
+}
+.caixa-sucata .rotulo { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--fraco); display: block; }
+.caixa-sucata strong { font-size: 26px; color: var(--acento); font-variant-numeric: tabular-nums; }
+#build-previa {
+  image-rendering: pixelated; width: 128px; height: 96px; flex: none;
+  background: #0b0d10; border: 1px solid var(--linha); border-radius: 8px;
+}
+
+.forts { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 8px; }
+.fort { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 12px; line-height: 1.35; }
+.fort .cabeca { display: flex; align-items: center; gap: 8px; }
+.fort i { font-style: normal; font-size: 18px; color: var(--acento); }
+.fort b { font-size: 13px; flex: 1; }
+.fort .niveis { display: flex; gap: 3px; }
+.fort .niveis em { width: 12px; height: 6px; border-radius: 2px; background: #2a3038; display: block; }
+.fort .niveis em.on { background: var(--acento); }
+.fort span { font-size: 11px; color: var(--fraco); font-weight: 400; }
+.fort .preco { color: var(--acento); font-weight: 700; font-size: 12px; }
+.fort .preco.caro { color: var(--perigo); }
+.fort:disabled { opacity: .5; cursor: default; }
+
+/* --------------------------------------------------------- intervalo */
+
+.colunas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.conta { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.conta li {
+  display: flex; justify-content: space-between; gap: 10px; font-size: 13px;
+  background: #0d0f12; border: 1px solid var(--linha); border-radius: 8px; padding: 7px 10px;
+}
+.conta li span { color: var(--fraco); }
+.conta li strong { font-variant-numeric: tabular-nums; }
+.conta li.total { border-color: var(--acento); }
+.conta li.total strong { color: var(--acento); }
+
+
+#inter-titulo { margin: 0; font-size: 30px; letter-spacing: 3px; color: var(--ok); }
+#inter-relogio { color: var(--acento); font-weight: 700; }
+
+.cartas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.carta {
+  text-align: left; display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 12px; line-height: 1.35; min-height: 92px;
+}
+.carta i { font-style: normal; font-size: 20px; color: var(--acento); }
+.carta b { font-size: 14px; }
+.carta span { font-size: 11px; color: var(--fraco); font-weight: 400; }
+.carta.on { border-color: var(--ok); background: #16281a; }
+.carta:disabled { opacity: .45; cursor: default; }
+
+/* ------------------------------------------------------------- fim */
+
+#fim-titulo { margin: 0; font-size: 34px; letter-spacing: 3px; }
+.placar { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.placar li {
+  display: flex; align-items: center; gap: 10px;
+  background: #0d0f12; border: 1px solid var(--linha); border-radius: 8px; padding: 9px 12px; font-size: 14px;
+}
+.placar .pontos { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------- toast */
+
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--painel); border: 1px solid var(--linha); border-radius: 8px;
+  padding: 10px 16px; font-size: 14px; z-index: 10;
+}
+
+/* aviso de conexão caindo: fica fixo no topo até voltar ou desistir */
+.reconectando {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  background: #3a2a10; border-bottom: 2px solid var(--acento); color: var(--acento);
+  padding: 8px 16px; font-size: 13px; text-align: center; font-weight: 600;
+}
+
+/* ------------------------------------------------------------- mobile */
+
+/* touch-action: none nos controles — preventDefault no pointerdown NÃO impede
+   rolagem nem pull-to-refresh, e arrastar o dedo no direcional levava a página
+   embora no meio da partida. */
+.mobile, .mobile button { touch-action: none; }
+.mobile { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 520px; gap: 20px; }
+.dpad { display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 56px); gap: 6px; }
+.dpad button:nth-child(1) { grid-area: 1 / 2; }
+.dpad button:nth-child(2) { grid-area: 2 / 1; }
+.dpad button:nth-child(3) { grid-area: 2 / 3; }
+.dpad button:nth-child(4) { grid-area: 2 / 2; }
+.dpad button { font-size: 20px; }
+.botoes { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.fogo { width: 88px; height: 88px; border-radius: 50%; background: var(--perigo); border-color: transparent; color: #fff; font-weight: 800; }
+.hab-toque { width: 64px; height: 64px; border-radius: 50%; background: var(--acento); border-color: transparent; color: #191100; font-weight: 800; font-size: 13px; }
+
+@media (max-width: 720px) {
+  .arena { flex-direction: column; align-items: center; }
+  #hud { flex-direction: row; flex-wrap: wrap; min-width: 0; width: 100%; justify-content: space-between; }
+  .ajuda { display: none; }
+  .modos { grid-template-columns: 1fr; }
+  .campanha { flex-wrap: wrap; }
+  .colunas { grid-template-columns: 1fr; }
+  .ficha { grid-template-columns: 1fr; }
+  .build-topo { flex-direction: column; align-items: stretch; }
+  #build-previa { align-self: center; }
+}
+
+
+/* ---------------------------------------------- menos movimento
+   Quem marcou "reduzir movimento" no sistema não deve levar tremida de tela
+   nem pulsação. O campo continua animado — é o jogo —, mas o supérfluo para.
+   O tremor da explosão é desligado no render.js pela mesma consulta. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

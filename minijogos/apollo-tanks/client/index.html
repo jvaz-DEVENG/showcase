@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>APOLLO TANKS</title>
+<link rel="stylesheet" href="/client/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🛡</text></svg>">
+</head>
+<body>
+
+<!-- ------------------------------------------------------------ MENU -->
+<section id="menu" class="screen" tabindex="-1">
+  <div class="logo">
+    <h1>APOLLO <span>TANKS</span></h1>
+    <p class="sub">5 fases, 4 classes, uma águia pra defender</p>
+    <p class="recorde">Recorde: <strong id="menu-recorde">0</strong></p>
+  </div>
+
+  <div class="panel">
+    <label>Seu nome
+      <input id="nome" maxlength="12" placeholder="Piloto" autocomplete="off">
+    </label>
+
+    <button id="btn-criar" class="primary">Criar sala</button>
+
+    <div class="divisor"><span>ou</span></div>
+
+    <label>Código da sala
+      <input id="codigo" maxlength="4" placeholder="AB12" autocomplete="off" spellcheck="false">
+    </label>
+    <button id="btn-entrar">Entrar</button>
+
+    <p id="menu-erro" class="erro"></p>
+
+    <div class="linha-botoes">
+      <button id="btn-perfil" class="ghost">Perfil e skin</button>
+      <button id="btn-manual" class="ghost">Manual</button>
+      <button id="btn-som" class="ghost" aria-pressed="true" title="Liga e desliga o som (tecla M)">🔊 Som</button>
+    </div>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------ PERFIL -->
+<section id="perfil" class="screen hidden" tabindex="-1">
+  <div class="panel largo">
+    <h1 class="titulo-tela">PERFIL</h1>
+
+    <label>Nome de piloto
+      <input id="perfil-nome" maxlength="12" placeholder="Piloto" autocomplete="off">
+    </label>
+
+    <h2>Skin do casco <small>a cor continua sendo a do seu lugar na sala</small></h2>
+    <div id="perfil-skins" class="skins"></div>
+
+    <h2>Sua ficha</h2>
+    <ul id="perfil-ficha" class="ficha"></ul>
+
+    <button id="btn-perfil-voltar" class="primary">Voltar</button>
+    <button id="btn-perfil-zerar" class="ghost pequeno">Zerar ficha</button>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------ MANUAL -->
+<section id="manual" class="screen hidden" tabindex="-1">
+  <div class="panel largo">
+    <h1 class="titulo-tela">MANUAL</h1>
+    <div id="manual-abas" class="abas">
+      <button data-aba="classes" class="on">Classes</button>
+      <button data-aba="bonus">Bônus</button>
+      <button data-aba="terreno">Terreno</button>
+      <button data-aba="defesa">Defesa da águia</button>
+    </div>
+    <div id="manual-corpo" class="manual-corpo"></div>
+    <button id="btn-manual-voltar" class="primary">Voltar</button>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------ LOBBY -->
+<section id="lobby" class="screen hidden" tabindex="-1">
+  <div class="panel largo">
+    <div class="codigo-box">
+      <span class="rotulo">Código da sala</span>
+      <strong id="lobby-codigo">----</strong>
+      <button id="btn-link" class="ghost">Copiar link</button>
+    </div>
+
+    <h2>Jogadores <small id="lobby-contagem"></small></h2>
+    <ul id="lobby-jogadores" class="jogadores"></ul>
+
+    <h2>Seu tanque</h2>
+    <div id="classes" class="classes"></div>
+
+    <div id="host-area" class="host-area hidden">
+      <h2>Missão</h2>
+      <div class="modos">
+        <button id="btn-campanha" class="modo">
+          <b>Campanha</b><span>as 5 fases em sequência, com obra e upgrades entre elas</span>
+        </button>
+        <button id="btn-treino" class="modo">
+          <b>Fase avulsa</b><span>um mapa só, pra treinar</span>
+        </button>
+      </div>
+      <div id="campanha-lista" class="campanha"></div>
+      <div id="mapas" class="mapas hidden"></div>
+      <button id="btn-iniciar" class="primary">Iniciar partida</button>
+    </div>
+    <p id="aguardando" class="aviso hidden">Aguardando o host iniciar…</p>
+    <div class="linha-botoes">
+      <button id="btn-lobby-manual" class="ghost pequeno">Manual</button>
+      <button id="btn-sair" class="ghost pequeno">Sair da sala</button>
+    </div>
+  </div>
+</section>
+
+<!-- -------------------------------------------------- MODO CONSTRUÇÃO -->
+<section id="construcao" class="screen hidden" tabindex="-1">
+  <div class="panel largo">
+    <h1 class="titulo-tela">MODO CONSTRUÇÃO</h1>
+    <p id="build-sub" class="sub"></p>
+
+    <div class="build-topo">
+      <div class="caixa-sucata">
+        <span class="rotulo">Caixa do esquadrão</span>
+        <strong id="build-sucata">⛭ 0</strong>
+      </div>
+      <canvas id="build-previa" width="120" height="120" title="a águia e a defesa que ela vai ter"></canvas>
+    </div>
+
+    <h2>Defesa da águia <small id="build-relogio"></small></h2>
+    <div id="build-cartas" class="forts"></div>
+
+    <h2>Esquadrão</h2>
+    <ul id="build-prontos" class="jogadores"></ul>
+    <button id="btn-pronto" class="primary">Estou pronto</button>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------ JOGO -->
+<section id="jogo" class="screen hidden" tabindex="-1">
+  <div class="arena">
+    <div class="tela-caixa">
+      <canvas id="tela" width="208" height="208"></canvas>
+      <div id="faixa" class="faixa hidden"><b id="faixa-titulo"></b><span id="faixa-sub"></span></div>
+      <div id="pausa" class="faixa pausa hidden"><b>PAUSA</b><span>o host aperta P pra voltar</span></div>
+      <div id="chefe-barra" class="chefe-barra hidden">
+        <span class="chefe-nome">COLOSSO</span>
+        <div class="chefe-trilho"><i id="chefe-vida"></i></div>
+      </div>
+    </div>
+
+    <aside id="hud">
+      <div class="hud-bloco fase">
+        <span class="rotulo">Fase</span>
+        <strong id="hud-fase">1/5</strong>
+        <small id="hud-mapa">—</small>
+      </div>
+      <div class="hud-bloco">
+        <span class="rotulo">Inimigos <b id="hud-inimigos-n">0</b></span>
+        <div id="hud-inimigos" class="pontinhos" aria-hidden="true"></div>
+      </div>
+      <div class="hud-bloco">
+        <span class="rotulo">Habilidade</span>
+        <button id="hud-hab" class="hab" type="button">
+          <i id="hab-icone">»</i>
+          <span id="hab-nome">—</span>
+          <b id="hab-tecla">Shift</b>
+          <div id="hab-recarga" class="hab-recarga"></div>
+        </button>
+      </div>
+      <div class="hud-bloco">
+        <span class="rotulo">Seu tanque</span>
+        <strong id="hud-nivel">padrão</strong>
+        <div id="hud-efeitos" class="efeitos"></div>
+      </div>
+      <div class="hud-bloco">
+        <span class="rotulo">Águia <b id="hud-aguia-n">1</b></span>
+        <div id="hud-aguia" class="pontinhos aguia" aria-hidden="true"></div>
+      </div>
+      <div class="hud-bloco">
+        <span class="rotulo">Esquadrão</span>
+        <ul id="hud-times" class="hud-times"></ul>
+      </div>
+      <div class="hud-bloco ping">
+        <span class="rotulo">Ping</span><strong id="hud-ping">—</strong>
+      </div>
+      <button id="btn-som-jogo" class="ghost pequeno" aria-pressed="true" title="Liga e desliga o som (tecla M)">🔊 Som</button>
+    </aside>
+  </div>
+
+  <div id="mobile" class="mobile hidden">
+    <div class="dpad">
+      <button data-dir="0" aria-label="Mover para cima">▲</button>
+      <button data-dir="3" aria-label="Mover para a esquerda">◀</button>
+      <button data-dir="1" aria-label="Mover para a direita">▶</button>
+      <button data-dir="2" aria-label="Mover para baixo">▼</button>
+    </div>
+    <div class="botoes">
+      <button id="btn-hab" class="hab-toque" aria-label="Usar habilidade">HAB</button>
+      <button id="btn-fogo" class="fogo" aria-label="Atirar">FOGO</button>
+    </div>
+  </div>
+
+  <p class="ajuda">WASD / setas para mover &nbsp;·&nbsp; Espaço para atirar &nbsp;·&nbsp; Shift para a habilidade &nbsp;·&nbsp; P para pausar &nbsp;·&nbsp; M para o som</p>
+</section>
+
+<!-- ------------------------------------------------------ INTERVALO -->
+<section id="intervalo" class="screen hidden" tabindex="-1">
+  <div class="panel largo">
+    <h1 id="inter-titulo">FASE LIMPA</h1>
+    <p id="inter-sub" class="sub"></p>
+
+    <div class="colunas">
+      <div>
+        <h2>Abates</h2>
+        <ul id="inter-tipos" class="conta"></ul>
+      </div>
+      <div>
+        <h2 id="inter-titulo-conta">Sucata</h2>
+        <ul id="inter-conta" class="conta"></ul>
+      </div>
+    </div>
+
+    <h2>Escolha um upgrade <small id="inter-relogio"></small></h2>
+    <div id="inter-cartas" class="cartas"></div>
+
+    <h2>Esquadrão</h2>
+    <ul id="inter-escolhas" class="jogadores"></ul>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------ FIM -->
+<section id="fim" class="screen hidden" tabindex="-1">
+  <div class="panel largo">
+    <h1 id="fim-titulo">—</h1>
+    <p id="fim-sub" class="sub"></p>
+    <ul id="fim-placar" class="placar"></ul>
+    <h2>Abates da última fase</h2>
+    <ul id="fim-tipos" class="conta"></ul>
+    <p id="fim-recorde" class="aviso"></p>
+    <button id="btn-denovo" class="primary hidden">Voltar pro lobby</button>
+    <p id="fim-aviso" class="aviso hidden">Esperando o host…</p>
+    <button id="btn-fim-sair" class="ghost pequeno">Sair da sala</button>
+  </div>
+</section>
+
+<div id="reconectando" class="reconectando hidden" role="status" aria-live="assertive"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script type="module" src="/client/main.js"></script>
+</body>
+</html>
