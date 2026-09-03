@@ -492,6 +492,10 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       </div>
       <div class="buffs" id="hBuffs"></div>
     </div>
+    <div class="chefebar" id="dimBar" style="display:none">
+      <small><b id="dimNome">NÚCLEO</b> <i id="dimEstado"></i></small>
+      <div class="bar boss"><i id="dimHp"></i></div>
+    </div>
     <div class="chefebar mini" id="miniBar" style="display:none">
       <small><b id="miniNome">DESAFIO</b> <i id="miniDica"></i></small>
       <div class="bar tempo"><i id="miniTempo"></i></div>
@@ -1017,6 +1021,201 @@ const UPGRADES2 = [
   {id:'visaonoturna', nome:'OLHOS NA ESCURIDÃO', custo:2, bioma:'blecaute',
    desc:'enxerga mais longe no escuro e os núcleos brilham', contra:'os mobs também te enxergam de mais longe'}
 ];
+/* ======================= FORA DA GRADE ===============================
+   O labirinto e sempre um lugar fechado. O portal do mini-chefe e a primeira
+   vez que o jogo diz que existe algo do lado de fora -- e la a fisica e outra:
+   inercia, rotacao e tela aberta com wrap, em vez de colisao por tile.
+
+   O contraste e o ponto. O mesmo dedo, um corpo diferente.
+
+   Os tres verbos que o jogador ja conhece vem traduzidos, para ele nao ter que
+   reaprender nada sob pressao: Dash vira propulsao, Pulso vira onda que empurra
+   os cacos, Fase vira atravessar. Uma unica habilidade e exclusiva daqui -- o
+   tiro que ricocheteia na borda -- porque uma nova e lembrada e quatro novas
+   viram confusao.
+
+   A fase do labirinto nao e destruida: ela fica congelada em G enquanto
+   G.dim.ativo, e volta exatamente como estava. Nada aqui toca o grid. */
+const DIM = {
+  atrito:0.992, empuxo:340, giro:3.4, tiroVel:430, tiroVida:1.15,
+  cadencia:0.22, naveR:11
+};
+function entrarNaDimensao(p, cap){
+  const bioma = G.bioma;
+  G.dim = {
+    ativo:true, cap, bioma, t:0, fim:0,
+    nave:{x:W/2, y:H*0.75, ang:-Math.PI/2, vx:0, vy:0, invuln:2, cd:0, prop:0},
+    vidas:1,                              // uma vida aqui: cair devolve pro labirinto
+    combustivel: Math.max(35, p.carga),   // a carga vira combustivel: vale abrir o portal cheio
+    rochas:[], tiros:[], nucleo:null, ricochete:true,
+    dash:0, onda:0, fase:0
+  };
+  const d = G.dim;
+  // o nucleo cresce com o capitulo: mesmo tier que o portal ja carregava
+  d.nucleo = {x:W/2, y:H*0.32, r:34, hp:6 + cap*2, hpMax:6 + cap*2, t:0, ang:0};
+  const n = 4 + Math.min(6, cap);
+  for(let i=0;i<n;i++) d.rochas.push(novaRocha(2 + (i%2), null));
+  G.estado = 'dimensao';
+  toast('FORA DA GRADE — DESTRUA O NÚCLEO');
+  [220,330,440,660].forEach((f,i) => setTimeout(() => beep(f,.2,'sine',.05), i*120));
+}
+function novaRocha(tam, orig){
+  const ang = Math.random()*6.283, vel = 26 + Math.random()*34 + (G.dim ? G.dim.cap*3 : 0);
+  return {
+    x: orig ? orig.x : (Math.random()<.5 ? 8 : W-8),
+    y: orig ? orig.y : Math.random()*H,
+    vx: Math.cos(ang)*vel, vy: Math.sin(ang)*vel,
+    r: tam*9, tam, giro:(Math.random()-.5)*2,
+    ang:Math.random()*6.283,
+    // cada caco tem silhueta propria, assada uma vez: desenhar poligono
+    // aleatorio por quadro seria caro e mudaria de forma sozinho
+    forma: Array.from({length:9}, () => 0.72 + Math.random()*0.5)
+  };
+}
+function sairDaDimensao(venceu){
+  const d = G.dim;
+  if(!d) return;
+  const p = euJogador();
+  if(venceu){
+    const premio = 300 + d.cap*140;
+    save.coins += premio; G.ganhosFase.coins += premio;
+    if(p) p.score += 1500 + d.cap*400;
+    ganharXp(60 + d.cap*20);
+    gravarSave();
+    toast('NÚCLEO DESTRUÍDO  +' + premio + '¢');
+    sfx('level');
+  }else{
+    toast('EXPULSO DA DIMENSÃO');
+    sfx('hit');
+  }
+  if(p) p.carga = venceu ? 100 : Math.max(0, p.carga - 30);
+  G.dim = null;
+  G.estado = 'jogando';        // o labirinto estava congelado: volta como estava
+}
+
+function atualizarDimensao(dt){
+  const d = G.dim;
+  if(!d || !d.ativo) return;
+  d.t += dt;
+  if(d.fim){ d.fim -= dt; if(d.fim <= 0) sairDaDimensao(d.venceu); return; }
+
+  const nv = d.nave;
+  nv.invuln = Math.max(0, nv.invuln - dt);
+  nv.cd = Math.max(0, nv.cd - dt);
+  d.dash = Math.max(0, d.dash - dt);
+  d.onda = Math.max(0, d.onda - dt);
+  d.fase = Math.max(0, d.fase - dt);
+  nv.prop = Math.max(0, nv.prop - dt);
+
+  // ---- controle: girar e empurrar, nao andar ----
+  const k = teclasDim;
+  if(k.esq) nv.ang -= DIM.giro*dt;
+  if(k.dir) nv.ang += DIM.giro*dt;
+  if(k.frente){
+    const f = DIM.empuxo * (d.dash > 0 ? 2.3 : 1);
+    nv.vx += Math.cos(nv.ang)*f*dt;
+    nv.vy += Math.sin(nv.ang)*f*dt;
+    nv.prop = 0.1;
+    if(Math.random() < 0.5)
+      G.parts.push({x:nv.x - Math.cos(nv.ang)*12, y:nv.y - Math.sin(nv.ang)*12,
+                    vx:-Math.cos(nv.ang)*60, vy:-Math.sin(nv.ang)*60,
+                    vida:.3, vidaMax:.3, cor:'#ffd23f', r:2});
+  }
+  nv.vx *= DIM.atrito; nv.vy *= DIM.atrito;
+  nv.x += nv.vx*dt; nv.y += nv.vy*dt;
+  nv.x = (nv.x + W) % W; nv.y = (nv.y + H) % H;   // wrap nas quatro bordas
+
+  if(k.tiro && nv.cd <= 0){
+    nv.cd = DIM.cadencia;
+    d.tiros.push({x:nv.x + Math.cos(nv.ang)*14, y:nv.y + Math.sin(nv.ang)*14,
+                  vx:Math.cos(nv.ang)*DIM.tiroVel + nv.vx*0.4,
+                  vy:Math.sin(nv.ang)*DIM.tiroVel + nv.vy*0.4,
+                  t:DIM.tiroVida, quiques:d.ricochete ? 2 : 0});
+    beep(760, .04, 'square', .03);
+  }
+
+  // ---- tiros ----
+  for(let i=d.tiros.length-1;i>=0;i--){
+    const t = d.tiros[i];
+    t.t -= dt; t.x += t.vx*dt; t.y += t.vy*dt;
+    /* RICOCHETE e a unica habilidade exclusiva daqui: sem paredes, o tiro
+       quica na borda da tela em vez de sumir. So faz sentido fora da grade. */
+    if(t.quiques > 0){
+      if(t.x < 0 || t.x > W){ t.vx *= -1; t.x = Math.max(0, Math.min(W, t.x)); t.quiques--; }
+      if(t.y < 0 || t.y > H){ t.vy *= -1; t.y = Math.max(0, Math.min(H, t.y)); t.quiques--; }
+    }else{ t.x = (t.x + W) % W; t.y = (t.y + H) % H; }
+    if(t.t <= 0){ d.tiros.splice(i,1); continue; }
+
+    let bateu = false;
+    for(let j=d.rochas.length-1;j>=0;j--){
+      const r = d.rochas[j];
+      if(Math.hypot(t.x-r.x, t.y-r.y) > r.r) continue;
+      d.tiros.splice(i,1); bateu = true;
+      explodir(r.x, r.y, d.bioma ? d.bioma.cor : '#39e0ff', 12);
+      beep(180, .1, 'sawtooth', .05);
+      d.rochas.splice(j,1);
+      if(r.tam > 1) for(let q=0;q<2;q++){ const nr = novaRocha(r.tam-1, r); d.rochas.push(nr); }
+      break;
+    }
+    if(bateu) continue;
+    const nu = d.nucleo;
+    if(nu.hp > 0 && Math.hypot(t.x-nu.x, t.y-nu.y) <= nu.r){
+      d.tiros.splice(i,1);
+      nu.hp--; nu.t = 0.18;
+      explodir(nu.x, nu.y, '#ffd23f', 14);
+      G.shake = Math.max(G.shake, 0.35);
+      beep(120, .12, 'square', .06);
+      if(nu.hp <= 0){
+        for(let e=0;e<6;e++) setTimeout(() => explodir(nu.x + (Math.random()-.5)*80,
+                                                       nu.y + (Math.random()-.5)*80, '#ffd23f', 24), e*90);
+        G.shake = 1.4; d.venceu = true; d.fim = 1.4;
+      }
+    }
+  }
+
+  // ---- rochas ----
+  for(const r of d.rochas){
+    r.x = (r.x + r.vx*dt + W) % W;
+    r.y = (r.y + r.vy*dt + H) % H;
+    r.ang += r.giro*dt;
+    if(d.onda > 0){
+      const dx = r.x - nv.x, dy = r.y - nv.y, dist = Math.hypot(dx,dy) || 1;
+      if(dist < 150){ r.vx += dx/dist*260*dt; r.vy += dy/dist*260*dt; }
+    }
+    if(nv.invuln > 0 || d.fase > 0 || d.fim) continue;
+    if(Math.hypot(nv.x-r.x, nv.y-r.y) > r.r + DIM.naveR) continue;
+    // bateu: perde a dimensao, nao a partida
+    explodir(nv.x, nv.y, '#ff3b6b', 30);
+    G.shake = 1.2; sfx('hit');
+    d.venceu = false; d.fim = 1.2;
+  }
+
+  // ---- o nucleo cospe cacos ----
+  const nu = d.nucleo;
+  nu.ang += dt*0.7;
+  nu.t = Math.max(0, nu.t - dt);
+  if(nu.hp > 0 && d.rochas.length < 4 + d.cap*2 && Math.random() < dt*0.5)
+    d.rochas.push(novaRocha(3, {x:nu.x, y:nu.y}));
+}
+
+function usarHabilidadeDim(qual){
+  const d = G.dim;
+  if(!d || !d.ativo || d.fim) return;
+  const custo = {dash:12, onda:20, fase:18}[qual];
+  if(d.combustivel < custo){ toast('SEM COMBUSTÍVEL'); return; }
+  if(qual === 'dash' && d.dash > 0) return;
+  d.combustivel -= custo;
+  if(qual === 'dash'){ d.dash = 0.45; beep(880,.09,'triangle',.05); }
+  if(qual === 'onda'){
+    d.onda = 0.3;
+    G.parts.push({onda:true, x:d.nave.x, y:d.nave.y, r:0, rMax:150, vida:.45, vidaMax:.45, cor:'#8ad4ff'});
+    beep(120,.3,'sawtooth',.06);
+  }
+  if(qual === 'fase'){ d.fase = 1.6; beep(660,.2,'sine',.05); }
+}
+
+const teclasDim = {esq:false, dir:false, frente:false, tiro:false};
+
 /* ========================== MINI-CHEFES ==============================
    Na fase 5 de cada capitulo aparece um mecanismo -- nao uma criatura. Essa e
    a diferenca deliberada em relacao aos chefes: o mini-chefe nao troca dano,
@@ -1137,20 +1336,11 @@ function atualizarPortalPremio(dt){
   entrarNoPortal(p);
 }
 function entrarNoPortal(p){
-  /* A dimensao de combate aberto ainda nao existe; este e o ponto exato onde
-     ela vai ser chamada, com o capitulo, o bioma e o estado do jogador. Ate
-     la, o portal paga o premio aqui mesmo, para nao ser uma porta pra lugar
-     nenhum. */
   const cap = capituloDaFase(G.fase);
-  const premio = 120 + cap * 60;
-  save.coins += premio; G.ganhosFase.coins += premio;
-  p.carga = 100;
-  gravarSave();
   explodir(p.x, p.y, '#ffffff', 40);
   G.shake = Math.max(G.shake, 1);
-  toast('ATRAVESSOU O PORTAL  +' + premio + '¢ E CARGA CHEIA');
-  sfx('level');
   G.portalPremio = null;
+  entrarNaDimensao(p, cap);
 }
 
 /* =========================== CONQUISTAS ==============================
@@ -4647,6 +4837,31 @@ function desenhar(){
   }
 
   // partículas
+  desenharParticulas();
+  ctx.globalAlpha = 1;
+
+  // projéteis
+  for(const t of G.tiros){
+    ctx.fillStyle = '#b46bff';
+    ctx.shadowColor = '#b46bff'; ctx.shadowBlur = QUALIDADE*12;
+    ctx.beginPath(); ctx.arc(t.x, t.y, 4, 0, 7); ctx.fill();
+    ctx.shadowBlur = QUALIDADE*0;
+  }
+
+  // mobs
+  for(const m of G.mobs) desenharMob(m);
+
+  // player
+  for(const p of G.players) if(!p.fora) desenharPlayer(p);
+
+  desenharModificadores();
+  ctx.restore();
+}
+
+/* O render da dimensao e proprio: nada aqui usa o grid nem o bitmap do
+   labirinto. Vetor branco sobre preto, como o arcade que inspirou. */
+/* extraido do desenhar(): a dimensao usa o mesmo sistema de particulas */
+function desenharParticulas(){
   for(const q of G.parts){
     const al = Math.max(0, q.vida / (q.vidaMax || .8));
     if(q.onda){
@@ -4669,23 +4884,97 @@ function desenhar(){
       ctx.beginPath(); ctx.arc(q.x, q.y, q.r*al + .4, 0, 7); ctx.fill();
     }
   }
-  ctx.globalAlpha = 1;
+}
 
-  // projéteis
-  for(const t of G.tiros){
-    ctx.fillStyle = '#b46bff';
-    ctx.shadowColor = '#b46bff'; ctx.shadowBlur = QUALIDADE*12;
-    ctx.beginPath(); ctx.arc(t.x, t.y, 4, 0, 7); ctx.fill();
-    ctx.shadowBlur = QUALIDADE*0;
+function desenharDimensao(){
+  const d = G.dim;
+  ctx.save();
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#02030a'; ctx.fillRect(0,0,W,H);
+  if(G.shake > 0 && !SEM_MOVIMENTO && save.tremor !== false)
+    ctx.translate((Math.random()-0.5)*G.shake*10, (Math.random()-0.5)*G.shake*10);
+  if(!d){ ctx.restore(); return; }
+
+  // estrelas de fundo, deterministicas: nada de sortear 60x por segundo
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  for(let i=0;i<48;i++){
+    const x = ((i*97) % W), y = ((i*61) % H);
+    ctx.fillRect(x, y, 1.4, 1.4);
   }
 
-  // mobs
-  for(const m of G.mobs) desenharMob(m);
+  const cor = d.bioma ? (d.bioma.corHud || d.bioma.cor) : '#39e0ff';
 
-  // player
-  for(const p of G.players) if(!p.fora) desenharPlayer(p);
+  // nucleo
+  const nu = d.nucleo;
+  if(nu.hp > 0){
+    ctx.save(); ctx.translate(nu.x, nu.y); ctx.rotate(nu.ang);
+    ctx.strokeStyle = nu.t > 0 ? '#ffffff' : '#ffd23f';
+    ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = QUALIDADE*22;
+    for(let a=0;a<3;a++){
+      ctx.lineWidth = 3 - a*0.7;
+      ctx.globalAlpha = .9 - a*.25;
+      ctx.beginPath();
+      for(let i=0;i<=12;i++){
+        const ang = i*0.5236, r = nu.r*(1 - a*0.18)*(i%2 ? 0.82 : 1);
+        ctx.lineTo(Math.cos(ang)*r, Math.sin(ang)*r);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
+  }
 
-  desenharModificadores();
+  // cacos
+  ctx.strokeStyle = cor; ctx.shadowColor = cor; ctx.shadowBlur = QUALIDADE*8;
+  ctx.lineWidth = 1.6;
+  for(const r of d.rochas){
+    for(const ox of [0, -W, W]) for(const oy of [0, -H, H]){
+      const x = r.x + ox, y = r.y + oy;
+      if(x < -60 || x > W+60 || y < -60 || y > H+60) continue;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(r.ang);
+      ctx.beginPath();
+      for(let i=0;i<r.forma.length;i++){
+        const a = i/r.forma.length*6.283;
+        ctx.lineTo(Math.cos(a)*r.r*r.forma[i], Math.sin(a)*r.r*r.forma[i]);
+      }
+      ctx.closePath(); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  ctx.shadowBlur = QUALIDADE*0;
+
+  // tiros
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+  for(const t of d.tiros){
+    ctx.globalAlpha = t.quiques > 0 ? 1 : .8;
+    ctx.beginPath(); ctx.moveTo(t.x, t.y);
+    ctx.lineTo(t.x - t.vx*0.012, t.y - t.vy*0.012); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // nave
+  const nv = d.nave;
+  if(!d.fim || d.venceu){
+    ctx.save(); ctx.translate(nv.x, nv.y); ctx.rotate(nv.ang);
+    if(nv.invuln > 0 && Math.sin(G.tempo*30) < 0){ ctx.restore(); }
+    else{
+      ctx.strokeStyle = d.fase > 0 ? '#8ad4ff' : '#ffffff';
+      ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = QUALIDADE*10;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = d.fase > 0 ? .55 : 1;
+      ctx.beginPath();
+      ctx.moveTo(14,0); ctx.lineTo(-9,8); ctx.lineTo(-5,0); ctx.lineTo(-9,-8);
+      ctx.closePath(); ctx.stroke();
+      if(nv.prop > 0){
+        ctx.strokeStyle = '#ffd23f'; ctx.beginPath();
+        ctx.moveTo(-6,0); ctx.lineTo(-14 - Math.random()*6, 0); ctx.stroke();
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
+    }
+  }
+
+  desenharParticulas();
   ctx.restore();
 }
 
@@ -5342,9 +5631,19 @@ function atualizarHud(){
     b.style.color = G.bioma.corHud || G.bioma.cor;
   }
   el('hLives').textContent = meu ? ('♥'.repeat(Math.max(0, meu.vidas)) || '—') : '—';
+  const db = el('dimBar');
+  if(db){
+    const d = G.dim;
+    if(d && d.ativo){
+      db.style.display = '';
+      el('dimNome').textContent = 'NÚCLEO PRIMORDIAL';
+      el('dimEstado').textContent = 'COMBUSTÍVEL ' + Math.round(d.combustivel);
+      el('dimHp').style.width = Math.max(0, d.nucleo.hp / d.nucleo.hpMax * 100) + '%';
+    }else db.style.display = 'none';
+  }
   const mb = el('miniBar');
   if(mb){
-    const m = G.mini;
+    const m = G.dim ? null : G.mini;      // na dimensao o labirinto esta parado
     if(m && m.estado !== 'fim'){
       mb.style.display = '';
       const resta = m.estado === 'aviso' ? m.def.janela : Math.max(0, m.t);
@@ -5359,7 +5658,7 @@ function atualizarHud(){
   }
   const cb = el('chefeBar');
   if(cb){
-    if(G.chefe){
+    if(G.chefe && !G.dim){
       cb.style.display = '';
       cb.className = 'chefebar ' + G.chefe.modo;
       el('chefeNome').textContent = G.chefe.def.nome;
@@ -6402,7 +6701,27 @@ function donoDoTeclado(esquema){
   if(locais.length < 2) return locais[0];          // 1 jogador: tudo controla ele
   return locais.find(p => p.controles === esquema) || locais[0];
 }
+/* Fora da grade o controle e outro: girar e empurrar sao teclas SEGURADAS, e
+   o labirinto nunca precisou disso -- la a direcao e um estado, nao uma forca.
+   Por isso este par de listeners existe separado, antes do teclado do jogo. */
+const MAPA_DIM = {ArrowLeft:'esq', KeyA:'esq', ArrowRight:'dir', KeyD:'dir',
+                  ArrowUp:'frente', KeyW:'frente', Space:'tiro'};
 window.addEventListener('keydown', e => {
+  if(G.estado !== 'dimensao') return;
+  const a = MAPA_DIM[e.code];
+  if(a){ teclasDim[a] = true; e.preventDefault(); return; }
+  if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') usarHabilidadeDim('onda');
+  if(e.code === 'KeyE') usarHabilidadeDim('fase');
+  if(e.code === 'KeyQ') usarHabilidadeDim('dash');
+});
+window.addEventListener('keyup', e => {
+  const a = MAPA_DIM[e.code];
+  if(a) teclasDim[a] = false;
+});
+
+window.addEventListener('keydown', e => {
+  // dentro da dimensao o teclado do labirinto nao vale
+  if(G.estado === 'dimensao') return;
 
   /* O preventDefault SÓ vale dentro da partida. Antes ele rodava primeiro e
      engolia a tecla no menu também: ESPAÇO é metade do que ativa um <button>,
@@ -6581,6 +6900,19 @@ let ultimo = performance.now(), acumHud = 0;
 function loop(agora){
   const dt = Math.min(0.033, (agora - ultimo)/1000);
   ultimo = agora;
+
+  if(G.estado === 'dimensao'){
+    // fora da grade a fisica e outra: o labirinto fica congelado em G, intacto
+    G.tempo += dt;
+    if(G.shake > 0) G.shake = Math.max(0, G.shake - dt*3);
+    atualizarDimensao(dt);
+    atualizarParticulas(dt);
+    desenharDimensao();
+    acumHud += dt;
+    if(acumHud > 0.08){ acumHud = 0; atualizarHud(); }
+    requestAnimationFrame(loop);
+    return;
+  }
 
   if(G.estado === 'jogando'){
     /* HIT-STOP: congela a simulação por alguns quadros na mordida e na morte.
