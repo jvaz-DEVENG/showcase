@@ -39,9 +39,27 @@ completo**. Cada jogo precisa parecer parte de uma marca — não um teste isola
 Estas não são preferências — são o contrato do showcase. Quebrou, o jogo não
 entra no portfólio.
 
-- **Um `index.html` único e autocontido** em `minijogos/<slug>/`. CSS e JS
-  embutidos. Sem framework, sem build step, sem `node_modules`, sem arquivo
-  externo. Áudio é sintetizado em Web Audio, nunca `.mp3`/`.wav`.
+- **Um `index.html` único e autocontido** em `minijogos/<slug>/`, com CSS e JS
+  embutidos.
+
+  **Dependência não é proibida** — o dono decidiu isso em 2026-09-03. O que é
+  inegociável é o *jeito*: biblioteca entra **embutida no arquivo** (colada,
+  vendorizada), nunca por CDN e nunca por build step. O motivo é técnico, não
+  estético:
+  - **CDN quebra o jogo local.** O dono joga por `file://`, e sob esse protocolo
+    o navegador bloqueia a maior parte do que vem de fora. Também mataria o
+    funcionamento offline e faria cada card do portfólio depender de rede.
+  - **Build step quebra o deploy.** O fluxo do repo é "abrir o index.html já
+    funciona" e "deploy é só `git push`". Foi por isso que o Apollo Tanks, que
+    precisa de servidor Node, ficou fora do portfólio.
+
+  Onde uma dependência vale a pena de verdade hoje: **WebGL para render**. O
+  gargalo de desempenho do Neon Devourer é o `shadowBlur` do canvas 2D (o
+  brilho neon), que em shader sai praticamente de graça. E **Capacitor**, que é
+  obrigatório para empacotar na Play Store.
+
+  Áudio segue sintetizado em Web Audio, nunca `.mp3`/`.wav` — aqui não é regra
+  imposta, é que síntese faz melhor o que estes jogos precisam.
 - **Roda sob `file://`** — abrir o arquivo no navegador tem que funcionar.
   Nada de `fetch` para caminho relativo, `import` de módulo ou canvas com
   imagem externa (origem opaca).

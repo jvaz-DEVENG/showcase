@@ -244,6 +244,11 @@
   .chefebar small i{ font-style:normal }
   .bar.boss{ height:9px }
   .bar.boss i{ background:linear-gradient(90deg,#ff3b6b,#ffd23f) }
+  .bar.tempo{ height:9px }
+  .bar.tempo i{ background:linear-gradient(90deg,#3dff9e,#ffd23f) }
+  /* nos ultimos segundos a barra pulsa: o aviso nao pode depender so da cor */
+  .chefebar.urgente .bar.tempo i{ background:#ff3b6b; animation:pulsa .45s ease-in-out infinite }
+  .chefebar.mini small b{ color:#ffffff }
   /* aberto: a barra pulsa junto com a janela de mordida, para o jogador poder
      olhar so para o campo e ainda perceber pelo canto do olho */
   .chefebar.aberto small i{ color:#3dff9e }
@@ -486,6 +491,10 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         <div class="bar chg"><i id="hChg"></i></div>
       </div>
       <div class="buffs" id="hBuffs"></div>
+    </div>
+    <div class="chefebar mini" id="miniBar" style="display:none">
+      <small><b id="miniNome">DESAFIO</b> <i id="miniDica"></i></small>
+      <div class="bar tempo"><i id="miniTempo"></i></div>
     </div>
     <div class="chefebar" id="chefeBar" style="display:none">
       <small><b id="chefeNome">CHEFE</b> <i id="chefeEstado">BLINDADO</i></small>
@@ -1008,6 +1017,142 @@ const UPGRADES2 = [
   {id:'visaonoturna', nome:'OLHOS NA ESCURIDÃO', custo:2, bioma:'blecaute',
    desc:'enxerga mais longe no escuro e os núcleos brilham', contra:'os mobs também te enxergam de mais longe'}
 ];
+/* ========================== MINI-CHEFES ==============================
+   Na fase 5 de cada capitulo aparece um mecanismo -- nao uma criatura. Essa e
+   a diferenca deliberada em relacao aos chefes: o mini-chefe nao troca dano,
+   ele arma uma prova cronometrada e sai. Assim o capitulo tem dois picos sem
+   ter o mesmo combate duas vezes.
+
+   O verbo e simples de proposito: seguir alvos em ordem, ou colher alvos no
+   tempo. Quem diferencia os dez e o BIOMA -- o gelo faz a sequencia escorregar,
+   o escuro esconde os alvos, a esteira te empurra pra fora da rota, o piso
+   racha embaixo deles, o laser corta o caminho. Dez sistemas separados pela
+   metade seriam piores que um motor que o bioma torna dificil.
+
+   Falhar custa 1 vida e fecha o portal -- nunca mata. Nenhuma fase pode ser
+   bloqueada por objetivo extra: limpar os nucleos continua bastando sozinho. */
+const MINICHEFES = {
+  circuito:  {nome:'O ARAUTO',       tipo:'sequencia', n:4, janela:12, dica:'SIGA A SEQUÊNCIA'},
+  colmeia:   {nome:'O ALARME',       tipo:'coleta',    n:5, janela:11, dica:'COLHA ANTES QUE SUMAM'},
+  criogenia: {nome:'O CRISTAL-ECO',  tipo:'sequencia', n:4, janela:11, dica:'SLALOM NO GELO'},
+  fissura:   {nome:'O DUPLO',        tipo:'sequencia', n:4, janela:10, dica:'ATRAVESSE NA ORDEM'},
+  blecaute:  {nome:'O OLHO',         tipo:'coleta',    n:4, janela:10, dica:'ACHE NO ESCURO'},
+  corrente:  {nome:'O REGENTE',      tipo:'sequencia', n:5, janela:10, dica:'DEIXE A ESTEIRA LEVAR'},
+  fratura:   {nome:'O ANTECIPADOR',  tipo:'coleta',    n:5, janela:9,  dica:'COLHA ANTES DO CHÃO CEDER'},
+  estopim:   {nome:'O DETONADOR',    tipo:'sequencia', n:4, janela:9,  dica:'NA ORDEM, SEM PRESSA'},
+  fornalha:  {nome:'O METRÔNOMO',    tipo:'sequencia', n:4, janela:8,  dica:'ENTRE OS FEIXES'},
+  purga:     {nome:'O ÚLTIMO SINAL', tipo:'coleta',    n:6, janela:7,  dica:'COLHA ANTES DE APAGAR'}
+};
+const ehFaseDeMini = f => naFaseDeCampanha() && f <= FASE_FINAL && subDaFase(f) === 5;
+
+function montarMini(){
+  G.mini = null; G.portalPremio = null;
+  if(!ehFaseDeMini(G.fase)) return;
+  const def = MINICHEFES[biomaDaCampanha(G.fase).id];
+  if(!def) return;
+  // alvos longe do spawn e longe uns dos outros, para a rota ter tamanho
+  const livres = [];
+  for(let y=1;y<ROWS-1;y++)
+    for(let x=1;x<COLS-1;x++)
+      if(G.grid[y][x] === 0 &&
+         Math.max(Math.abs(x-G.spawn.x), Math.abs(y-G.spawn.y)) > 4 &&
+         !(x>=G.casa.x0-1 && x<=G.casa.x1+1 && y>=G.casa.y0-1 && y<=G.casa.y1+1))
+        livres.push({x,y});
+  embaralhar(livres);
+  const alvos = [];
+  for(const c of livres){
+    if(alvos.length >= def.n) break;
+    if(alvos.some(a => Math.abs(a.x-c.x) + Math.abs(a.y-c.y) < 5)) continue;
+    alvos.push({x:c.x, y:c.y, feito:false});
+  }
+  if(alvos.length < def.n) return;              // mapa apertado: nao força
+  G.mini = {def, alvos, passo:0, t:def.janela, estado:'aviso', avisoT:2.5};
+}
+
+function resolverMini(ok){
+  const m = G.mini;
+  if(!m || m.estado === 'fim') return;
+  m.estado = 'fim';
+  if(ok){
+    const ultimo = m.alvos[m.alvos.length-1];
+    G.portalPremio = {x:ultimo.x, y:ultimo.y, t:15, usado:false};
+    explodir(centro(ultimo.x), centro(ultimo.y), '#ffffff', 30);
+    G.shake = Math.max(G.shake, 0.7);
+    toast(m.def.nome + ' CEDEU — PORTAL ABERTO');
+    [660,880,1170].forEach((f,i) => setTimeout(() => beep(f, .16, 'triangle', .06), i*90));
+  }else{
+    const p = euJogador();
+    /* Custa uma vida e fecha o portal. Nao mata: quem chega no capitulo 7
+       cansado nao pode perder a partida por um cronometro. */
+    if(p && p.local && p.morto <= 0) perderVida(p);
+    toast(m.def.nome + ' RECUA — PORTAL FECHADO');
+    beep(70, .5, 'sawtooth', .07);
+  }
+}
+
+function atualizarMini(dt){
+  const m = G.mini;
+  if(!m || m.estado === 'fim') return;
+  if(m.estado === 'aviso'){
+    m.avisoT -= dt;
+    if(m.avisoT <= 0){ m.estado = 'ativo'; beep(880, .12, 'triangle', .06); }
+    return;
+  }
+  m.t -= dt;
+  if(m.t <= 0){ resolverMini(false); return; }
+
+  const p = euJogador();
+  if(!p || p.morto > 0) return;
+  const tx = tileDe(p.x), ty = tileDe(p.y);
+  if(m.def.tipo === 'sequencia'){
+    const a = m.alvos[m.passo];
+    if(a && a.x === tx && a.y === ty){
+      a.feito = true; m.passo++;
+      explodir(centro(a.x), centro(a.y), '#ffffff', 10);
+      beep(520 + m.passo*110, .1, 'square', .05);
+      if(m.passo >= m.alvos.length) resolverMini(true);
+    }
+  }else{
+    for(const a of m.alvos){
+      if(a.feito || a.x !== tx || a.y !== ty) continue;
+      a.feito = true;
+      explodir(centro(a.x), centro(a.y), '#ffffff', 10);
+      beep(520 + m.alvos.filter(z=>z.feito).length*110, .1, 'square', .05);
+    }
+    if(m.alvos.every(a => a.feito)) resolverMini(true);
+  }
+}
+
+/* O portal e premio, nao caminho: se ignorado, fecha sozinho sem custo. A fase
+   fecha normalmente com ou sem ele. */
+function atualizarPortalPremio(dt){
+  const pp = G.portalPremio;
+  if(!pp || pp.usado) return;
+  pp.t -= dt;
+  if(pp.t <= 0){ G.portalPremio = null; toast('O PORTAL FECHOU'); return; }
+  const p = euJogador();
+  if(!p || p.morto > 0) return;
+  if(tileDe(p.x) !== pp.x || tileDe(p.y) !== pp.y) return;
+  pp.usado = true;
+  entrarNoPortal(p);
+}
+function entrarNoPortal(p){
+  /* A dimensao de combate aberto ainda nao existe; este e o ponto exato onde
+     ela vai ser chamada, com o capitulo, o bioma e o estado do jogador. Ate
+     la, o portal paga o premio aqui mesmo, para nao ser uma porta pra lugar
+     nenhum. */
+  const cap = capituloDaFase(G.fase);
+  const premio = 120 + cap * 60;
+  save.coins += premio; G.ganhosFase.coins += premio;
+  p.carga = 100;
+  gravarSave();
+  explodir(p.x, p.y, '#ffffff', 40);
+  G.shake = Math.max(G.shake, 1);
+  toast('ATRAVESSOU O PORTAL  +' + premio + '¢ E CARGA CHEIA');
+  sfx('level');
+  G.portalPremio = null;
+}
+
 /* =========================== CONQUISTAS ==============================
    Metas de medio prazo fora do grind de nivel. Sao tres camadas: marcos da
    campanha, maestria por bioma (so os que tem mecanica propria ganham a sua) e
@@ -1441,6 +1586,7 @@ const G = {
   trilha:'infinito',                 // campanha (fases 1-100) | infinito (101+)
   chefe:null,                        // {def, hp, hpMax, fase, t, estagio, nucleos, gT}
   estase:null,                       // {x, y, t, raio} — o campo que para o bioma
+  mini:null, portalPremio:null,      // mini-chefe da fase 5 e o portal que ele abre
   player:null, mobs:[], tiros:[], parts:[],
   devorar:0, combo:0, congela:0,
   carga:0,
@@ -1943,6 +2089,7 @@ function montarFase(){
   G.devorar = 0; G.congela = 0;
   G.players.forEach(pl => pl.combo = 0);
   montarChefe();
+  montarMini();
   montarModificador();
   G.mazeCanvas = renderMaze();
   if(SOU_HOST()){ G.comidos = []; RT.enviar('mapa', serializarMapa()); }
@@ -2460,6 +2607,8 @@ function atualizar(dt){
   const modG = G.chefe ? modDoChefe() : (G.bioma ? G.bioma.mod : null);
   if(G.chefe) atualizarChefe(dt);
   atualizarEstase(dt);
+  atualizarMini(dt);
+  atualizarPortalPremio(dt);
   if(modG === 'lasers')  atualizarLasers(dt);
   if(modG === 'purga')   atualizarPurga(dt);
   if(modG === 'colapso') atualizarColapso(dt);
@@ -4585,6 +4734,60 @@ function desenharModificadores(){
     ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
   }
 
+  // --- MINI-CHEFE: alvos com contorno BRANCO, nao a cor do bioma ---
+  if(G.mini && G.mini.estado !== 'fim'){
+    const m = G.mini;
+    for(let i=0;i<m.alvos.length;i++){
+      const a = m.alvos[i];
+      const x = centro(a.x), y = centro(a.y);
+      const proximo = m.def.tipo === 'sequencia' && i === m.passo;
+      ctx.save(); ctx.translate(x, y);
+      /* Contorno branco fixo, e nao a cor do bioma: o alvo precisa ser visivel
+         no BLECAUTE e distinguivel para quem nao separa matiz. A ordem vai em
+         numero, nao em tom. */
+      ctx.strokeStyle = a.feito ? '#3dff9e' : '#ffffff';
+      ctx.shadowColor = a.feito ? '#3dff9e' : '#ffffff';
+      ctx.shadowBlur = QUALIDADE*(proximo ? 18 : 8);
+      ctx.lineWidth = proximo ? 2.6 : 1.6;
+      ctx.globalAlpha = a.feito ? .45 : (proximo ? .95 : .6);
+      const r = TILE*0.40 + (proximo ? Math.sin(G.tempo*7)*2.5 : 0);
+      // hexagono: nao e o circulo do nucleo, nem o anel do super, nem o
+      // losango da mina, nem a estrela do chefe
+      ctx.beginPath();
+      for(let k=0;k<6;k++){ const ang = k*1.047 + 0.5; ctx.lineTo(Math.cos(ang)*r, Math.sin(ang)*r); }
+      ctx.closePath(); ctx.stroke();
+      if(m.def.tipo === 'sequencia' && !a.feito){
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(i+1), 0, 0);
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
+    }
+  }
+
+  // --- PORTAL-PREMIO: branco e dourado, nunca a cor do bioma ---
+  if(G.portalPremio && !G.portalPremio.usado){
+    const pp = G.portalPremio;
+    const x = centro(pp.x), y = centro(pp.y);
+    const fim = pp.t < 4;                       // piscando: vai fechar
+    ctx.save(); ctx.translate(x, y);
+    for(let i=0;i<3;i++){
+      ctx.strokeStyle = i % 2 ? '#ffd23f' : '#ffffff';
+      ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = QUALIDADE*20;
+      ctx.lineWidth = 2.4 - i*0.5;
+      ctx.globalAlpha = (fim ? .4 + Math.abs(Math.sin(G.tempo*8))*.6 : .9) - i*0.2;
+      const r = TILE*(0.30 + i*0.16) + Math.sin(G.tempo*3 + i)*2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, G.tempo*(i%2?-2.2:2.2), G.tempo*(i%2?-2.2:2.2) + 4.8);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
+  }
+
   // --- ESTASE: o campo que segura o ritmo do bioma ---
   if(G.estase && G.estase.t > 0){
     const e = G.estase, viva = Math.min(1, e.t / 3.2);
@@ -5139,6 +5342,21 @@ function atualizarHud(){
     b.style.color = G.bioma.corHud || G.bioma.cor;
   }
   el('hLives').textContent = meu ? ('♥'.repeat(Math.max(0, meu.vidas)) || '—') : '—';
+  const mb = el('miniBar');
+  if(mb){
+    const m = G.mini;
+    if(m && m.estado !== 'fim'){
+      mb.style.display = '';
+      const resta = m.estado === 'aviso' ? m.def.janela : Math.max(0, m.t);
+      mb.className = 'chefebar mini' + (resta <= 3 && m.estado === 'ativo' ? ' urgente' : '');
+      el('miniNome').textContent = m.def.nome;
+      const feitos = m.def.tipo === 'sequencia' ? m.passo : m.alvos.filter(a => a.feito).length;
+      el('miniDica').textContent = m.estado === 'aviso'
+        ? m.def.dica + ' — PREPARE-SE'
+        : m.def.dica + '  ' + feitos + '/' + m.alvos.length + '  ' + resta.toFixed(1) + 's';
+      el('miniTempo').style.width = (resta / m.def.janela * 100) + '%';
+    }else mb.style.display = 'none';
+  }
   const cb = el('chefeBar');
   if(cb){
     if(G.chefe){
