@@ -178,6 +178,16 @@
   .pips i{width:12px;height:4px;border-radius:2px;background:#1b2545}
   .pips i.on{background:var(--accent);box-shadow:0 0 6px var(--accent)}
 
+  /* ---------- manual ---------- */
+  .manual{width:100%;max-width:520px;text-align:left;display:flex;flex-direction:column;gap:10px}
+  .manual section{border:1px solid var(--line);border-radius:10px;background:#0b1224;padding:9px 11px}
+  .manual h3{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:5px}
+  .manual p{font-size:11px;line-height:1.55;color:var(--dim)}
+  .manual p + p{margin-top:5px}
+  .manual b{color:var(--txt)}
+  .manual kbd{display:inline-block;border:1px solid var(--line);border-radius:4px;
+              padding:0 4px;font-size:10px;color:var(--txt);background:#101a35}
+
   /* ---------- mapa da campanha ---------- */
   .capgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;max-width:520px}
   .cap{
@@ -417,7 +427,12 @@
 
   /* modo vitrine: o portfolio da raiz embute o jogo num iframe reduzido e ele
      se joga sozinho. Sem ?attract=1 nada disso vale. */
+  footer#rodape{text-align:center;color:var(--dim);font-size:11px;line-height:1.7;margin:10px 0 4px}
+  footer#rodape a{color:var(--accent);text-decoration:none;padding:4px 6px;display:inline-block}
+  footer#rodape a:hover{text-decoration:underline}
+  footer#rodape .ver{color:var(--dim);font-weight:700}
   body.attract #tips,
+  body.attract #rodape,
   body.attract h1{display:none}
 </style>
 <script>
@@ -499,6 +514,9 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         <button class="ghost" id="btnMulti">MULTIPLAYER</button>
         <button class="ghost" id="btnPerfil">PERFIL</button>
         <button class="ghost" id="btnSkins">LOJA</button>
+        <button class="ghost" id="btnConq">CONQUISTAS</button>
+        <button class="ghost" id="btnManual">COMO JOGAR</button>
+        <button class="ghost" id="btnConfig">AJUSTES</button>
       </div>
       <div class="legend" id="legend"></div>
 
@@ -509,6 +527,29 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         </div>
         <div class="mrlist" id="miniRank"></div>
       </div>
+    </div>
+
+    <!-- COMO JOGAR -->
+    <div class="ov" id="ovManual" role="dialog" aria-modal="true" aria-labelledby="manualT">
+      <h2 id="manualT">COMO JOGAR</h2>
+      <div class="manual" id="manualCorpo"></div>
+      <button class="ghost" id="btnManualVoltar">VOLTAR</button>
+    </div>
+
+    <!-- CONFIGURAÇÕES -->
+    <div class="ov" id="ovConfig" role="dialog" aria-modal="true" aria-labelledby="configT">
+      <h2 id="configT">CONFIGURAÇÕES</h2>
+      <div class="grid" id="configGrid"></div>
+      <p class="sub" id="configAviso" style="max-width:460px"></p>
+      <button class="ghost" id="btnConfigVoltar">VOLTAR</button>
+    </div>
+
+    <!-- CONQUISTAS -->
+    <div class="ov" id="ovConq" role="dialog" aria-modal="true" aria-labelledby="conqT">
+      <h2 id="conqT">CONQUISTAS</h2>
+      <p class="sub">Desbloqueadas: <b id="conqN" style="color:var(--accent)">0</b></p>
+      <div class="grid" id="conqGrid"></div>
+      <button class="ghost" id="btnConqVoltar">VOLTAR</button>
     </div>
 
     <!-- MAPA DA CAMPANHA -->
@@ -686,7 +727,10 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     </div>
   </div>
 
-  <div id="tips">
+  <footer id="rodape">Neon Devourer <span class="ver">v2.0.0</span> — feito com HTML, CSS e JS puro, sem dependências.<br>
+Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a></footer>
+
+<div id="tips">
     <span class="soDesktop">
       <kbd>← ↑ ↓ →</kbd> / <kbd>WASD</kbd> mover &nbsp;·&nbsp;
       <kbd>ESPAÇO</kbd> dash &nbsp;·&nbsp; <kbd>SHIFT</kbd> pulso &nbsp;·&nbsp; <kbd>E</kbd> fase &nbsp;·&nbsp;
@@ -747,7 +791,7 @@ function reavaliarGrade(){
    celular). QUALIDADE multiplica todo shadowBlur do jogo. */
 const TOQUE = matchMedia('(hover:none)').matches;
 const FRACO = TOQUE || (navigator.hardwareConcurrency || 8) <= 4;
-const QUALIDADE = FRACO ? 0 : 1;
+let QUALIDADE = FRACO ? 0 : 1;   // let, nao const: o ajuste de brilho reescreve
 // respeita "reduzir movimento" do sistema: tira o tremor de tela e corta as
 // particulas. O hit-stop fica — e pausa, nao movimento.
 const SEM_MOVIMENTO = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -964,6 +1008,59 @@ const UPGRADES2 = [
   {id:'visaonoturna', nome:'OLHOS NA ESCURIDÃO', custo:2, bioma:'blecaute',
    desc:'enxerga mais longe no escuro e os núcleos brilham', contra:'os mobs também te enxergam de mais longe'}
 ];
+/* =========================== CONQUISTAS ==============================
+   Metas de medio prazo fora do grind de nivel. Sao tres camadas: marcos da
+   campanha, maestria por bioma (so os que tem mecanica propria ganham a sua) e
+   colecao. Pagam credito, entao alimentam a loja sem depender de repescagem. */
+const CONQUISTAS = [
+  {id:'primeira-mordida', nome:'PRIMEIRA MORDIDA', coins:80,
+   desc:'vença o Faminto e feche o capítulo 1'},
+  {id:'meio-do-cemiterio', nome:'MEIO DO CEMITÉRIO', coins:250,
+   desc:'derrube 5 dos 10 chefes'},
+  {id:'fim-da-fome', nome:'FIM DA FOME', coins:800,
+   desc:'derrube o Voraz e feche as 100 fases'},
+  {id:'nao-era-pra-tanto', nome:'NÃO ERA PRA TANTO', coins:400,
+   desc:'vença um chefe sem perder nenhuma vida na luta'},
+  {id:'atravessa-rachadura', nome:'ATRAVESSA RACHADURA', coins:200,
+   desc:'feche uma fase da FRATURA sem cair em buraco'},
+  {id:'pavio-curto', nome:'PAVIO CURTO', coins:200,
+   desc:'feche uma fase do ESTOPIM sem detonar mina'},
+  {id:'devorador-nato', nome:'DEVORADOR NATO', coins:200,
+   desc:'devore 100 mobs no total'},
+  {id:'guarda-roupa', nome:'GUARDA-ROUPA COMPLETO', coins:300,
+   desc:'desbloqueie todas as skins'},
+  {id:'nucleo-instavel', nome:'NÚCLEO INSTÁVEL', coins:250,
+   desc:'ative qualquer talento do segundo tier'},
+  {id:'a-fome-nao-acaba', nome:'A FOME NÃO ACABA', coins:150,
+   desc:'chegue à fase 30 no Modo Infinito'}
+];
+function conquistar(id){
+  if(!save.conquistas) save.conquistas = [];
+  if(save.conquistas.includes(id)) return;
+  const c = CONQUISTAS.find(x => x.id === id);
+  if(!c) return;
+  save.conquistas.push(id);
+  save.coins += c.coins;
+  gravarSave();
+  toast('CONQUISTA · ' + c.nome + '  +' + c.coins + '¢');
+  sfx('level');
+}
+/* Um lugar so para checar tudo o que depende de estado acumulado, chamado no
+   fim da fase -- evita espalhar if de conquista por dez funcoes diferentes. */
+function checarConquistas(ctx){
+  const ch = (save.chefes || []).length;
+  if(ch >= 1)  conquistar('primeira-mordida');
+  if(ch >= 5)  conquistar('meio-do-cemiterio');
+  if(save.campanhaFim) conquistar('fim-da-fome');
+  if((save.estat.mobs || 0) >= 100) conquistar('devorador-nato');
+  if(save.skins.length >= SKINS.length) conquistar('guarda-roupa');
+  if(Object.keys(save.up2 || {}).length) conquistar('nucleo-instavel');
+  if(G.trilha === 'infinito' && G.fase >= 30) conquistar('a-fome-nao-acaba');
+  if(ctx && ctx.chefeSemDano) conquistar('nao-era-pra-tanto');
+  if(ctx && ctx.bioma === 'fratura' && ctx.semQueda) conquistar('atravessa-rachadura');
+  if(ctx && ctx.bioma === 'estopim' && ctx.semMina)  conquistar('pavio-curto');
+}
+
 /* ============================== LOJA =================================
    Ate aqui credito so comprava skin, que e cosmetico. Sem nada util para
    comprar, repetir fase para juntar moeda nao teria destino -- e a repescagem
@@ -1042,6 +1139,7 @@ function saveBase(){
           conquistas:[],
           melhorias:{},           // compras permanentes da loja
           itens:{},               // consumiveis em estoque
+          tremor:true, brilho:true,       // ajustes de conforto e desempenho
           up2:{}, fragmentos:0,             // tier 2: moeda vinda dos chefes
           repescagem:{fase:0, vezes:0},   // decaimento por repetir a MESMA fase
           estat:{mobs:0, chefes:0, fasesSemDano:0, maiorCombo:0}};
@@ -1841,6 +1939,7 @@ function montarFase(){
   if(G.players.length > 2) lista.push('cacador');          // mais gente, mais caça
   G.mobs = lista.map((t,i) => criarMob(t,i,false));
   G.tiros = []; G.parts = [];
+  G.limpo = {queda:false, mina:false, danoNoChefe:false};   // para as conquistas
   G.devorar = 0; G.congela = 0;
   G.players.forEach(pl => pl.combo = 0);
   montarChefe();
@@ -2098,10 +2197,12 @@ function derrotarChefe(){
   if(naCampanha() && !(save.chefes || []).includes(id)){
     save.chefes.push(id);
     save.fragmentos = (save.fragmentos || 0) + 1;
-    save.estat.chefes = (save.estat.chefes || 0) + 1;
+      save.estat.chefes = (save.estat.chefes || 0) + 1;
     toast('+1 FRAGMENTO DE CHEFE');
   }
+  const semDano = G.limpo && !G.limpo.danoNoChefe;
   G.chefe = null;
+  checarConquistas({chefeSemDano: semDano});
   // o resto dos nucleos deixa de importar: derrubar o chefe fecha o capitulo
   G.restantes = 0;
 }
@@ -2183,6 +2284,7 @@ function escolherColapso(){
 function quedaNoBuraco(p){
   if(p.faseT > 0) return;                              // intangivel atravessa o vazio
   if(p.invuln > 0) return;
+  if(G.limpo) G.limpo.queda = true;
   if(temBuff(p, 'casco')){ consumirBuff(p,'casco'); p.invuln = 1.8; if(p.local) toast('CASCO ABSORVEU'); }
   else if(p.escudo > 0){ p.escudo--; p.escudoT = 0; p.invuln = 1.6; if(p.local) toast('ESCUDO ABSORVEU'); }
   else { perderVida(p); }
@@ -2230,6 +2332,7 @@ function atualizarMinas(dt){
 function detonarMina(m, alvo){
   if(!m || !m.armada) return;
   m.armada = false;
+  if(G.limpo && alvo && alvo.vidas !== undefined) G.limpo.mina = true;
   explodir(centro(m.x), centro(m.y), '#c6ff3b', 18);
   G.shake = Math.max(G.shake, 0.5);
   sfx('hit');
@@ -2671,6 +2774,7 @@ function coletar(p, a){
 }
 
 function devorarMob(m, p){
+  if(save.estat) save.estat.mobs = (save.estat.mobs || 0) + 1;
   /* O combo era GLOBAL: no competitivo, o adversario comendo aumentava o
      valor do SEU proximo mob. Agora cada um tem o seu. */
   p.combo = (p.combo || 0) + 1;
@@ -2718,6 +2822,7 @@ function perderVida(p){
     atualizarHud();
     return;
   }
+  if(G.limpo && G.chefe) G.limpo.danoNoChefe = true;
   p.vidas--;
   p.morto = 1.4;
   p.buffs = {};                       // perde as essências
@@ -2954,6 +3059,10 @@ function concluirFase(){
   }
   G.fase++;
   gravarSave();
+  checarConquistas({bioma: G.bioma && G.bioma.id,
+                    semQueda: G.limpo && !G.limpo.queda,
+                    semMina:  G.limpo && !G.limpo.mina,
+                    chefeSemDano: false});
   sfx('level');
   G.estado = 'upgrades';
   if(SOU_HOST()) RT.enviar('espera', {f: G.fase - 1, h: RT.uid});
@@ -4348,7 +4457,7 @@ function desenhar(){
   }
   ctx.fillStyle = fundoCache; ctx.fillRect(0,0,W,H);
 
-  if(G.shake > 0 && !SEM_MOVIMENTO){
+  if(G.shake > 0 && !SEM_MOVIMENTO && save.tremor !== false){
     ctx.translate((Math.random()-0.5)*G.shake*10, (Math.random()-0.5)*G.shake*10);
   }
 
@@ -5128,7 +5237,7 @@ function mostrar(id){
   if(abrindo && document.activeElement && document.activeElement !== document.body)
     focoAnterior = document.activeElement;
 
-  ['ovMenu','ovMapa','ovUp','ovSkins','ovPause','ovOver','ovRank','ovPerfil','ovDupla','ovOnline','ovSala','ovEspera','ovMulti']
+  ['ovMenu','ovMapa','ovManual','ovConfig','ovConq','ovUp','ovSkins','ovPause','ovOver','ovRank','ovPerfil','ovDupla','ovOnline','ovSala','ovEspera','ovMulti']
     .forEach(o => el(o).classList.toggle('on', o === id));
   if(id === 'ovMenu'){ renderMiniRanking(); atualizarContinuar(); }
 
@@ -5152,6 +5261,96 @@ function atualizarContinuar(){
   b.textContent = 'CONTINUAR · FASE ' + f;
 }
 function esconderTudo(){ mostrar(''); }
+
+/* ---------------------- MANUAL, AJUSTES, CONQUISTAS -------------------
+   Tres telas que a doutrina do estudio exige e que este jogo nunca teve. O
+   manual e escrito a partir das tabelas do proprio jogo onde da (biomas,
+   habilidades), para nao envelhecer sozinho quando o conteudo crescer. */
+function renderManual(){
+  const c = el('manualCorpo');
+  if(!c) return;
+  const ab = (t, k, d) => '<b>' + t + '</b> <kbd>' + k + '</kbd> — ' + d;
+  c.innerHTML =
+    '<section><h3>O que você é</h3>' +
+      '<p>Você é um <b>Devorador</b>. Come os núcleos da grade até esvaziar a fase, ' +
+      'e devora os mobs quando estiver em modo DEVORAR para roubar a <b>essência</b> deles.</p>' +
+      '<p>Os dez chefes são devoradores que vieram antes de você — cada um comeu além ' +
+      'da própria fase e ficou preso nela.</p></section>' +
+    '<section><h3>Controles</h3>' +
+      '<p><b>Mover</b> <kbd>WASD</kbd> ou <kbd>setas</kbd>. No celular, arraste na tela.</p>' +
+      '<p>' + ab('Dash', 'ESPAÇO', 'avança vários tiles de uma vez; atravessa mina e laser') + '</p>' +
+      '<p>' + ab('Pulso', 'SHIFT', 'atordoa mobs em volta. Adia rachaduras na FRATURA e detona minas à distância no ESTOPIM') + '</p>' +
+      '<p>' + ab('Fase', 'E', 'atravessa paredes — e o vazio da FRATURA') + '</p>' +
+      '<p>' + ab('Estase', 'Q', 'congela o ritmo do bioma num raio: esteira não empurra, piso não racha, purga não apaga. Liberada ao vencer o chefe do capítulo 5') + '</p>' +
+      '<p><b>Pausa</b> <kbd>P</kbd> · <b>Som</b> <kbd>M</kbd> · <b>Tela cheia</b> <kbd>F</kbd></p></section>' +
+    '<section><h3>Carga</h3>' +
+      '<p>Pulso, Fase e Estase gastam <b>carga</b>, que enche comendo núcleo. ' +
+      'Núcleo comum dá pouco; o <b>super-núcleo</b> dá muito e liga o modo DEVORAR pra todo mundo.</p></section>' +
+    '<section><h3>Campanha</h3>' +
+      '<p>São <b>10 capítulos de 10 fases</b>. Cada capítulo é um bioma, e a décima fase é o chefe dele. ' +
+      'Depois da fase 100 começa o <b>Modo Infinito</b>, que sorteia os biomas sem fim.</p>' +
+      '<p>Travou? Dá pra <b>repetir</b> qualquer fase já vencida pelo mapa, pra juntar crédito. ' +
+      'Ela paga menos a cada repetição seguida e não dá XP nem progresso — é saída de emergência, não atalho.</p></section>' +
+    '<section><h3>Os chefes</h3>' +
+      '<p>O chefe fica no ninho e alterna entre <b>blindado</b> e <b>aberto</b>. Você não atira nele: ' +
+      'quando ele abre, nascem núcleos-chefe em estrela em volta — comer cada um é uma mordida.</p>' +
+      '<p>Entre um estado e outro vem o <b>aviso</b>. Ele encolhe de 1,20s no primeiro chefe para 0,70s no último: ' +
+      'o que fica difícil é ler a janela, não aguentar dano.</p></section>' +
+    '<section><h3>Os ' + BIOMAS.length + ' biomas</h3>' +
+      BIOMAS.map(b => '<p><b style="color:' + (b.corHud || b.cor) + '">' + b.nome + '</b> — ' + b.desc + '</p>').join('') +
+    '</section>';
+}
+
+function renderConfig(){
+  const g = el('configGrid');
+  if(!g) return;
+  const opcoes = [
+    {id:'som', nome:'SOM', get:() => save.som !== false,
+     set:v => { save.som = v; }, desc:'efeitos e trilha, sintetizados no próprio jogo'},
+    {id:'tremor', nome:'TREMOR DE TELA', get:() => save.tremor !== false,
+     set:v => { save.tremor = v; }, desc:'sacudida ao levar dano e ao morder o chefe'},
+    {id:'brilho', nome:'BRILHO INTENSO', get:() => save.brilho !== false,
+     set:v => { save.brilho = v; }, desc:'halo neon nos objetos — desligue se pesar no seu aparelho'}
+  ];
+  g.innerHTML = '';
+  for(const o of opcoes){
+    const on = o.get();
+    const d = document.createElement('button');
+    d.type = 'button';
+    d.className = 'card';
+    d.setAttribute('role', 'switch');
+    d.setAttribute('aria-checked', on ? 'true' : 'false');
+    // estado nunca e so cor: vai o rotulo LIGADO/DESLIGADO junto
+    d.innerHTML = '<h4>' + o.nome + ' <span style="color:' + (on ? 'var(--ok)' : 'var(--dim)') + '">' +
+                  (on ? '● LIGADO' : '○ DESLIGADO') + '</span></h4><p>' + o.desc + '</p>';
+    d.onclick = () => { o.set(!o.get()); gravarSave(); renderConfig(); sfx('up'); aplicarConfig(); };
+    g.appendChild(d);
+  }
+  el('configAviso').textContent = SEM_MOVIMENTO
+    ? 'Seu sistema pede menos movimento: animações pesadas já estão reduzidas.'
+    : '';
+}
+function aplicarConfig(){
+  // QUALIDADE ja multiplica todo shadowBlur do jogo: zerar apaga o halo inteiro
+  QUALIDADE = save.brilho === false ? 0 : 1;
+}
+
+function renderConquistas(){
+  const g = el('conqGrid');
+  if(!g) return;
+  const feitas = save.conquistas || [];
+  el('conqN').textContent = feitas.length + '/' + CONQUISTAS.length;
+  g.innerHTML = '';
+  for(const c of CONQUISTAS){
+    const ok = feitas.includes(c.id);
+    const d = document.createElement('div');
+    d.className = 'card' + (ok ? '' : ' max');
+    d.innerHTML = '<h4>' + (ok ? c.nome : '???') +
+      ' <span style="color:' + (ok ? 'var(--ok)' : 'var(--dim)') + '">' +
+      (ok ? '✔' : c.coins + '¢') + '</span></h4><p>' + c.desc + '</p>';
+    g.appendChild(d);
+  }
+}
 
 /* ------------------------------ LOJA UI -------------------------------
    Skins continuam sendo a aba 1, com renderSkins() intacto. As duas abas novas
@@ -5890,6 +6089,12 @@ function destravarAudio(){
 }
 el('btnPlay').onclick   = () => { destravarAudio(); abrirMapa(); };
 el('btnMapaVoltar').onclick = () => mostrar('ovMenu');
+el('btnManual').onclick = () => { renderManual(); mostrar('ovManual'); };
+el('btnManualVoltar').onclick = () => mostrar('ovMenu');
+el('btnConfig').onclick = () => { renderConfig(); mostrar('ovConfig'); };
+el('btnConfigVoltar').onclick = () => mostrar('ovMenu');
+el('btnConq').onclick = () => { renderConquistas(); mostrar('ovConq'); };
+el('btnConqVoltar').onclick = () => mostrar('ovMenu');
 el('abaSkins').onclick     = () => trocarAbaLoja('skins');
 el('abaMelhorias').onclick = () => trocarAbaLoja('melhorias');
 el('abaItens').onclick     = () => trocarAbaLoja('itens');
@@ -6259,6 +6464,7 @@ ajustarAltura();
    nao ve o botao CONTINUAR nem o mini-ranking ate sair do menu e voltar. */
 atualizarContinuar();
 renderMiniRanking();
+aplicarConfig();          // brilho salvo tem que valer desde o primeiro quadro
 
 // busca o placar global e reenvia o que ficou preso offline.
 // Em modo vitrine nao: o card do portfolio e decorativo, e cada card montado
@@ -6309,10 +6515,13 @@ requestAnimationFrame(loop);
         if(Math.random() < 0.05 && typeof usarDash === 'function') usarDash(p);
       }
     } else {
-      // menu, fim de fase ou game over: segue para a proxima partida
-      // a vitrine nao navega menu: entra direto na campanha
-      if(G.estado === 'menu'){ novoJogo('solo', 1, 'campanha'); return; }
-      clicar(['btnNext','btnContinuar']);
+      /* menu, fim de fase ou game over: segue para a proxima partida.
+         CAMPANHA agora abre o mapa, entao a vitrine nao pode clicar nele --
+         entra direto na campanha. Sem `return` aqui: ele sairia da funcao
+         antes do setTimeout que reagenda o laco, e o piloto morreria no
+         primeiro quadro dentro do jogo. */
+      if(G.estado === 'menu') novoJogo('solo', 1, 'campanha');
+      else clicar(['btnNext','btnContinuar']);
       espera = 1200;
     }
     setTimeout(passo, espera);
