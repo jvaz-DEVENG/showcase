@@ -191,7 +191,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     </div>
   </div>
 
-  <footer>Fusion Rush <span class="ver">v1.0.0</span> — física própria, feito com HTML, CSS e JS puro, sem dependências.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></footer>
+  <footer>Fusion Rush <span class="ver">v1.1.0</span> — física própria, feito com HTML, CSS e JS puro, sem dependências.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></footer>
 
 <script>
 (function(){
@@ -756,17 +756,38 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     ctx.restore();
   }
 
+  // mistura duas cores hex; usado para clarear o miolo e escurecer a borda
+  // da bola sem precisar declarar tres tons por tier na tabela TIERS
+  function lerpCor(hex, alvo, f){
+    const n = parseInt(hex.slice(1), 16), a = parseInt(alvo.slice(1), 16);
+    const m = (x, y) => Math.round(x + (y - x) * f);
+    return 'rgb(' + m((n>>16)&255, (a>>16)&255) + ','
+                  + m((n>>8)&255,  (a>>8)&255)  + ','
+                  + m(n&255,       a&255)       + ')';
+  }
+
   function drawBallGlyph(x, y, r, color){
-    const grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.1, x, y, r);
-    grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(0.25, color);
-    grad.addColorStop(1, color);
+    // a versao antiga ia de branco direto para a cor chapada ate a borda:
+    // sem escurecer a beirada a bola lia como disco, nao como esfera
+    const grad = ctx.createRadialGradient(x - r*0.35, y - r*0.40, r*0.08, x, y, r);
+    grad.addColorStop(0,    lerpCor(color, '#ffffff', 0.72));
+    grad.addColorStop(0.45, color);
+    grad.addColorStop(1,    lerpCor(color, '#0b0e14', 0.42));
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI*2);
     ctx.fillStyle = grad;
     ctx.fill();
+
+    // realce especular, na mesma direcao de luz das pecas do Cosmic Crush
+    ctx.beginPath();
+    ctx.ellipse(x - r*0.35, y - r*0.42, r*0.26, r*0.17, -0.6, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = 'rgba(255,255,255,.25)';
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
     ctx.stroke();
   }
 
