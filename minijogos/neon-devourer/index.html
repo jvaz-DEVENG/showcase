@@ -498,7 +498,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         <button id="btnContinuar" style="display:none">CONTINUAR</button>
         <button class="ghost" id="btnMulti">MULTIPLAYER</button>
         <button class="ghost" id="btnPerfil">PERFIL</button>
-        <button class="ghost" id="btnSkins">SKINS</button>
+        <button class="ghost" id="btnSkins">LOJA</button>
       </div>
       <div class="legend" id="legend"></div>
 
@@ -534,9 +534,15 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
     <!-- SKINS -->
     <div class="ov" id="ovSkins" role="dialog" aria-modal="true" aria-labelledby="ovSkinsT">
-      <h2 id="ovSkinsT">SKINS</h2>
+      <h2 id="ovSkinsT">LOJA</h2>
       <p class="sub">Créditos: <b id="skCoins" style="color:var(--accent)">0</b> — ganhe devorando núcleos e completando fases.</p>
+      <div class="row" style="justify-content:center;gap:6px">
+        <button class="mini aba at" id="abaSkins" type="button">SKINS</button>
+        <button class="mini aba" id="abaMelhorias" type="button">MELHORIAS</button>
+        <button class="mini aba" id="abaItens" type="button">ITENS</button>
+      </div>
       <div class="skins" id="skGrid"></div>
+      <div class="grid" id="lojaGrid" style="display:none"></div>
       <button class="ghost" id="btnSkinsBack">VOLTAR</button>
     </div>
 
@@ -958,6 +964,37 @@ const UPGRADES2 = [
   {id:'visaonoturna', nome:'OLHOS NA ESCURIDÃO', custo:2, bioma:'blecaute',
    desc:'enxerga mais longe no escuro e os núcleos brilham', contra:'os mobs também te enxergam de mais longe'}
 ];
+/* ============================== LOJA =================================
+   Ate aqui credito so comprava skin, que e cosmetico. Sem nada util para
+   comprar, repetir fase para juntar moeda nao teria destino -- e a repescagem
+   perderia o proprio motivo.
+
+   O BALANCE calibrou o catalogo em 16.750 creditos; as skins ocupam 7.450,
+   entao estes dois grupos cabem nos ~9.300 que sobram. Melhoria e permanente e
+   vale em toda fase e todo modo; item e estoque e gasta. Nenhum dos dois da
+   poder de combate bruto: sao seguranca, informacao e economia, para nao
+   competir com os talentos, que sao a progressao de verdade. */
+const MELHORIAS = [
+  {id:'farol',   nome:'FAROL',        max:1, custo:() => 900,
+   desc:() => 'o núcleo mais próximo aparece marcado no HUD'},
+  {id:'cofre',   nome:'COFRE',        max:3, custo:n => [500,1200,2200][n],
+   desc:n => '+' + ((n+1)*8) + '% de créditos ao concluir a fase'},
+  {id:'bolso',   nome:'BOLSO FUNDO',  max:1, custo:() => 1800,
+   desc:() => '+1 vida máxima, para sempre'},
+  {id:'memoria', nome:'BOA MEMÓRIA',  max:1, custo:() => 2200,
+   desc:() => 'ao perder uma vida, metade dos núcleos da fase continua colhida'}
+];
+const ITENS = [
+  {id:'folego', nome:'FÔLEGO',             custo:150, max:5,
+   desc:'a próxima fase começa com a carga cheia'},
+  {id:'casco',  nome:'CASCO DE RESERVA',   custo:350, max:3,
+   desc:'entra na fase com um Casco já ativo'},
+  {id:'revive', nome:'NÚCLEO DE EMERGÊNCIA', custo:450, max:3,
+   desc:'devolve 1 vida quando você zeraria — uma vez por fase'}
+];
+const nivelMelhoria = id => (save.melhorias && save.melhorias[id]) || 0;
+const temItem = id => (save.itens && save.itens[id]) || 0;
+
 const CUSTO_ESTASE = 50;
 const nivelUp2 = id => (save.up2 && save.up2[id]) ? 1 : 0;
 /* A Estase nao e comprada: e o proprio premio de destravar o tier, no chefe do
@@ -1332,7 +1369,7 @@ function attr(){
     pulsoR:   3.2 + p*0.4,
     pulsoCusto: Math.round(40 * (1 - p*0.06)),
     escudos:  e,
-    vidas:    3 + Math.min(3, Math.floor(save.charLevel/4))
+    vidas:    3 + Math.min(3, Math.floor(save.charLevel/4)) + nivelMelhoria('bolso')
   };
 }
 /* O nível é POR JOGADOR. No online quem executa a habilidade é sempre o host,
@@ -1789,6 +1826,15 @@ function montarFase(){
     p.escudo = p.escudos != null ? p.escudos : attr().escudos; p.escudoT = 0;
   });
   G.player = euJogador();
+
+  /* Consumiveis sao gastos sozinhos ao entrar na fase: escolher "quando usar"
+     no meio do caos seria uma decisao ruim disfarcada de liberdade. */
+  const meu = euJogador();
+  if(meu && meu.local){
+    if(temItem('folego')){ save.itens.folego--; meu.carga = 100; toast('FÔLEGO — CARGA CHEIA'); gravarSave(); }
+    if(temItem('casco')){ save.itens.casco--; meu.buffs.casco = {t:9e9, max:9e9}; toast('CASCO DE RESERVA ATIVO'); gravarSave(); }
+    G.reviveUsado = false;
+  }
 
   const lista = tiposDaFase(G.fase);
   if(G.bioma.id === 'colmeia') lista.push('errante');      // mapa aberto pede mais
@@ -2661,6 +2707,17 @@ function devorarMob(m, p){
 }
 
 function perderVida(p){
+  /* Nucleo de Emergencia: uma vez por fase, e so quando a vida zeraria de
+     verdade -- e seguro contra o fim, nao vida extra disfarcada. */
+  if(p.local && p.vidas <= 1 && !G.reviveUsado && temItem('revive')){
+    save.itens.revive--; G.reviveUsado = true; gravarSave();
+    p.invuln = 2.2; p.morto = 0;
+    explodir(p.x, p.y, '#3dff9e', 26);
+    toast('NÚCLEO DE EMERGÊNCIA — VIDA DEVOLVIDA');
+    sfx('level');
+    atualizarHud();
+    return;
+  }
   p.vidas--;
   p.morto = 1.4;
   p.buffs = {};                       // perde as essências
@@ -2884,7 +2941,8 @@ function concluirFase(){
      enquanto se joga. */
   const replay = G.trilha === 'replay';
   if(!replay) ganharXp(100);
-  const moedas = Math.round(bonusMoedaDaFase(G.fase) * (replay ? multiplicadorRepescagem() : 1));
+  const cofre = 1 + nivelMelhoria('cofre') * 0.08;
+  const moedas = Math.round(bonusMoedaDaFase(G.fase) * (replay ? multiplicadorRepescagem() : 1) * cofre);
   save.coins += moedas; G.ganhosFase.coins += moedas;
   if(!replay){
     save.faseMax = Math.max(save.faseMax, G.fase);
@@ -5095,6 +5153,56 @@ function atualizarContinuar(){
 }
 function esconderTudo(){ mostrar(''); }
 
+/* ------------------------------ LOJA UI -------------------------------
+   Skins continuam sendo a aba 1, com renderSkins() intacto. As duas abas novas
+   dividem o mesmo grid de cards ja usado nos talentos. */
+let abaLoja = 'skins';
+function trocarAbaLoja(qual){
+  abaLoja = qual;
+  el('abaSkins').classList.toggle('at', qual === 'skins');
+  el('abaMelhorias').classList.toggle('at', qual === 'melhorias');
+  el('abaItens').classList.toggle('at', qual === 'itens');
+  el('skGrid').style.display   = qual === 'skins' ? '' : 'none';
+  el('lojaGrid').style.display = qual === 'skins' ? 'none' : '';
+  renderLoja();
+}
+function renderLoja(){
+  el('skCoins').textContent = save.coins;
+  if(abaLoja === 'skins') return renderSkins();
+  const grid = el('lojaGrid');
+  grid.innerHTML = '';
+  const permanente = abaLoja === 'melhorias';
+  for(const u of (permanente ? MELHORIAS : ITENS)){
+    const nv = permanente ? nivelMelhoria(u.id) : temItem(u.id);
+    const cheio = nv >= u.max;
+    const custo = permanente ? u.custo(nv) : u.custo;
+    const podeComprar = !cheio && save.coins >= custo;
+    const d = document.createElement('button');
+    d.type = 'button';
+    d.className = 'card' + (podeComprar ? '' : ' max');
+    d.disabled = !podeComprar;
+    d.innerHTML =
+      '<h4>' + u.nome + ' <span style="color:var(--accent)">' +
+        (cheio ? (permanente ? 'MÁXIMO' : 'CHEIO') : custo + '¢') + '</span></h4>' +
+      '<p>' + (permanente ? u.desc(nv) : u.desc) + '</p>' +
+      '<p style="color:var(--dim)">' + (permanente ? 'permanente · ' : 'estoque · ') + nv + '/' + u.max + '</p>' +
+      '<div class="pips">' + Array.from({length:u.max}, (_,i) =>
+        '<i class="' + (i < nv ? 'on' : '') + '"></i>').join('') + '</div>';
+    if(podeComprar){
+      d.onclick = () => {
+        save.coins -= custo;
+        if(permanente) save.melhorias[u.id] = nv + 1;
+        else save.itens[u.id] = nv + 1;
+        gravarSave(); sfx('up');
+        toast(u.nome + (permanente ? ' COMPRADO' : ' +1'));
+        renderLoja();
+        sincronizarAtributosLocais();
+      };
+    }
+    grid.appendChild(d);
+  }
+}
+
 /* --------------------------- MAPA DA CAMPANHA -------------------------
    Ate aqui CAMPANHA era um atalho para "comecar a fase 1". Com 10 capitulos e
    um chefe fechando cada um, o jogador precisa de um lugar que mostre onde ele
@@ -5782,10 +5890,13 @@ function destravarAudio(){
 }
 el('btnPlay').onclick   = () => { destravarAudio(); abrirMapa(); };
 el('btnMapaVoltar').onclick = () => mostrar('ovMenu');
+el('abaSkins').onclick     = () => trocarAbaLoja('skins');
+el('abaMelhorias').onclick = () => trocarAbaLoja('melhorias');
+el('abaItens').onclick     = () => trocarAbaLoja('itens');
 el('abaT1').onclick = () => trocarAbaUp('t1');
 el('abaT2').onclick = () => trocarAbaUp('t2');
 el('btnContinuar').onclick = () => { destravarAudio(); novoJogo('solo', faseDeRetomada()); };
-el('btnSkins').onclick  = () => { renderSkins(); mostrar('ovSkins'); };
+el('btnSkins').onclick  = () => { trocarAbaLoja('skins'); mostrar('ovSkins'); };
 el('btnPerfil').onclick = () => abrirPerfil();
 el('btnPerfilBack').onclick = () => {
   if(G.estado === 'perfil') G.estado = 'menu';
