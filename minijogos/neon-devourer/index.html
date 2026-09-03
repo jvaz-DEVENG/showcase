@@ -810,6 +810,31 @@ let QUALIDADE = FRACO ? 0 : 1;   // let, nao const: o ajuste de brilho reescreve
 const SEM_MOVIMENTO = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MAX_PARTS = FRACO ? 120 : 400;
 
+/* QUALIDADE ADAPTATIVA
+   FRACO e um palpite feito uma vez, no carregamento: tablet potente cai nele a
+   toa e notebook velho escapa. Entao o jogo tambem MEDE o quadro enquanto roda.
+   O brilho neon (shadowBlur, 93 ocorrencias) e de longe o item mais caro do
+   render -- desligar da +75% de quadro, medido. Se o desempenho ficar ruim por
+   alguns segundos seguidos, o jogo abre mao do brilho sozinho.
+
+   E avisa. Mexer na qualidade escondido seria o mesmo padrao escuro que a
+   doutrina proibe na loja, e a regua vale aqui tambem. Quem religar nos Ajustes
+   assume a escolha, e o automatico nao mexe mais. */
+const FPS_ALVO = 45;
+const perf = {soma:0, quadros:0, ruim:0};
+function medirQuadro(dt){
+  if(QUALIDADE === 0 || save.brilhoManual) return;
+  perf.soma += dt; perf.quadros++;
+  if(perf.quadros < 45) return;
+  const fps = perf.quadros / perf.soma;
+  perf.soma = 0; perf.quadros = 0;
+  perf.ruim = fps < FPS_ALVO ? perf.ruim + 1 : 0;
+  if(perf.ruim < 3) return;                 // ~3 janelas seguidas, nao um pico
+  QUALIDADE = 0;
+  save.brilho = false; gravarSave();
+  toast('BRILHO REDUZIDO PARA MANTER A FLUIDEZ — RELIGUE EM AJUSTES');
+}
+
 const cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
 cv.width = W; cv.height = H;
@@ -1474,7 +1499,7 @@ function saveBase(){
           conquistas:[],
           melhorias:{},           // compras permanentes da loja
           itens:{},               // consumiveis em estoque
-          tremor:true, brilho:true,       // ajustes de conforto e desempenho
+          tremor:true, brilho:true, brilhoManual:false,   // conforto e desempenho
           up2:{}, fragmentos:0,             // tier 2: moeda vinda dos chefes
           repescagem:{fase:0, vezes:0},   // decaimento por repetir a MESMA fase
           estat:{mobs:0, chefes:0, fasesSemDano:0, maiorCombo:0}};
@@ -5840,7 +5865,12 @@ function renderConfig(){
     // estado nunca e so cor: vai o rotulo LIGADO/DESLIGADO junto
     d.innerHTML = '<h4>' + o.nome + ' <span style="color:' + (on ? 'var(--ok)' : 'var(--dim)') + '">' +
                   (on ? '● LIGADO' : '○ DESLIGADO') + '</span></h4><p>' + o.desc + '</p>';
-    d.onclick = () => { o.set(!o.get()); gravarSave(); renderConfig(); sfx('up'); aplicarConfig(); };
+    d.onclick = () => {
+      o.set(!o.get());
+      // escolher o brilho na mao encerra o automatico: a decisao passa a ser sua
+      if(o.id === 'brilho'){ save.brilhoManual = true; perf.ruim = 0; }
+      gravarSave(); renderConfig(); sfx('up'); aplicarConfig();
+    };
     g.appendChild(d);
   }
   el('configAviso').textContent = SEM_MOVIMENTO
@@ -6900,6 +6930,7 @@ let ultimo = performance.now(), acumHud = 0;
 function loop(agora){
   const dt = Math.min(0.033, (agora - ultimo)/1000);
   ultimo = agora;
+  if(G.estado === 'jogando' || G.estado === 'dimensao') medirQuadro(dt);
 
   if(G.estado === 'dimensao'){
     // fora da grade a fisica e outra: o labirinto fica congelado em G, intacto
