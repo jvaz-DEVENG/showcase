@@ -408,6 +408,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   const COLS = 8, ROWS = 8, CELL = 56;
   const BOARD = COLS * CELL;            // 448 — unidade lógica do canvas
   const PAD = 4;                        // respiro interno de cada célula
+  let BRILHO_MULT = 1;          // ajuste de brilho: multiplica todo shadowBlur
   const SAVE_KEY = 'cosmic-crush.v1';
 
   // navegadores antigos não têm roundRect
@@ -476,7 +477,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
   function arteEstrela(g, x, y, r){
     g.save();
-    g.shadowColor = 'rgba(251,191,36,.75)'; g.shadowBlur = r*0.7;
+    g.shadowColor = 'rgba(251,191,36,.75)'; g.shadowBlur = BRILHO_MULT * (r*0.7);
     g.beginPath();
     for(let i = 0; i < 10; i++){
       const ang = -Math.PI/2 + i*Math.PI/5;
@@ -841,7 +842,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     g.beginPath(); g.moveTo(r*0.24, -r*0.42);
     g.quadraticCurveTo(r*0.62, -r*0.72, r*0.5, -r*0.98); g.stroke();
     g.save();
-    g.shadowColor = 'rgba(251,191,36,.95)'; g.shadowBlur = r*0.6;
+    g.shadowColor = 'rgba(251,191,36,.95)'; g.shadowBlur = BRILHO_MULT * (r*0.6);
     g.fillStyle = '#fde68a';
     g.beginPath(); g.arc(r*0.5, -r*1.02, r*0.16, 0, Math.PI*2); g.fill();
     g.restore();
@@ -851,7 +852,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   function arteFaisca(g, x, y, r){
     g.save();
     g.translate(x, y);
-    g.shadowColor = 'rgba(255,255,255,.8)'; g.shadowBlur = r*0.5;
+    g.shadowColor = 'rgba(255,255,255,.8)'; g.shadowBlur = BRILHO_MULT * (r*0.5);
     const grad = g.createLinearGradient(0, -r, 0, r);
     grad.addColorStop(0, '#ffffff'); grad.addColorStop(1, '#a78bfa');
     g.fillStyle = grad;
@@ -1221,6 +1222,11 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       boosters,
       cristais: raw.cristais == null ? 250 : inteiro(raw.cristais, 250),
       som: raw.som !== false,
+      /* Estes dois precisam estar aqui: o carregador devolve uma lista
+         explicita de campos, entao o que nao e citado some no reload -- foi
+         exatamente o que aconteceu quando a tela de Ajustes entrou. */
+      tremor: raw.tremor !== false,
+      brilho: raw.brilho !== false,
       stats,
       conquistas: obj(raw.conquistas)
     };
@@ -2432,6 +2438,12 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   }
 
   // ---------- overlays ----------
+  /* BRILHO_MULT multiplica todo shadowBlur do jogo. Desligar o halo e a
+     alavanca de desempenho mais direta que existe em canvas 2D: no Neon
+     Devourer a mesma troca rendeu +75% de quadro, medido. */
+  function aplicarBrilho(){ BRILHO_MULT = save.brilho === false ? 0 : 1; }
+
+
   function hideOverlay(){ overlay.className = 'overlay hidden'; overlay.innerHTML = ''; }
 
   function el(tag, cls, html){
@@ -2477,6 +2489,44 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     walletEl.appendChild(mudo);
   }
 
+  /* AJUSTES
+     A doutrina do estudio exige tela de configuracoes em todo jogo, e esta era
+     a unica peca da anatomia que faltava aqui. Ela nao existe so para cumprir
+     tabela: o brilho e a alavanca de desempenho que o jogador tem no proprio
+     aparelho, e o tremor e conforto de quem enjoa. */
+  function linhaAjuste(nome, ligado, desc, onToggle){
+    const card = el('button', 'card' + (ligado ? '' : ' off'));
+    card.type = 'button';
+    card.setAttribute('role', 'switch');
+    card.setAttribute('aria-checked', ligado ? 'true' : 'false');
+    // estado nunca e so cor: vai o rotulo escrito junto
+    card.innerHTML = '<b>' + nome + '</b><span class="est">' +
+                     (ligado ? '● LIGADO' : '○ DESLIGADO') + '</span><small>' + desc + '</small>';
+    card.addEventListener('click', onToggle);
+    return card;
+  }
+  function showAjustes(){
+    phase = 'ajustes';
+    disarm();
+    updateWallet();
+    const grid = el('div','menu-grid ajustes');
+    grid.appendChild(linhaAjuste('SOM', save.som !== false,
+      'efeitos e trilha, sintetizados no próprio jogo — nenhum arquivo de áudio',
+      () => { save.som = !save.som; persist(); showAjustes(); }));
+    grid.appendChild(linhaAjuste('TREMOR DE TELA', save.tremor !== false,
+      'a sacudida proporcional ao estrago das combinações',
+      () => { save.tremor = save.tremor === false; persist(); showAjustes(); }));
+    grid.appendChild(linhaAjuste('BRILHO INTENSO', save.brilho !== false,
+      'o halo das peças e dos poderes — desligue se o jogo travar no seu aparelho',
+      () => { save.brilho = save.brilho === false; persist(); aplicarBrilho(); showAjustes(); }));
+    showOverlay([
+      el('h2', null, '⚙️ Ajustes'),
+      el('p','sub','Valem para este aparelho e ficam salvos.'),
+      grid,
+      btn('◀ Voltar', 'ghost wide', showMenu)
+    ]);
+  }
+
   function showMenu(){
     phase = 'menu';
     disarm();
@@ -2489,7 +2539,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     grid.appendChild(btn('🛒 Loja', 'ghost', showShop));
     grid.appendChild(btn('👤 Perfil', 'ghost', showPerfil));
     grid.appendChild(btn('🏅 Conquistas', 'ghost', showConquistas));
-    grid.appendChild(btn('📖 Como jogar', 'ghost wide', showTutorial));
+    grid.appendChild(btn('📖 Como jogar', 'ghost', showTutorial));
+    grid.appendChild(btn('⚙️ Ajustes', 'ghost', showAjustes));
     showOverlay([
       el('h2', null, '🪐 Cosmic Crush'),
       el('div','map-total', '💎 <b>' + save.cristais + '</b> cristais · ⭐ <b>' + totalEstrelas() + '</b> estrelas'),
@@ -3085,7 +3136,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
       if(t.special){
         ctx.shadowColor = t.special === 'hole' ? '#a78bfa' : (t.t >= 0 ? TYPES[t.t].glow : '#fff');
-        ctx.shadowBlur = 14 + Math.sin(now*4 + t.id)*5;
+        ctx.shadowBlur = BRILHO_MULT * (14 + Math.sin(now*4 + t.id)*5);
       }
       drawPiece(ctx, t.t, t.special, 0, 0, rad, now, t.id);
       ctx.restore();
@@ -3121,7 +3172,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     ctx.translate(x, y);
     ctx.rotate(dir > 0 ? 0 : Math.PI);
     ctx.shadowColor = cor;
-    ctx.shadowBlur = tam*1.6;
+    ctx.shadowBlur = BRILHO_MULT * (tam*1.6);
     // chama
     const ch = ctx.createLinearGradient(-tam*2.4, 0, -tam*.4, 0);
     ch.addColorStop(0, 'rgba(251,191,36,0)');
@@ -3534,6 +3585,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   buildBoosterBar();
   updateWallet();
   fitCanvas();
+  aplicarBrilho();   // preferencia salva vale desde o primeiro quadro
   showMenu();
   rafId = requestAnimationFrame(frame);
 
