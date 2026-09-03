@@ -225,7 +225,9 @@ def smoke_neon_devourer():
 
     # FRATURA: o piso colapsa sem nunca ilhar um nucleo
     ilhados = page.evaluate("""() => {
-        novoJogo('solo', 1); G.fase = 20;
+        // 63 = capitulo 7 (FRATURA), sub-fase 3. Nao pode ser multiplo de 10:
+        // fase de chefe troca o mod do bioma pelo mod do estagio do chefe.
+        novoJogo('solo', 63, 'campanha');
         G.bioma = BIOMAS.find(b => b.id === 'fratura'); montarFase();
         G.bioma = BIOMAS.find(b => b.id === 'fratura'); G.paleta = G.bioma.cor;
         montarModificador(); G.mazeCanvas = renderMaze();
@@ -250,7 +252,7 @@ def smoke_neon_devourer():
 
     # ESTOPIM: mina e consumivel e nao cobra pedagio duas vezes
     mina = page.evaluate("""() => {
-        novoJogo('solo', 1); G.fase = 24;
+        novoJogo('solo', 73, 'campanha');          // capitulo 8 (ESTOPIM), sub-fase 3
         G.bioma = BIOMAS.find(b => b.id === 'estopim'); montarFase();
         G.bioma = BIOMAS.find(b => b.id === 'estopim'); montarModificador();
         const p = G.players[0], m = G.minas[0];

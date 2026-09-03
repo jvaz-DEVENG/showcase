@@ -197,6 +197,18 @@
   .dots i.on{opacity:1;border-color:#fff;box-shadow:0 0 7px currentColor;transform:scale(1.15)}
 
   /* placar do time (2+ jogadores) */
+  /* barra do chefe: so aparece durante a luta */
+  .chefebar{ width:100%; margin-top:6px }
+  .chefebar small{ display:flex; justify-content:space-between; align-items:baseline;
+                   font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim) }
+  .chefebar small b{ color:#ffd23f; font-size:12px }
+  .chefebar small i{ font-style:normal }
+  .bar.boss{ height:9px }
+  .bar.boss i{ background:linear-gradient(90deg,#ff3b6b,#ffd23f) }
+  /* aberto: a barra pulsa junto com a janela de mordida, para o jogador poder
+     olhar so para o campo e ainda perceber pelo canto do olho */
+  .chefebar.aberto small i{ color:#3dff9e }
+  .chefebar.aviso small i{ color:#ffd23f }
   .placar{display:flex;gap:6px;flex-wrap:wrap}
   .jog{
     display:flex;align-items:center;gap:6px;
@@ -429,6 +441,10 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         <div class="bar chg"><i id="hChg"></i></div>
       </div>
       <div class="buffs" id="hBuffs"></div>
+    </div>
+    <div class="chefebar" id="chefeBar" style="display:none">
+      <small><b id="chefeNome">CHEFE</b> <i id="chefeEstado">BLINDADO</i></small>
+      <div class="bar boss"><i id="chefeHp"></i></div>
     </div>
     <div class="placar" id="placarTime" style="display:none"></div>
   </div>
@@ -793,6 +809,43 @@ const CAPITULOS = BIOMAS.map((b, i) => ({
   faseInicial: i * FASES_POR_CAPITULO + 1,
   faseChefe: (i + 1) * FASES_POR_CAPITULO
 }));
+
+/* Os 10 chefes sao os devoradores que vieram antes: cada um comeu demais no
+   proprio bioma e ficou preso nele. A fila vai do mais recente (Faminto, que
+   ainda se parece com voce) ao mais antigo (Voraz). Nomes e frases do LORE,
+   numeros do BALANCE.
+
+   Regra de escalada: o chefe do capitulo N so usa como estagio um mod que o
+   jogador JA atravessou. Por isso o chefe 1 tem um estagio e o 10 tem tres com
+   o repertorio inteiro -- a luta final e a prova do que os capitulos ensinaram.
+   Circuito e Colmeia nao tem mod proprio, entao os dois primeiros usam so a
+   geometria do ninho. */
+const CHEFES = [
+  {cap:1,  nome:'FAMINTO',       hp:3,  ciclo:[11,5], aviso:1.20, gN:1, gInt:16,  gTipos:['cacador'],
+   estagios:[null], frase:'ELE TAMBÉM ACORDOU AQUI SEM SABER DE NADA.'},
+  {cap:2,  nome:'PROLÍFERA',     hp:4,  ciclo:[11,4], aviso:1.14, gN:2, gInt:14,  gTipos:['errante','divisor'],
+   estagios:[null], frase:'UMA FOME NÃO CABIA. VIROU MIL.'},
+  {cap:3,  nome:'GLACIAL',       hp:5,  ciclo:[10,5], aviso:1.08, gN:1, gInt:12,  gTipos:['guardiao','errante'],
+   estagios:[null,'gelo'], frase:'A FOME CONGELOU JUNTO COM ELE.'},
+  {cap:4,  nome:'RASGO',         hp:6,  ciclo:[10,4], aviso:1.02, gN:2, gInt:11,  gTipos:['emboscador'],
+   estagios:['gelo','portais'], frase:'NUNCA ESTÁ ONDE VOCÊ OLHA.'},
+  {cap:5,  nome:'FUSÍVEL',       hp:7,  ciclo:[9,5],  aviso:0.96, gN:2, gInt:10,  gTipos:['sentinela'],
+   estagios:['portais','escuro'], frase:'A LUZ FOI A PRIMEIRA COISA QUE ELE COMEU.'},
+  {cap:6,  nome:'CORRENTEZA',    hp:9,  ciclo:[9,4],  aviso:0.90, gN:2, gInt:8,   gTipos:['cacador','guardiao'],
+   estagios:['gelo','escuro','esteiras'], frase:'AS ESTEIRAS AINDA OBEDECEM O RITMO DELA.'},
+  {cap:7,  nome:'SUMIDOURO',     hp:10, ciclo:[9,4],  aviso:0.85, gN:2, gInt:7,   gTipos:['guardiao','errante'],
+   estagios:['esteiras','escuro','colapso'], frase:'CADA PASSO DELE VIRA BURACO.'},
+  {cap:8,  nome:'FAGULHA',       hp:11, ciclo:[8,4],  aviso:0.80, gN:2, gInt:6.5, gTipos:['emboscador','divisor'],
+   estagios:['colapso','portais','minas'], frase:'ELE NÃO EXPLODE. ELE SÓ ACENDE O PAVIO.'},
+  {cap:9,  nome:'INCANDESCENTE', hp:12, ciclo:[8,4],  aviso:0.75, gN:3, gInt:6,   gTipos:['sentinela','divisor'],
+   estagios:['minas','escuro','lasers'], frase:'A MORDIDA E O LASER SÃO O MESMO AVISO.'},
+  /* O Voraz e o unico com estagio sorteado: e feito dos outros nove, entao
+     muda de partida pra partida. Devora o proprio ninho -- a arena encolhe. */
+  {cap:10, nome:'VORAZ',         hp:15, ciclo:[7,4],  aviso:0.70, gN:3, gInt:5.5, gTipos:'todos',
+   estagios:['purga','*','*'], frase:'NÃO SOBROU NADA PRA COMER. SÓ VOCÊ.', devoraNinho:true}
+];
+const chefeDoCapitulo = c => CHEFES[c-1];
+const MODS_APRENDIDOS = ['gelo','portais','escuro','esteiras','colapso','minas','lasers'];
 
 const naCampanha = () => G.trilha === 'campanha' && G.fase <= FASE_FINAL;
 // 1..10 dentro do capitulo; 10 e sempre a fase do chefe
@@ -1168,6 +1221,7 @@ const G = {
   minas:[],                               // ESTOPIM: {x,y,armada,pulso}
   players:[], eu:0, modo:'solo',      // solo | coop | versus
   trilha:'infinito',                 // campanha (fases 1-100) | infinito (101+)
+  chefe:null,                        // {def, hp, hpMax, fase, t, estagio, nucleos, gT}
   player:null, mobs:[], tiros:[], parts:[],
   devorar:0, combo:0, congela:0,
   carga:0,
@@ -1659,6 +1713,7 @@ function montarFase(){
   G.tiros = []; G.parts = [];
   G.devorar = 0; G.congela = 0;
   G.players.forEach(pl => pl.combo = 0);
+  montarChefe();
   montarModificador();
   G.mazeCanvas = renderMaze();
   if(SOU_HOST()){ G.comidos = []; RT.enviar('mapa', serializarMapa()); }
@@ -1671,7 +1726,7 @@ function montarFase(){
 function montarModificador(){
   G.portais = []; G.lasers = []; G.esteiras = null; G.purgaT = 0;
   G.colapso = []; G.colapsoT = 0; G.colapsoMax = 0; G.colapsados = 0; G.minas = [];
-  const mod = G.bioma.mod;
+  const mod = G.chefe ? modDoChefe() : G.bioma.mod;
 
   if(mod === 'colapso'){
     /* Teto de 20% do chao livre: sem ele a fase vira campo de buracos e a
@@ -1762,6 +1817,160 @@ function montarModificador(){
       for(let y=1;y<ROWS-1;y++) if(G.grid[y][x] === 0) G.esteiras[y][x] = dir;
     }
   }
+}
+
+/* ========================== CHEFE DE CAPITULO =========================
+   O chefe nao ganhou um verbo novo: ele e mordido com o mesmo gesto do jogo,
+   comer. Fica no ninho e alterna entre BLINDADO (intocavel, guardioes saem) e
+   ABERTO (nasce um punhado de nucleos-chefe em volta dele; cada um comido e
+   uma mordida). Entre os dois vem o AVISO, que e a unica coisa que encolhe de
+   verdade do capitulo 1 ao 10: 1,20s no Faminto, 0,70s no Voraz. O que fica
+   dificil e ler a janela, nao aguentar dano -- mordida sempre custa 1 vida,
+   igual a todo o resto do jogo. */
+function montarChefe(){
+  G.chefe = null;
+  if(!ehFaseDeChefe(G.fase)) return;
+  const def = chefeDoCapitulo(capituloDaFase(G.fase));
+  if(!def) return;
+  const extras = Math.max(0, G.players.length - 1);
+  G.chefe = {
+    def,
+    hpMax: Math.round(def.hp * (1 + 0.35*extras)),
+    hp:    Math.round(def.hp * (1 + 0.35*extras)),
+    estagio: 0,
+    modo: 'blindado',            // blindado | aviso | aberto
+    t: def.ciclo[0],
+    gT: def.gInt,
+    nucleos: [],
+    // o Voraz sorteia os estagios 2 e 3: e o unico com variacao de replay
+    sorteio: def.estagios.map(m => m === '*'
+      ? MODS_APRENDIDOS[(Math.random()*MODS_APRENDIDOS.length)|0] : m)
+  };
+  toast(def.nome + ' — ' + def.frase);
+  sfx('power');
+}
+
+// o mod ativo durante a luta e o do estagio, nao o do bioma
+function modDoChefe(){
+  if(!G.chefe) return null;
+  return G.chefe.sorteio[Math.min(G.chefe.estagio, G.chefe.sorteio.length - 1)];
+}
+function estagioDoHp(){
+  const c = G.chefe, n = c.sorteio.length;
+  // hp cheio -> estagio 0; hp no fim -> ultimo estagio
+  return Math.min(n - 1, Math.floor((1 - c.hp / c.hpMax) * n));
+}
+
+/* Os nucleos-chefe usam pellet tipo 3: nao entram em G.restantes, senao
+   comer o chefe contaria como limpar a fase e ela terminaria sozinha. */
+function abrirChefe(){
+  const c = G.chefe;
+  c.nucleos = [];
+  const hx = (COLS-1)/2, hy = ((ROWS-1)/2)|0;
+  const quero = 3;
+  const cands = [];
+  for(let r=2; r<=5 && cands.length < 40; r++)
+    for(let dy=-r; dy<=r; dy++)
+      for(let dx=-r; dx<=r; dx++){
+        if(Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = ((hx + dx) % COLS + COLS) % COLS, y = hy + dy;
+        if(y < 1 || y >= ROWS-1) continue;
+        if(G.grid[y][x] !== 0 || G.pellets[y][x]) continue;
+        cands.push({x, y});
+      }
+  embaralhar(cands);
+  for(const t of cands.slice(0, quero)){
+    G.pellets[t.y][t.x] = 3;
+    c.nucleos.push(t);
+  }
+}
+function fecharChefe(){
+  const c = G.chefe;
+  for(const t of c.nucleos) if(G.pellets[t.y][t.x] === 3) G.pellets[t.y][t.x] = 0;
+  c.nucleos = [];
+}
+function morderChefe(p){
+  const c = G.chefe;
+  if(!c || c.hp <= 0) return;
+  c.hp--;
+  G.shake = Math.max(G.shake, 0.6);
+  explodir(centro((COLS-1)/2), centro(((ROWS-1)/2)|0), '#ffd23f', 22);
+  sfx('eat');
+  if(p) p.score += 250;
+  const novo = estagioDoHp();
+  if(novo !== c.estagio && c.hp > 0){
+    c.estagio = novo;
+    fecharChefe();
+    c.modo = 'blindado'; c.t = c.def.ciclo[0];
+    /* O Voraz devora o proprio ninho a cada troca de estagio: a arena encolhe
+       de verdade, e com voce dentro. E a mecanica dizendo o que a ficha diz. */
+    if(c.def.devoraNinho) devorarNinho();
+    montarModificador();
+    G.mazeCanvas = renderMaze();
+    toast('ESTÁGIO ' + (c.estagio + 1) + ' — ' + (modDoChefe() || 'SEM TRÉGUA').toUpperCase());
+    sfx('power');
+  }
+  if(c.hp <= 0) derrotarChefe();
+}
+function devorarNinho(){
+  // fecha um anel de tiles ao redor do ninho, sempre validando conectividade
+  const hx = (COLS-1)/2, hy = ((ROWS-1)/2)|0;
+  let fechados = 0;
+  for(let r=7; r>=5 && fechados < 14; r--)
+    for(let dy=-r; dy<=r && fechados < 14; dy++)
+      for(let dx=-r; dx<=r && fechados < 14; dx++){
+        if(Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = ((hx + dx) % COLS + COLS) % COLS, y = hy + dy;
+        if(y < 1 || y >= ROWS-1 || G.grid[y][x] !== 0) continue;
+        if(G.pellets[y][x]) continue;
+        if(!naoFragmenta(x, y)) continue;
+        G.grid[y][x] = 1; fechados++;
+      }
+}
+function derrotarChefe(){
+  const c = G.chefe;
+  fecharChefe();
+  for(let i=0;i<5;i++)
+    setTimeout(() => explodir(centro(2 + ((Math.random()*(COLS-4))|0)),
+                             centro(2 + ((Math.random()*(ROWS-4))|0)), '#ffd23f', 24), i*110);
+  G.shake = 1.2;
+  sfx('level');
+  toast(c.def.nome + ' CAIU');
+  /* Fragmento so na PRIMEIRA vez: e a moeda do segundo tier de talentos, e
+     amarrar ao primeiro abate e o que impede farmar chefe para compra-los. */
+  const id = 'cap' + c.def.cap;
+  if(naCampanha() && !(save.chefes || []).includes(id)){
+    save.chefes.push(id);
+    save.fragmentos = (save.fragmentos || 0) + 1;
+    save.estat.chefes = (save.estat.chefes || 0) + 1;
+    toast('+1 FRAGMENTO DE CHEFE');
+  }
+  G.chefe = null;
+  // o resto dos nucleos deixa de importar: derrubar o chefe fecha o capitulo
+  G.restantes = 0;
+}
+function atualizarChefe(dt){
+  const c = G.chefe;
+  if(!c || c.hp <= 0) return;
+  c.t -= dt;
+  if(c.modo === 'blindado' && c.t <= 0){ c.modo = 'aviso'; c.t = c.def.aviso; sfx('up'); }
+  else if(c.modo === 'aviso' && c.t <= 0){ c.modo = 'aberto'; c.t = c.def.ciclo[1]; abrirChefe(); sfx('phase'); }
+  else if(c.modo === 'aberto' && c.t <= 0){ c.modo = 'blindado'; c.t = c.def.ciclo[0]; fecharChefe(); }
+
+  // guardioes: mobs comuns, invocados so enquanto ele esta intocavel
+  if(c.modo !== 'blindado') return;
+  c.gT -= dt;
+  if(c.gT > 0) return;
+  /* Piso de 4s no coop: sem ele, o capitulo 10 com 4 jogadores gera guardiao
+     a cada 3,75s e vira spam ilegivel. O aviso da mordida NUNCA encolhe por
+     causa de coop -- acessibilidade nao se paga com dificuldade de leitura. */
+  const extras = Math.max(0, G.players.length - 1);
+  c.gT = Math.max(4.0, c.def.gInt * Math.pow(0.88, extras));
+  const pool = c.def.gTipos === 'todos' ? Object.keys(MOBS) : c.def.gTipos;
+  const vivos = G.mobs.filter(m => m.estado !== 'olhos').length;
+  if(vivos >= 12) return;                       // teto duro: nunca ilegivel
+  for(let i=0;i<c.def.gN;i++)
+    G.mobs.push(criarMob(pool[(Math.random()*pool.length)|0], G.mobs.length + i, false));
 }
 
 /* ---- FRATURA: o piso racha, avisa, e some ----------------------------
@@ -1985,8 +2194,10 @@ function atualizar(dt){
 
   const a = attr();
 
-  // modificadores que valem pro mapa inteiro, não por jogador
-  const modG = G.bioma ? G.bioma.mod : null;
+  // Durante a luta de chefe quem manda e o estagio, nao o bioma: e assim que
+  // o Voraz usa o repertorio inteiro sem a gente escrever hazard novo.
+  const modG = G.chefe ? modDoChefe() : (G.bioma ? G.bioma.mod : null);
+  if(G.chefe) atualizarChefe(dt);
   if(modG === 'lasers')  atualizarLasers(dt);
   if(modG === 'purga')   atualizarPurga(dt);
   if(modG === 'colapso') atualizarColapso(dt);
@@ -2022,7 +2233,8 @@ function atualizar(dt){
   atualizarTiros(dt);
   atualizarParticulas(dt);
 
-  if(G.restantes <= 0) concluirFase();
+  // Numa fase de chefe, limpar os nucleos nao fecha nada: quem fecha e o abate.
+  if(G.restantes <= 0 && !G.chefe) concluirFase();
 }
 
 function atualizarJogador(p, dt, a){
@@ -2268,8 +2480,18 @@ function coletar(p, a){
     const limite = (x === ptx && y === pty) ? 0.6 : alcance;
     if(dist > Math.max(0.55, limite)) continue;
 
-    G.pellets[y][x] = 0; G.restantes--;
+    /* Nucleo-chefe (tipo 3) nao entra em G.restantes: se entrasse, mordê-lo
+       contaria como limpar a fase e ela terminaria sozinha antes do chefe. */
+    G.pellets[y][x] = 0;
+    if(tipo !== 3) G.restantes--;
     if(SOU_HOST()) (G.comidos || (G.comidos = [])).push(y*COLS + x);
+    if(tipo === 3){
+      const c = G.chefe;
+      if(c) c.nucleos = c.nucleos.filter(t => !(t.x === x && t.y === y));
+      p.carga = Math.min(100, p.carga + 20);
+      morderChefe(p);
+      continue;
+    }
     if(tipo === 1){
       p.score += 10*mult; p.carga = Math.min(100, p.carga + 2*mult);
       if(p.local){ ganharXp(1*mult); sfx('pellet'); }
@@ -4068,6 +4290,49 @@ function desenharModificadores(){
     ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
   }
 
+  // --- CHEFE: um nucleo grande no ninho, que abre quando pode ser mordido ---
+  if(G.chefe){
+    const c = G.chefe;
+    const x = centro((COLS-1)/2), y = centro(((ROWS-1)/2)|0);
+    const aberto = c.modo === 'aberto';
+    const aviso  = c.modo === 'aviso';
+    const pulso = aviso ? Math.abs(Math.sin(G.tempo*14)) : Math.sin(G.tempo*2)*.5 + .5;
+    const cor = aberto ? '#ffd23f' : aviso ? '#ff8a3d' : '#ff3b6b';
+    ctx.save(); ctx.translate(x, y);
+    ctx.shadowColor = cor; ctx.shadowBlur = QUALIDADE*(18 + pulso*16);
+    // casca blindada: aneis fechados. aberto: os aneis se afastam
+    for(let i=0;i<3;i++){
+      ctx.strokeStyle = cor;
+      ctx.lineWidth = 3 - i*0.7;
+      ctx.globalAlpha = .85 - i*.22;
+      const r = TILE*(0.85 + i*0.30) + (aberto ? i*TILE*0.5 : 0) + pulso*3;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, G.tempo*(i%2?-1:1), G.tempo*(i%2?-1:1) + (aberto ? 5.6 : 6.28));
+      ctx.stroke();
+    }
+    // miolo
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = cor;
+    ctx.beginPath(); ctx.arc(0, 0, TILE*(0.42 + pulso*0.08), 0, 6.283); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1; ctx.shadowBlur = QUALIDADE*0;
+
+    // nucleos-chefe: losango nao, anel nao -- estrela, so deles
+    for(const t of c.nucleos){
+      const nx = centro(t.x), ny = centro(t.y);
+      ctx.save(); ctx.translate(nx, ny); ctx.rotate(G.tempo*2);
+      ctx.fillStyle = '#ffd23f'; ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = QUALIDADE*16;
+      ctx.beginPath();
+      for(let i=0;i<10;i++){
+        const ang = i*0.6283, r = i%2 ? TILE*0.16 : TILE*0.34;
+        ctx.lineTo(Math.cos(ang)*r, Math.sin(ang)*r);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.shadowBlur = QUALIDADE*0;
+    }
+  }
+
   // --- FRATURA: rachadura em raio, forma propria (nao e anel nem linha) ---
   for(const c of G.colapso){
     const x = centro(c.x), y = centro(c.y);
@@ -4554,6 +4819,17 @@ function atualizarHud(){
     b.style.color = G.bioma.corHud || G.bioma.cor;
   }
   el('hLives').textContent = meu ? ('♥'.repeat(Math.max(0, meu.vidas)) || '—') : '—';
+  const cb = el('chefeBar');
+  if(cb){
+    if(G.chefe){
+      cb.style.display = '';
+      cb.className = 'chefebar ' + G.chefe.modo;
+      el('chefeNome').textContent = G.chefe.def.nome;
+      el('chefeEstado').textContent = G.chefe.modo === 'aberto' ? 'MORDA AGORA'
+                                    : G.chefe.modo === 'aviso' ? 'ABRINDO...' : 'BLINDADO';
+      el('chefeHp').style.width = Math.max(0, (G.chefe.hp / G.chefe.hpMax) * 100) + '%';
+    }else cb.style.display = 'none';
+  }
   const faltam = Math.max(0, G.restantes | 0);
   const nc = el('hCores');
   nc.textContent = faltam;
