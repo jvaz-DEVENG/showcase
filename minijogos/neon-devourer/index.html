@@ -779,6 +779,48 @@ const BIOMAS = [
 ];
 
 // fase 1 é sempre o básico; depois libera aos poucos e nunca repete a anterior
+/* ========================= CAMPANHA ==================================
+   10 capitulos de 10 fases, um chefe fechando cada um. CAPITULOS deriva de
+   BIOMAS de proposito: crescer BIOMAS cresce a campanha sozinho, sem tocar
+   em mais nada. Da fase 101 em diante e o Modo Infinito, que e exatamente o
+   jogo que sempre existiu -- biomaDaFase() sorteando, curvas antigas. */
+const FASES_POR_CAPITULO = 10;
+const FASE_FINAL = BIOMAS.length * FASES_POR_CAPITULO;      // 100
+const CAPITULOS = BIOMAS.map((b, i) => ({
+  numero: i + 1,
+  bioma: b.id,
+  nome: 'CAPÍTULO ' + (i + 1) + ' · ' + b.nome,
+  faseInicial: i * FASES_POR_CAPITULO + 1,
+  faseChefe: (i + 1) * FASES_POR_CAPITULO
+}));
+
+const naCampanha = () => G.trilha === 'campanha' && G.fase <= FASE_FINAL;
+// 1..10 dentro do capitulo; 10 e sempre a fase do chefe
+function capituloDaFase(f){ return Math.min(CAPITULOS.length, Math.ceil(f / FASES_POR_CAPITULO)); }
+function subDaFase(f){ return ((f - 1) % FASES_POR_CAPITULO) + 1; }
+function ehFaseDeChefe(f){ return G.trilha === 'campanha' && f <= FASE_FINAL && subDaFase(f) === FASES_POR_CAPITULO; }
+function biomaDaCampanha(f){ return BIOMAS[capituloDaFase(f) - 1] || BIOMAS[0]; }
+
+/* As curvas da campanha sao dirigidas pelo CAPITULO, nao pela fase absoluta.
+   As antigas (agressaoLegado/escalaLegado) saturavam na fase 28 e 30 -- em 100
+   fases, sete capitulos inteiros teriam a mesma base. Nao da pra so esticar o
+   denominador: isso deixaria o comeco do jogo mais facil do que e hoje, e o
+   Modo Infinito herdaria a mudanca. Entao a campanha ganhou curva propria, e
+   ela COLAPSA algebricamente na antiga no capitulo 1 -- medido fase a fase,
+   quem joga o comeco nao sente diferenca nenhuma. */
+function agressaoCampanha(f){
+  const cap = capituloDaFase(f), sub = subDaFase(f);
+  return Math.max(0, Math.min(1, (cap - 1) / 9 * 0.9 + Math.max(0, sub - 8) / 20));
+}
+function escalaCampanha(f){
+  const cap = capituloDaFase(f), sub = subDaFase(f);
+  return 4.5 + Math.min(10, sub) * 0.13 + Math.max(0, cap - 1) * 0.20;
+}
+function bonusMoedaDaFase(f){
+  if(G.trilha !== 'campanha' || f > FASE_FINAL) return 40 + f*15;   // Modo Infinito: como sempre foi
+  return 40 + subDaFase(f)*15 + Math.max(0, capituloDaFase(f) - 1)*22;
+}
+
 function biomaDaFase(n, anterior){
   if(n <= 1) return BIOMAS[0];
   const liberados = BIOMAS.slice(0, Math.min(BIOMAS.length, 1 + Math.ceil(n/1.5)));
@@ -821,7 +863,16 @@ let save = carregarSave();
 function saveBase(){
   return {charLevel:1, xp:0, pontos:0, coins:0, skin:'plasma',
           skins:['plasma'], cores:{}, up:{}, recorde:0, faseMax:1, som:true,
-          ranking:[], nome:'', ultimoNome:'', pendentes:[]};
+          ranking:[], nome:'', ultimoNome:'', pendentes:[],
+          /* Campanha e loja. Campo novo aqui e preenchido sozinho para quem
+             ja joga: carregarSave() faz Object.assign(saveBase(), s). */
+          campanhaMax:0,          // maior fase de campanha concluida (0 = nunca jogou)
+          campanhaFim:false,      // ja derrotou o Voraz ao menos uma vez
+          chefes:[],              // ids de capitulo cujo chefe ja caiu
+          conquistas:[],
+          melhorias:{},           // compras permanentes da loja
+          itens:{},               // consumiveis em estoque
+          estat:{mobs:0, chefes:0, fasesSemDano:0, maiorCombo:0}};
 }
 function carregarSave(){
   try{
@@ -1116,6 +1167,7 @@ const G = {
   colapso:[], colapsoMax:0, colapsoT:0,   // FRATURA: tiles rachando e o teto do estrago
   minas:[],                               // ESTOPIM: {x,y,armada,pulso}
   players:[], eu:0, modo:'solo',      // solo | coop | versus
+  trilha:'infinito',                 // campanha (fases 1-100) | infinito (101+)
   player:null, mobs:[], tiros:[], parts:[],
   devorar:0, combo:0, congela:0,
   carga:0,
@@ -1319,7 +1371,8 @@ function criarMob(tipo, idx, mini){
   /* Sobe rápido até a fase 10 (como antes) e SEGUE subindo devagar depois.
      O Math.min(10,...) antigo era um teto: da fase 11 em diante nada mudava. */
   const f = G.fase;
-  const escala = 4.5 + Math.min(10, f)*0.13 + Math.max(0, Math.min(30, f) - 10)*0.022;
+  const escala = naCampanha() ? escalaCampanha(f)
+              : 4.5 + Math.min(10, f)*0.13 + Math.max(0, Math.min(30, f) - 10)*0.022;
   const ag = agressao();
   return {
     tipo, cor: base.cor,
@@ -1524,7 +1577,8 @@ function tiposDaFase(n){
 /* AGRESSIVIDADE: 0 até a fase 8, 1 na 28. É o segundo eixo de dificuldade.
    Antes só existia velocidade, e ela travava na fase 10 — da 11 em diante o
    jogo era literalmente idêntico para sempre. */
-const agressao = () => Math.max(0, Math.min(1, (G.fase - 8) / 20));
+const agressaoLegado = f => Math.max(0, Math.min(1, (f - 8) / 20));
+const agressao = () => naCampanha() ? agressaoCampanha(G.fase) : agressaoLegado(G.fase);
 
 // conta tiles jogáveis (fora do ninho) para descartar labirintos apertados
 function contarLivres(g, casa){
@@ -1539,7 +1593,10 @@ function contarLivres(g, casa){
 function montarFase(){
   // o flood fill às vezes derruba metade do mapa (ou isola o ninho, e aí os
   // mobs nascem dentro da parede): gera de novo até vir um labirinto bom
-  G.bioma = biomaDaFase(G.fase, G.bioma && G.bioma.id);
+  /* Na campanha o bioma e o do capitulo, nao sorteado: o capitulo E o bioma.
+     No Modo Infinito continua sorteando entre os 10 liberados, como sempre. */
+  G.bioma = naCampanha() ? biomaDaCampanha(G.fase)
+                         : biomaDaFase(G.fase, G.bioma && G.bioma.id);
 
   const hx = (COLS-1)/2, hy = ((ROWS-1)/2)|0;
   let m = null, melhor = null, melhorN = -1;
@@ -2481,9 +2538,13 @@ function concluirFase(){
   G.players.forEach(p => { if(!p.fora) p.score += bonus; });
   G.score = euJogador() ? euJogador().score : 0;
   ganharXp(100);
-  const moedas = 40 + G.fase*15;
+  const moedas = bonusMoedaDaFase(G.fase);
   save.coins += moedas; G.ganhosFase.coins += moedas;
   save.faseMax = Math.max(save.faseMax, G.fase);
+  if(naCampanha()){
+    save.campanhaMax = Math.max(save.campanhaMax || 0, G.fase);
+    if(G.fase === FASE_FINAL) save.campanhaFim = true;
+  }
   G.fase++;
   gravarSave();
   sfx('level');
@@ -4853,9 +4914,12 @@ function montarTime(){
   G.player = euJogador();
 }
 
-function novoJogo(modo, faseInicial){
+function novoJogo(modo, faseInicial, trilha){
   G.modo = modo || 'solo';
   G.fase = Math.max(1, faseInicial || 1); G.score = 0;
+  /* Sem trilha explicita: fase dentro do alcance da campanha e campanha.
+     Assim o multiplayer e o retry antigos continuam funcionando sem mudanca. */
+  G.trilha = trilha || (G.fase <= FASE_FINAL ? 'campanha' : 'infinito');
   G.players = [];
   montarTime();
   G.ganhosFase = {xp:0, coins:0, pontos:0};
