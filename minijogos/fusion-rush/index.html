@@ -77,6 +77,15 @@
   }
   .stat b{ display:block; font-size:18px; }
   .stat span{ display:block; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  .stat.next{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px 8px }
+  .stat.next canvas{ display:block }
+  .som{
+    margin-left:auto; background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; width:34px; height:34px; font-size:15px; cursor:pointer;
+    color:inherit; line-height:1;
+  }
+  .som:hover{ border-color:var(--accent) }
+  .som:focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
   #combo-stat b{ color:var(--accent-2); }
   #score-stat b{ color:var(--accent); }
 
@@ -180,6 +189,9 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     <div class="stat" id="score-stat"><b id="score-val">0</b><span>Pontos</span></div>
     <div class="stat" id="combo-stat"><b id="combo-val">x1</b><span>Combo</span></div>
     <div class="stat" id="level-stat"><b id="level-val">T1</b><span>Maior nível</span></div>
+    <!-- prévia: sem ver a próxima, escolher coluna é reagir, não planejar -->
+    <div class="stat next" id="next-stat"><canvas id="next-cv" width="34" height="34"></canvas><span>Próxima</span></div>
+    <button class="som" id="som-btn" type="button">🔊</button>
   </div>
 
   <div class="stage">
@@ -210,6 +222,86 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   const DANGER_Y = 78;
   const GRAVITY = 1500;
   const HOVER_Y = 34;
+  /* ============================ ÁUDIO ==============================
+     O jogo nao tinha som nenhum -- e a fusao, que e o momento central, era
+     silenciosa. Duas bolhas sumiam e uma maior aparecia, sem nada confirmar
+     que aquilo foi bom. Sobrava so o "+N" na tela, e o proprio LOOP diz que
+     um gesto que so funciona com numero subindo esta errado.
+
+     Tudo sintetizado em Web Audio, nenhum arquivo: o jogo continua sendo um
+     index.html unico. E a nota SOBE com o tier -- fundir T7 soa mais alto e
+     mais rico que fundir T1, entao o ouvido aprende a escala do jogo sem
+     ninguem explicar. */
+  let AC = null;
+  function audioCtx(){
+    if(AC) return AC;
+    try{ AC = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ AC = null; }
+    return AC;
+  }
+  // escala pentatonica: qualquer combinacao de tiers soa consonante junta,
+  // e as fusoes em cadeia acontecem quase no mesmo instante
+  const NOTAS = [196.0, 220.0, 261.6, 293.7, 349.2, 392.0, 523.3, 587.3];
+
+  function tom(freq, dur, tipo, vol, quando){
+    if(!somLigado()) return;
+    const ac = audioCtx();
+    if(!ac) return;
+    if(ac.state === 'suspended') ac.resume();
+    const t0 = ac.currentTime + (quando || 0);
+    const osc = ac.createOscillator(), g = ac.createGain();
+    osc.type = tipo || 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(ac.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  }
+  function ruido(dur, vol, corte){
+    if(!somLigado()) return;
+    const ac = audioCtx();
+    if(!ac) return;
+    if(ac.state === 'suspended') ac.resume();
+    const n = Math.floor(ac.sampleRate * dur);
+    const buf = ac.createBuffer(1, n, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i] = (Math.random()*2 - 1) * (1 - i/n);
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = corte || 900;
+    const g = ac.createGain(); g.gain.value = vol;
+    src.connect(f); f.connect(g); g.connect(ac.destination);
+    src.start();
+  }
+
+  function sfx(nome, arg){
+    switch(nome){
+      case 'drop':
+        tom(150 + (arg||0)*8, 0.07, 'triangle', 0.05);
+        break;
+      case 'fusao': {
+        // arg = tier resultante. Duas notas: a fundamental e a quinta acima.
+        const i = Math.max(0, Math.min(NOTAS.length-1, arg|0));
+        tom(NOTAS[i], 0.20, 'sine', 0.10);
+        tom(NOTAS[i]*1.5, 0.16, 'triangle', 0.05, 0.035);
+        break;
+      }
+      case 'combo':
+        // sobe junto com o multiplicador: o combo se ouve, nao so se le
+        tom(660 + (arg||1)*90, 0.09, 'square', 0.035);
+        break;
+      case 'topo':
+        // fusao do tier maximo: acorde curto, o momento mais raro do jogo
+        [0,3,5,7].forEach((k,idx) => tom(NOTAS[4] * Math.pow(2, k/12), 0.28, 'sine', 0.08, idx*0.05));
+        break;
+      case 'gatoTenta': ruido(0.14, 0.05, 1400); break;
+      case 'gatoPega':  tom(320, 0.10, 'sawtooth', 0.07); tom(180, 0.22, 'sawtooth', 0.06, 0.06); break;
+      case 'gatoErra':  tom(520, 0.07, 'square', 0.04); break;
+      case 'poder':     [523,659,784].forEach((f,i) => tom(f, 0.14, 'triangle', 0.06, i*0.06)); break;
+      case 'perigo':    tom(110, 0.30, 'sawtooth', 0.05); break;
+      case 'fim':       [392,349,294,196].forEach((f,i) => tom(f, 0.34, 'sine', 0.08, i*0.13)); ruido(0.5, 0.05, 500); break;
+    }
+  }
+
   const DROP_COOLDOWN = 380;
   const COMBO_WINDOW = 1300;
   const BEST_KEY = 'fusionRushBest';
@@ -326,6 +418,27 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   let catSteals = 0;
   let failStreak = 0;
 
+  /* O som nasce LIGADO, mas a preferencia fica salva. Chave separada do
+     recorde de proposito: BEST_KEY guarda um numero cru e trocar o formato
+     dele quebraria o recorde de quem ja joga. */
+  const SOM_KEY = 'fusionRushSom';
+  let som = localStorage.getItem(SOM_KEY) !== '0';
+  function somLigado(){ return som; }
+  function alternarSom(){
+    som = !som;
+    try{ localStorage.setItem(SOM_KEY, som ? '1' : '0'); }catch(e){}
+    atualizarBotaoSom();
+    if(som) sfx('combo', 1);            // devolve um retorno audivel ao ligar
+  }
+  function atualizarBotaoSom(){
+    const b = document.getElementById('som-btn');
+    if(!b) return;
+    b.textContent = som ? '🔊' : '🔇';
+    b.title = som ? 'Desligar o som (M)' : 'Ligar o som (M)';
+    b.setAttribute('aria-label', b.title);
+    b.setAttribute('aria-pressed', som ? 'false' : 'true');
+  }
+
   function getBest(){ return Number(localStorage.getItem(BEST_KEY) || 0); }
   function setBest(v){ localStorage.setItem(BEST_KEY, String(v)); }
 
@@ -333,6 +446,33 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     scoreVal.textContent = score;
     comboVal.textContent = 'x' + multiplier;
     levelVal.textContent = 'T' + (highestTier + 1);
+  }
+
+  /* Desenha o tier que vem DEPOIS do pendente. Sem isso o jogador so reage a
+     bola de agora; com isso ele escolhe coluna pensando em duas jogadas. */
+  function desenharProxima(){
+    const cv = document.getElementById('next-cv');
+    if(!cv) return;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, cv.width, cv.height);
+    if(!running) return;
+    const t = spawnQueue[queuePos];
+    if(t == null) return;
+    const cor = TIERS[t].color;
+    const cx = cv.width/2, cy = cv.height/2;
+    // raio proporcional ao tier, com teto: cabe no slot e ainda mostra o porte
+    const r = 6 + Math.min(9, TIERS[t].r * 0.13);
+    const grad = g.createRadialGradient(cx - r*0.3, cy - r*0.35, r*0.15, cx, cy, r);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.35, cor);
+    grad.addColorStop(1, cor);
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI*2); g.fill();
+    // o numero do tier vai junto: cor sozinha nao serve para quem nao separa matiz
+    g.fillStyle = '#06070d';
+    g.font = 'bold 11px system-ui, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(t + 1), cx, cy + 0.5);
   }
 
   function spawnPending(){
@@ -363,7 +503,9 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       power: !!pending.power,
       landed: false
     });
+    sfx('drop', TIERS[tierIdx].r);
     spawnPending();
+    desenharProxima();
   }
 
   function addScore(tierIdx, bonusMult){
@@ -512,6 +654,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
           const gained = addScore(tierIdx, 3);
           spawnPopup(midX, midY, '+' + gained);
           highestTier = Math.max(highestTier, tierIdx);
+          sfx('topo');
           continue;
         }
 
@@ -528,6 +671,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         const gained = addScore(tierIdx, 1);
         spawnPopup(midX, midY, '+' + gained);
         highestTier = Math.max(highestTier, newTierIdx);
+          sfx('fusao', newTierIdx);
+          if(multiplier > 1) sfx('combo', multiplier);
       }
     }
 
@@ -537,7 +682,10 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       const speed = Math.abs(b.vx) + Math.abs(b.vy);
       if(b.y - b.r < DANGER_Y && speed < 25){ danger = true; break; }
     }
+    const perigoAntes = dangerTimer > 0;
     dangerTimer = danger ? dangerTimer + dt * 1000 : 0;
+    // toca uma vez ao ENTRAR no perigo, nao a cada quadro enquanto durar
+    if(dangerTimer > 0 && !perigoAntes) sfx('perigo');
     if(dangerTimer > 1000){
       endGame();
     }
@@ -590,6 +738,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
           pawReach = 0;
           catMood = 'normal';
           pawState = 'reach';
+          sfx('gatoTenta');
         }
       }
       return;
@@ -623,6 +772,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
           spawnBurst(target.x, target.y, TIERS[target.tier].color);
           spawnPopup(target.x, target.y - target.r - 8, '🐾 pegou!');
           powerBallPending = true;
+          sfx('gatoPega');
           catSteals += 1;
           failStreak = 0;
         } else {
@@ -640,6 +790,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
               spawnBurst(biggest.x, biggest.y, '#f87171');
               spawnPopup(biggest.x, biggest.y - biggest.r - 10, '😾 MIAU!');
               catMood = 'angry';
+              sfx('gatoPega');
             }
             failStreak = 0;
           }
@@ -961,6 +1112,12 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     return `Fusion Rush #${dayNumber} — ${finalScore} pts\n${squares}`;
   }
 
+  document.getElementById('som-btn').addEventListener('click', alternarSom);
+  window.addEventListener('keydown', e => {
+    if(e.code === 'KeyM'){ alternarSom(); e.preventDefault(); }
+  });
+  atualizarBotaoSom();
+
   function startGame(){
     reiniciarDia();          // toda tentativa do dia joga a MESMA sequencia
     balls = [];
@@ -983,11 +1140,13 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     running = true;
     overlay.remove();
     spawnPending();
+    desenharProxima();
     updateHud();
     rafId = requestAnimationFrame(loop);
   }
 
   function endGame(){
+    sfx('fim');
     running = false;
     cancelAnimationFrame(rafId);
 
