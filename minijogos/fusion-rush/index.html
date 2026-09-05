@@ -79,6 +79,31 @@
   .stat span{ display:block; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
   .stat.next{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px 8px }
   .stat.next canvas{ display:block }
+  /* mapa das estantes */
+  .estante{ width:100%; max-width:320px; margin:0 0 10px }
+  .estante h3{
+    margin:0 0 5px; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    display:flex; justify-content:space-between; align-items:baseline;
+  }
+  .potes{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px }
+  .pote{
+    font:inherit; color:inherit; border:1px solid var(--line); border-radius:9px;
+    background:var(--panel); padding:6px 2px 5px; cursor:pointer; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+  }
+  .pote:hover:not(.travado){ border-color:var(--accent) }
+  .pote:focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
+  /* travado ganha cadeado e borda tracejada: cor sozinha nao comunica estado */
+  .pote.travado{ cursor:not-allowed; border-style:dashed; opacity:.55 }
+  .pote b{ font-size:12px; line-height:1 }
+  .pote .estrelas{ font-size:9px; letter-spacing:1px; color:var(--muted) }
+  .pote .estrelas.tem{ color:#fbbf24 }
+  .modo-row{ display:flex; gap:8px; width:100%; max-width:320px }
+  .modo-row button{ flex:1 }
+  .obj-tag{
+    font-size:11px; color:var(--muted); background:var(--panel);
+    border:1px solid var(--line); border-radius:999px; padding:3px 10px; margin-top:2px;
+  }
   .som{
     margin-left:auto; background:var(--panel); border:1px solid var(--line);
     border-radius:8px; width:34px; height:34px; font-size:15px; cursor:pointer;
@@ -212,7 +237,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
   const canvas = document.getElementById('arena');
   const ctx = canvas.getContext('2d');
-  const overlay = document.getElementById('overlay');
+  let overlay = document.getElementById('overlay');   // let: as telas trocam o overlay
   const scoreVal = document.getElementById('score-val');
   const comboVal = document.getElementById('combo-val');
   const levelVal = document.getElementById('level-val');
@@ -317,8 +342,11 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
      sequencia E a mesma quantidade -- e ai o placar do dia passa a significar
      algo. E a derrota continua existindo: transbordar antes do fim e falhar,
      chegar ao fim e completar. O teto e o objetivo, nao a saida. */
-  const BOLHAS_POR_PARTIDA = 65;
+  const BOLHAS_DIARIO = 65;
+  // na campanha quem manda e o orcamento do pote: menos bolhas e mais dificil
+  const bolhasDaPartida = () => (modo === 'campanha' && poteAtual) ? poteAtual.bolhas : BOLHAS_DIARIO;
   let bolhasSoltas = 0;
+  let multiplicadorMax = 1;      // o maior combo alcancado na partida
 
   const DROP_COOLDOWN = 380;
   const COMBO_WINDOW = 1300;
@@ -557,6 +585,87 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     }
   }
 
+  /* ========================== AS ESTANTES ==========================
+     Um jogo de merge nao tem mapa -- nao ha cenario pra atravessar. Entao a
+     campanha nao e uma trilha, e uma sequencia de POTES: cada fase e o mesmo
+     pote com um objetivo diferente e um orcamento de bolhas proprio. O pote e
+     o cenario.
+
+     O objetivo SEMPRE soma sobre "aguente ate o fim". Nenhum pote pode ser
+     perdido por nao cumprir o extra -- transbordar continua sendo a unica
+     derrota, igual ao resto do jogo. Cumprir da estrela; nao cumprir so nao da.
+
+     Orcamento menor e mais dificil, nao mais facil: menos bolhas para alcancar
+     o mesmo tier obriga a nao desperdicar nenhuma. */
+  const ESTANTES = [
+    {nome:'PRATELEIRA BAIXA', cor:'#4ade80', potes:[
+      {id:'e1p1', bolhas:40, obj:'tier',   alvo:4, txt:'alcance uma bolha T4'},
+      {id:'e1p2', bolhas:45, obj:'pontos', alvo:300, txt:'faça 300 pontos'},
+      {id:'e1p3', bolhas:40, obj:'combo',  alvo:3, txt:'chegue ao combo x3'},
+      {id:'e1p4', bolhas:35, obj:'tier',   alvo:5, txt:'alcance uma bolha T5'},
+      {id:'e1p5', bolhas:45, obj:'semRoubo', alvo:0, txt:'termine sem o gato roubar nada'}
+    ]},
+    {nome:'ARMÁRIO DO MEIO', cor:'#2dd4bf', potes:[
+      {id:'e2p1', bolhas:50, obj:'pontos', alvo:900, txt:'faça 900 pontos'},
+      {id:'e2p2', bolhas:40, obj:'tier',   alvo:6, txt:'alcance uma bolha T6'},
+      {id:'e2p3', bolhas:45, obj:'combo',  alvo:4, txt:'chegue ao combo x4'},
+      {id:'e2p4', bolhas:35, obj:'pontos', alvo:800, txt:'faça 800 pontos em 35 bolhas'},
+      {id:'e2p5', bolhas:50, obj:'bloqueio', alvo:3, txt:'bloqueie o gato 3 vezes'}
+    ]},
+    {nome:'ESTANTE ALTA', cor:'#38bdf8', potes:[
+      {id:'e3p1', bolhas:55, obj:'tier',   alvo:7, txt:'alcance uma bolha T7'},
+      {id:'e3p2', bolhas:45, obj:'pontos', alvo:1600, txt:'faça 1600 pontos'},
+      {id:'e3p3', bolhas:40, obj:'combo',  alvo:5, txt:'chegue ao combo x5'},
+      {id:'e3p4', bolhas:50, obj:'semRoubo', alvo:1, txt:'termine com no máximo 1 roubo'},
+      {id:'e3p5', bolhas:60, obj:'tier',   alvo:8, txt:'alcance a bolha T8'}
+    ]},
+    {nome:'O ALTO DO ARMÁRIO', cor:'#818cf8', potes:[
+      {id:'e4p1', bolhas:45, obj:'pontos', alvo:2400, txt:'faça 2400 pontos'},
+      {id:'e4p2', bolhas:40, obj:'tier',   alvo:7, txt:'alcance T7 em só 40 bolhas'},
+      {id:'e4p3', bolhas:55, obj:'bloqueio', alvo:6, txt:'bloqueie o gato 6 vezes'},
+      {id:'e4p4', bolhas:35, obj:'combo',  alvo:5, txt:'combo x5 em 35 bolhas'},
+      {id:'e4p5', bolhas:65, obj:'tier',   alvo:8, txt:'alcance T8 sem transbordar'}
+    ]}
+  ];
+  const TODOS_POTES = ESTANTES.flatMap(e => e.potes);
+  const poteDe = id => TODOS_POTES.find(x => x.id === id);
+  const indiceDoPote = id => TODOS_POTES.findIndex(x => x.id === id);
+  // liberado enquanto o anterior tiver ao menos 1 estrela
+  function poteLiberado(id){
+    const i = indiceDoPote(id);
+    if(i <= 0) return true;
+    return (save.potes[TODOS_POTES[i-1].id] || 0) >= 1;
+  }
+
+  let modo = 'diario';        // diario | campanha
+  let poteAtual = null;
+
+  /* Estrelas: 1 por cumprir, 2 por cumprir com folga, 3 por cumprir sem o gato
+     levar nada. A terceira e a unica que exige jogar contra o gato, e nao so
+     contra o pote -- e o que faz valer a pena aprender o contra-toque. */
+  function estrelasDoPote(pote, ok, valor, roubos){
+    if(!ok) return 0;
+    let e = 1;
+    if(valor >= pote.alvo * 1.25) e = 2;
+    if(roubos === 0) e = Math.max(e, 2);
+    if(valor >= pote.alvo * 1.25 && roubos === 0) e = 3;
+    return e;
+  }
+  function valorDoObjetivo(pote){
+    switch(pote.obj){
+      case 'tier':     return highestTier + 1;
+      case 'pontos':   return score;
+      case 'combo':    return multiplicadorMax;
+      case 'semRoubo': return catSteals <= pote.alvo ? pote.alvo + 1 : 0;
+      case 'bloqueio': return contraToques;
+    }
+    return 0;
+  }
+  function objetivoCumprido(pote){
+    if(pote.obj === 'semRoubo') return catSteals <= pote.alvo;
+    return valorDoObjetivo(pote) >= pote.alvo;
+  }
+
   const SOM_KEY = 'fusionRushSom';
   let som = localStorage.getItem(SOM_KEY) !== '0';
   function somLigado(){ return som; }
@@ -584,7 +693,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     levelVal.textContent = 'T' + (highestTier + 1);
     const rv = document.getElementById('restam-val');
     if(rv){
-      const faltam = Math.max(0, BOLHAS_POR_PARTIDA - bolhasSoltas);
+      const faltam = Math.max(0, bolhasDaPartida() - bolhasSoltas);
       rv.textContent = faltam;
       // ultimas 10: vira alerta, e quando cada coluna escolhida pesa mais
       rv.style.color = faltam === 0 ? 'var(--muted)' : faltam <= 10 ? '#fbbf24' : '';
@@ -669,7 +778,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     });
     sfx('drop', TIERS[tierIdx].r);
     bolhasSoltas++;
-    if(bolhasSoltas >= BOLHAS_POR_PARTIDA){
+    if(bolhasSoltas >= bolhasDaPartida()){
       /* Deixa a ultima cair e assentar antes de fechar o placar -- encerrar no
          instante do toque roubaria a fusao que ela ainda vai causar. */
       pending = null;
@@ -691,6 +800,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     }
     lastMergeTime = nowT;
     multiplier = Math.min(6, combo);
+    multiplicadorMax = Math.max(multiplicadorMax, multiplier);
     const gained = Math.round(TIERS[tierIdx].pts * multiplier * (bonusMult || 1));
     score += gained;
     updateHud();
@@ -1413,9 +1523,9 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     }
     /* O simbolo diz de cara se a pessoa aguentou as 65 ou transbordou antes --
        sem isso, dois placares iguais contariam historias diferentes. */
-    const marca = bolhasSoltas >= BOLHAS_POR_PARTIDA
+    const marca = bolhasSoltas >= bolhasDaPartida()
       ? '✅ completou'
-      : '💥 ' + bolhasSoltas + '/' + BOLHAS_POR_PARTIDA;
+      : '💥 ' + bolhasSoltas + '/' + bolhasDaPartida();
     return `Fusion Rush #${dayNumber} — ${finalScore} pts · ${marca}\n${squares}`;
   }
 
@@ -1425,9 +1535,73 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   });
   atualizarBotaoSom();
 
+  /* A tela inicial passa a ter duas portas. O Desafio do Dia continua sendo o
+     que sempre foi -- 65 bolhas, semente da data, igual pra todo mundo -- e a
+     Campanha e a progressao. Separados de proposito: talento e poder futuros
+     valem so na campanha, para nunca contaminar a comparacao do dia. */
+  function telaInicial(){
+    const ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.id = 'overlay';
+    const feitos = Object.keys(save.potes || {}).length;
+    ov.innerHTML =
+      '<h2>Fusion Rush</h2>' +
+      '<p>Funda as bolhas iguais. Toque na pata do gato pra bloquear o roubo.</p>' +
+      '<div class="modo-row">' +
+        '<button id="btn-diario">🗓️ Desafio do dia</button>' +
+        '<button id="btn-campanha" class="ghost">🧺 Campanha</button>' +
+      '</div>' +
+      '<p class="best-line">Recorde <b>' + save.recorde + '</b> · nível <b>' + save.nivel +
+        '</b> · 🪙 <b>' + save.contas + '</b>' +
+        (feitos ? ' · ' + feitos + '/' + TODOS_POTES.length + ' potes' : '') + '</p>';
+    canvas.parentElement.appendChild(ov);
+    overlay = ov;
+    document.getElementById('btn-diario').addEventListener('click', () => {
+      modo = 'diario'; poteAtual = null; ov.remove(); startGame();
+    });
+    document.getElementById('btn-campanha').addEventListener('click', () => {
+      ov.remove(); telaCampanha();
+    });
+  }
+
+  function telaCampanha(){
+    const ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.id = 'overlay';
+    let html = '<h2>🧺 Campanha</h2><p>Cada pote tem um objetivo. Transbordar continua sendo a única derrota — o objetivo só decide as estrelas.</p>';
+    for(const est of ESTANTES){
+      const ganhas = est.potes.reduce((a,x) => a + (save.potes[x.id] || 0), 0);
+      html += '<div class="estante"><h3><span style="color:' + est.cor + '">' + est.nome + '</span>' +
+              '<span style="color:var(--muted)">' + ganhas + '/' + (est.potes.length*3) + ' ★</span></h3><div class="potes">';
+      for(const pt of est.potes){
+        const e = save.potes[pt.id] || 0;
+        const travado = !poteLiberado(pt.id);
+        html += '<button class="pote' + (travado ? ' travado' : '') + '" data-pote="' + pt.id + '"' +
+                (travado ? ' aria-disabled="true"' : '') + ' title="' + pt.txt + ' · ' + pt.bolhas + ' bolhas">' +
+                '<b>' + (travado ? '🔒' : pt.id.slice(-1)) + '</b>' +
+                '<span class="estrelas' + (e ? ' tem' : '') + '">' + (e ? '★'.repeat(e) : '☆☆☆') + '</span></button>';
+      }
+      html += '</div></div>';
+    }
+    html += '<button class="ghost" id="btn-voltar">Voltar</button>';
+    ov.innerHTML = html;
+    canvas.parentElement.appendChild(ov);
+    overlay = ov;
+    ov.querySelectorAll('.pote:not(.travado)').forEach(b => {
+      b.addEventListener('click', () => {
+        poteAtual = poteDe(b.dataset.pote);
+        modo = 'campanha';
+        ov.remove();
+        startGame();
+      });
+    });
+    document.getElementById('btn-voltar').addEventListener('click', () => { ov.remove(); telaInicial(); });
+  }
+
   function startGame(){
     reiniciarDia();          // toda tentativa do dia joga a MESMA sequencia
     bolhasSoltas = 0;
+    multiplicadorMax = 1;
     pawBloqueado = false; contraToques = 0; pawFlash = 0;
     balls = [];
     particles = [];
@@ -1469,6 +1643,19 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
        de MATERIAL trabalhado -- bolhas soltas e o tier que voce alcancou --,
        entao quem chega ao fim das 65 ganha mais que quem transbordou cedo,
        mesmo com placar parecido. */
+    /* Na campanha o objetivo do pote decide as estrelas. Ele SOMA sobre
+       "aguente ate o fim" -- nao cumprir nunca impede de terminar. */
+    let linhaObj = '';
+    if(modo === 'campanha' && poteAtual){
+      const ok = objetivoCumprido(poteAtual);
+      const est = estrelasDoPote(poteAtual, ok, valorDoObjetivo(poteAtual), catSteals);
+      const antes = save.potes[poteAtual.id] || 0;
+      if(est > antes) save.potes[poteAtual.id] = est;
+      if((save.melhor[poteAtual.id] || 0) < finalScore) save.melhor[poteAtual.id] = finalScore;
+      linhaObj = '<p class="best-line">' + (ok ? '✅' : '❌') + ' ' + poteAtual.txt +
+                 ' · ' + (est ? '★'.repeat(est) + '☆'.repeat(3-est) : '☆☆☆') +
+                 (est > antes && antes ? ' <b>(recorde!)</b>' : '') + '</p>';
+    }
     const contas = Math.round(bolhasSoltas * 1.5 + highestTier * 14 + (completou ? 60 : 0));
     save.contas += contas;
     ganharXp(Math.round(bolhasSoltas + highestTier * 8 + (completou ? 40 : 0)));
@@ -1489,14 +1676,16 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     const end = document.createElement('div');
     end.className = 'overlay';
     end.innerHTML = `
-      <h2>🫧 O pote transbordou!</h2>
+      <h2>${completou ? '🫧 Aguentou até o fim!' : '🫧 O pote transbordou!'}</h2>
       <div class="big-score">${finalScore}</div>
       <p class="best-line">Recorde: <b>${isNewBest ? finalScore : best}</b> pontos${save.diario.sequencia > 1 ? ` · 🔥 <b>${save.diario.sequencia}</b> dias seguidos` : ''}</p>
+      ${linhaObj}
       <p class="best-line">🪙 <b>+${contas}</b> contas · nível <b>${save.nivel}</b></p>
       <p class="best-line">🐱 o gato roubou <b>${catSteals}</b> bolha${catSteals === 1 ? '' : 's'}${contraToques ? ` · você bloqueou <b>${contraToques}</b>` : ''}</p>
       <div class="share-box" id="share-box">${shareText}</div>
       <div class="btn-row">
-        <button id="restart-btn">Jogar de novo</button>
+        <button id="restart-btn">${modo === 'campanha' ? 'Tentar de novo' : 'Jogar de novo'}</button>
+        <button class="ghost" id="menu-btn">${modo === 'campanha' ? 'Mapa' : 'Menu'}</button>
         <button class="ghost" id="share-btn">Copiar resultado</button>
       </div>
     `;
@@ -1505,6 +1694,10 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     document.getElementById('restart-btn').addEventListener('click', () => {
       end.remove();
       startGame();
+    });
+    document.getElementById('menu-btn').addEventListener('click', () => {
+      end.remove();
+      if(modo === 'campanha') telaCampanha(); else telaInicial();
     });
     document.getElementById('share-btn').addEventListener('click', async () => {
       try{
@@ -1517,7 +1710,13 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     });
   }
 
-  document.getElementById('start-btn').addEventListener('click', startGame);
+  /* O botao antigo levava direto pra partida. Agora ele abre a tela de modos,
+     que e onde a campanha e o desafio do dia se separam. */
+  document.getElementById('start-btn').addEventListener('click', () => {
+    const ov = document.getElementById('overlay');
+    if(ov) ov.remove();
+    telaInicial();
+  });
   render();
 })();
 </script>
