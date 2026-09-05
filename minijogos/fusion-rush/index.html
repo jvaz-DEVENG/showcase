@@ -299,6 +299,49 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     src.start();
   }
 
+  /* A voz do gato.
+     Miado nao e uma nota -- e uma vogal que muda de altura. O que da a
+     impressao de "mia" e a curva de frequencia subindo e caindo dentro de um
+     som so, com um harmonico por cima (a formante) e um filtro passa-banda
+     estreitando o timbre. Duas ondas e um filtro chegam surpreendentemente
+     perto, e continuam cabendo num index.html unico, sem arquivo de audio.
+
+     O primeiro som que eu tinha posto era ruido filtrado a 0,05 de volume:
+     inaudivel, e nao parecia gato nenhum. */
+  function miado(f0, f1, f2, dur, vol){
+    if(!somLigado()) return;
+    const ac = audioCtx();
+    if(!ac) return;
+    if(ac.state === 'suspended') ac.resume();
+    const t0 = ac.currentTime;
+    const osc = ac.createOscillator();
+    const harm = ac.createOscillator();
+    const g = ac.createGain(), gh = ac.createGain();
+    const filtro = ac.createBiquadFilter();
+    filtro.type = 'bandpass';
+    filtro.Q.value = 3.2;
+    osc.type = 'sawtooth'; harm.type = 'triangle';
+    // a curva: sobe rapido, segura, e cai -- e o desenho de um "miau"
+    for(const o of [osc, harm]){
+      const mult = o === harm ? 2 : 1;
+      o.frequency.setValueAtTime(f0 * mult, t0);
+      o.frequency.exponentialRampToValueAtTime(f1 * mult, t0 + dur * 0.28);
+      o.frequency.exponentialRampToValueAtTime(f2 * mult, t0 + dur);
+    }
+    filtro.frequency.setValueAtTime(f0 * 2.2, t0);
+    filtro.frequency.exponentialRampToValueAtTime(f1 * 2.6, t0 + dur * 0.3);
+    filtro.frequency.exponentialRampToValueAtTime(f2 * 2.0, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.05);
+    g.gain.setValueAtTime(vol, t0 + dur * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    gh.gain.value = 0.32;
+    osc.connect(filtro); harm.connect(gh); gh.connect(filtro);
+    filtro.connect(g); g.connect(ac.destination);
+    osc.start(t0); harm.start(t0);
+    osc.stop(t0 + dur + 0.05); harm.stop(t0 + dur + 0.05);
+  }
+
   function sfx(nome, arg){
     switch(nome){
       case 'drop':
@@ -319,9 +362,14 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         // fusao do tier maximo: acorde curto, o momento mais raro do jogo
         [0,3,5,7].forEach((k,idx) => tom(NOTAS[4] * Math.pow(2, k/12), 0.28, 'sine', 0.08, idx*0.05));
         break;
-      case 'gatoTenta': ruido(0.14, 0.05, 1400); break;
-      case 'gatoPega':  tom(320, 0.10, 'sawtooth', 0.07); tom(180, 0.22, 'sawtooth', 0.06, 0.06); break;
-      case 'gatoErra':  tom(520, 0.07, 'square', 0.04); break;
+      // "mrrp" curto e curioso: ele viu a bolha
+      case 'gatoTenta': miado(420, 620, 380, 0.26, 0.085); break;
+      // miado satisfeito, mais longo e mais alto: conseguiu
+      case 'gatoPega':  miado(500, 880, 430, 0.42, 0.11); break;
+      // chiado curto de irritacao: perdeu a bolha
+      case 'gatoErra':  miado(700, 520, 300, 0.16, 0.07); ruido(0.10, 0.045, 2600); break;
+      // sopro bravo, quando ele estressa e estoura a sua maior bolha
+      case 'gatoBravo': ruido(0.42, 0.09, 3400); miado(300, 240, 180, 0.5, 0.09); break;
       case 'poder':     [523,659,784].forEach((f,i) => tom(f, 0.14, 'triangle', 0.06, i*0.06)); break;
       case 'perigo':    tom(110, 0.30, 'sawtooth', 0.05); break;
       case 'fim':       [392,349,294,196].forEach((f,i) => tom(f, 0.34, 'sine', 0.08, i*0.13)); ruido(0.5, 0.05, 500); break;
@@ -347,6 +395,15 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   const bolhasDaPartida = () => (modo === 'campanha' && poteAtual) ? poteAtual.bolhas : BOLHAS_DIARIO;
   let bolhasSoltas = 0;
   let multiplicadorMax = 1;      // o maior combo alcancado na partida
+  /* O gato era desenhado bonito e completamente parado: nao piscava, nao
+     respirava, nao mexia uma orelha. Um bicho imovel na tela le como cenario,
+     nao como adversario -- e ele e o unico adversario que o jogo tem.
+     Estes tres relogios dao vida sem custar quase nada de render. */
+  let gatoT = 0;          // relogio continuo, alimenta respiracao e cauda
+  let piscarT = 2.2;      // conta regressiva ate o proximo piscar
+  let piscando = 0;       // >0 enquanto o olho esta fechado
+  let orelhaT = 1.4;      // idem, para o tremor de orelha
+  let orelha = 0;
 
   const DROP_COOLDOWN = 380;
   const COMBO_WINDOW = 1300;
@@ -976,6 +1033,15 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       if(b.y - b.r < DANGER_Y && speed < 25){ danger = true; break; }
     }
     const perigoAntes = dangerTimer > 0;
+    // relogios do gato: piscar e tremer orelha em intervalos irregulares,
+    // porque ritmo exato de metronomo le como maquina, nao como bicho
+    gatoT += dt;
+    piscarT -= dt;
+    if(piscarT <= 0){ piscando = 0.13; piscarT = 1.8 + Math.random() * 3.4; }
+    if(piscando > 0) piscando -= dt;
+    orelhaT -= dt;
+    if(orelhaT <= 0){ orelha = 0.3; orelhaT = 1.1 + Math.random() * 2.8; }
+    if(orelha > 0) orelha -= dt;
     if(pawFlash > 0) pawFlash = Math.max(0, pawFlash - dt);
     dangerTimer = danger ? dangerTimer + dt * 1000 : 0;
     // toca uma vez ao ENTRAR no perigo, nao a cada quadro enquanto durar
@@ -1163,7 +1229,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
               spawnBurst(biggest.x, biggest.y, '#f87171');
               spawnPopup(biggest.x, biggest.y - biggest.r - 10, '😾 MIAU!');
               catMood = 'angry';
-              sfx('gatoPega');
+              sfx('gatoBravo');
             }
             failStreak = 0;
           }
@@ -1223,6 +1289,27 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     ctx.translate(anchorX, anchorY);
     // side is which wall the paw comes FROM, so it must reach the opposite way
     ctx.translate(-side * reach, 0);
+    /* A pata so deslizava reto. Agora ela gira conforme avanca e balanca de
+       leve no 'hold' -- e o momento em que ela para, prestes a agarrar, e o
+       unico em que o jogador tem chance de bloquear. */
+    const t = Math.min(1, reach / Math.max(1, pawMaxReach));
+    const balanco = pawState === 'hold' ? Math.sin(gatoT * 22) * 0.08 : 0;
+    ctx.rotate(side * (0.5 - t * 0.5 + balanco));
+
+    // garras: saem no fim do avanco e somem ao recolher
+    if(pawState === 'reach' || pawState === 'hold'){
+      const garra = Math.max(0, t - 0.45) / 0.55;
+      if(garra > 0){
+        ctx.strokeStyle = 'rgba(255,255,255,.9)';
+        ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+        for(let i = -1; i <= 1; i++){
+          ctx.beginPath();
+          ctx.moveTo(i * 9, -15);
+          ctx.lineTo(i * 9 - side * 3 * garra, -15 - 7 * garra);
+          ctx.stroke();
+        }
+      }
+    }
 
     const grad = ctx.createRadialGradient(-5, -6, 2, 0, 0, 18);
     grad.addColorStop(0, CAT_FUR.light);
@@ -1253,16 +1340,28 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   function drawCatHead(x, y, side, mood){
     const angry = mood === 'angry';
     ctx.save();
-    ctx.translate(x, y);
+    // respiracao: sobe e desce de leve o tempo todo. E o sinal mais barato de
+    // "isto esta vivo" que existe, e some se o jogador olhar direto
+    const respira = Math.sin(gatoT * 2.4) * 1.6;
+    // ao esticar a pata ele se inclina na direcao do bote
+    const empenho = (pawState === 'reach' || pawState === 'hold')
+      ? Math.min(1, pawReach / Math.max(1, pawMaxReach)) : 0;
+    ctx.translate(x, y + respira - empenho * 3);
+    ctx.rotate(side * empenho * 0.16);
     if(side > 0) ctx.scale(-1, 1); // face the reach direction
 
-    // ears
+    // ears — a orelha treme de vez em quando, sozinha, como orelha de gato faz
+    const tremor = orelha > 0 ? Math.sin(orelha * 90) * 0.14 : 0;
+    ctx.save();
+    ctx.rotate(tremor);
     ctx.fillStyle = CAT_FUR.shade;
     ctx.beginPath(); ctx.moveTo(-15, -13); ctx.lineTo(-23, -32); ctx.lineTo(-3, -21); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.moveTo(8, -19); ctx.lineTo(15, -35); ctx.lineTo(20, -15); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#f8c9a0';
     ctx.beginPath(); ctx.moveTo(-14, -16); ctx.lineTo(-19, -28); ctx.lineTo(-8, -20); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.moveTo(9, -20); ctx.lineTo(13, -30); ctx.lineTo(17, -17); ctx.closePath(); ctx.fill();
+
+    ctx.restore();
 
     // head
     const faceR = 20;
@@ -1294,13 +1393,26 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(-eyeDX - 5, eyeY - 4); ctx.lineTo(-eyeDX + 3, eyeY + 2); ctx.lineTo(-eyeDX + 7, eyeY - 2); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(eyeDX - 7, eyeY - 2); ctx.lineTo(eyeDX - 3, eyeY + 2); ctx.lineTo(eyeDX + 5, eyeY - 4); ctx.stroke();
+    } else if(piscando > 0){
+      // piscando: duas linhas curvas no lugar dos olhos
+      ctx.strokeStyle = CAT_FUR.ink;
+      ctx.lineWidth = 2; ctx.lineCap = 'round';
+      for(const dx of [-eyeDX, eyeDX]){
+        ctx.beginPath();
+        ctx.moveTo(dx - 3.5, eyeY);
+        ctx.quadraticCurveTo(dx, eyeY + 2.4, dx + 3.5, eyeY);
+        ctx.stroke();
+      }
     } else {
+      // a pupila acompanha a bolha que ele esta mirando: o olhar denuncia a
+      // intencao antes da pata sair, e e o que torna o bote legivel
+      const olhar = (pawState === 'reach' || pawState === 'hold') ? 1.6 : 0;
       ctx.fillStyle = CAT_FUR.ink;
       ctx.beginPath(); ctx.ellipse(-eyeDX, eyeY, 3, 4.2, 0, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.ellipse(eyeDX, eyeY, 3, 4.2, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(-eyeDX + 1, eyeY - 1.5, 1, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(eyeDX + 1, eyeY - 1.5, 1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(-eyeDX + 1 - olhar, eyeY - 1.5, 1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(eyeDX + 1 - olhar, eyeY - 1.5, 1, 0, Math.PI * 2); ctx.fill();
     }
 
     // nose
