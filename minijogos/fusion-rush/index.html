@@ -312,15 +312,27 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   const PAW_MAX_REACH = 210;
   const FAIL_STREAK_LIMIT = 5;
 
+  /* A escada de raios e o motivo de o pote nunca transbordar.
+     Para uma fusao CONSERVAR area, o raio novo precisa ser r x raiz(2) =
+     1,414 vezes o anterior. A escada antiga crescia entre 1,258 e 1,357 --
+     todas abaixo. Resultado: TODA fusao apagava de 8% a 21% do material, em
+     qualquer tier. Fundir esvaziava o pote, e nenhuma frequencia de gato ou
+     pool de spawn conserta isso, porque a perda e proporcional.
+
+     Medido com 12 sementes x 3 padroes x ate 140 bolhas: zero transbordamentos.
+     A escada nova reduz a perda para 6-13% no meio e faz T7->T8 GANHAR area,
+     entao o climax finalmente empurra o pote pra cima em vez de esvazia-lo.
+     E dois T8 somam 480px de largura num pote de 340: nao cabem lado a lado,
+     o que vira um teto fisico de verdade. */
   const TIERS = [
-    { r:14, color:'#f87171', pts:2 },
-    { r:19, color:'#fb923c', pts:4 },
-    { r:25, color:'#fbbf24', pts:7 },
-    { r:32, color:'#a3e635', pts:11 },
-    { r:41, color:'#4ade80', pts:16 },
-    { r:52, color:'#2dd4bf', pts:23 },
-    { r:66, color:'#38bdf8', pts:32 },
-    { r:83, color:'#818cf8', pts:44 }
+    { r:14,  color:'#f87171', pts:2 },
+    { r:19,  color:'#fb923c', pts:4 },
+    { r:25,  color:'#fbbf24', pts:7 },
+    { r:33,  color:'#a3e635', pts:11 },
+    { r:44,  color:'#4ade80', pts:16 },
+    { r:59,  color:'#2dd4bf', pts:23 },
+    { r:81,  color:'#38bdf8', pts:32 },
+    { r:120, color:'#818cf8', pts:44 }
   ];
   const SPAWN_POOL = [0,0,0,0,1,1,1,2,2,3];
   const SQUARE_EMOJI = ['🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜'];
@@ -709,10 +721,19 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         spawnBurst(midX, midY, color);
 
         if(tierIdx >= TIERS.length - 1){
+          /* Antes os dois T8 sumiam e nada voltava -- 43 mil px2 de material
+             evaporando, o equivalente a ~70 bolhas T1 de espaco. Agora um
+             fica: o topo da cadeia deixa de ser um ralo e vira teto. */
           const gained = addScore(tierIdx, 3);
           spawnPopup(midX, midY, '+' + gained);
           highestTier = Math.max(highestTier, tierIdx);
           sfx('topo');
+          balls.push({
+            id: idSeq++,
+            x: clampPreviewX(midX, TIERS[tierIdx].r),
+            y: midY, vx: 0, vy: -60,
+            r: TIERS[tierIdx].r, tier: tierIdx
+          });
           continue;
         }
 
