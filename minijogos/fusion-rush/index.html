@@ -95,6 +95,7 @@
   .pote:focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
   /* travado ganha cadeado e borda tracejada: cor sozinha nao comunica estado */
   .pote.travado{ cursor:not-allowed; border-style:dashed; opacity:.55 }
+  .pote.escolhido{ border-color:var(--accent); box-shadow:0 0 10px rgba(251,191,36,.25) }
   .pote b{ font-size:12px; line-height:1 }
   .pote .estrelas{ font-size:9px; letter-spacing:1px; color:var(--muted) }
   .pote .estrelas.tem{ color:#fbbf24 }
@@ -104,6 +105,19 @@
     font-size:11px; color:var(--muted); background:var(--panel);
     border:1px solid var(--line); border-radius:999px; padding:3px 10px; margin-top:2px;
   }
+  .som.poder{ position:relative; font-size:16px }
+  .som.poder:disabled{ opacity:.4; cursor:default }
+  .som.poder i{
+    position:absolute; bottom:-1px; right:1px; font-style:normal;
+    font-size:8px; font-weight:700; color:var(--accent);
+  }
+  /* barra de carga: fina, colada no palco, some no desafio do dia */
+  .carga-wrap{
+    width:100%; max-width:340px; height:5px; border-radius:99px;
+    background:var(--panel); border:1px solid var(--line); overflow:hidden; margin:0 auto 4px;
+  }
+  .carga-wrap i{ display:block; height:100%; width:0;
+    background:linear-gradient(90deg,#fbbf24,#f87171); transition:width .18s ease }
   .som{
     margin-left:auto; background:var(--panel); border:1px solid var(--line);
     border-radius:8px; width:34px; height:34px; font-size:15px; cursor:pointer;
@@ -217,9 +231,11 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     <div class="stat" id="level-stat"><b id="level-val">T1</b><span>Maior nível</span></div>
     <!-- prévia: sem ver a próxima, escolher coluna é reagir, não planejar -->
     <div class="stat next" id="next-stat"><canvas id="next-cv" width="34" height="34"></canvas><span>Próxima</span></div>
+    <button class="som poder" id="poder-btn" type="button" style="display:none"></button>
     <button class="som" id="som-btn" type="button">🔊</button>
   </div>
 
+  <div class="carga-wrap" id="carga-wrap" style="display:none"><i id="carga-fill"></i></div>
   <div class="stage">
     <canvas class="arena" id="arena" width="340" height="460"></canvas>
     <div class="overlay" id="overlay">
@@ -723,6 +739,99 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     return valorDoObjetivo(pote) >= pote.alvo;
   }
 
+  /* ======================== CARGA E PODERES ========================
+     O jogador de merge quer uma valvula quando a pilha aperta. Sem ela, todo
+     poder vira "gratis o tempo todo" ou "nunca disponivel".
+
+     A carga enche FUNDINDO, e nao soltando: quem joga bem tem poder, quem so
+     goteja bolha nao tem. E o tier importa -- fundir grande enche muito mais
+     que fundir pequeno, o que empurra na direcao contraria do spam de fusoes
+     pequenas que o BALANCE identificou como estrategia dominante.
+
+     Regra que veio do LOOP e vale para todos: nenhum poder abre menu no meio
+     da partida. Um poder e escolhido ANTES, e usado com um botao so. Painel
+     no meio do caos e o erro classico do genero.
+
+     E poder nao existe no Desafio do Dia. Talento e vantagem contaminam a
+     comparacao -- quem jogou 200 partidas nao pode largar na frente de quem
+     abriu o jogo hoje. */
+  const PODERES = [
+    {id:'sacode', nome:'SACODE GERAL', icone:'💥', custo:40,
+     desc:'sacode a pilha inteira e afasta as bolhas do topo',
+     ajuda:'quando a pilha subiu demais'},
+    {id:'quieto', nome:'GATO, QUIETO!', icone:'🤫', custo:30,
+     desc:'o gato para de tentar por 8 segundos',
+     ajuda:'quando uma bolha grande está exposta'},
+    {id:'comprime', nome:'COMPRESSÃO', icone:'🗜️', custo:45,
+     desc:'encolhe tudo por 6s e abre espaço — mas fusões valem metade',
+     ajuda:'botão de pânico, com preço'}
+  ];
+  const poderDe = id => PODERES.find(x => x.id === id);
+
+  let carga = 0;                 // 0..100, enche fundindo
+  let poderEquipado = 'sacode';
+  let quietoT = 0;               // segundos restantes de gato parado
+  let comprimeT = 0;             // segundos restantes de bolhas encolhidas
+
+  const podeUsarPoder = () => modo === 'campanha' && carga >= poderDe(poderEquipado).custo;
+
+  function ganharCarga(tierResultante){
+    if(modo !== 'campanha') return;
+    // fundir grande enche muito mais: 2 no T2, ~18 no T8
+    carga = Math.min(100, carga + 2 + tierResultante * 2.2);
+  }
+
+  function usarPoder(){
+    if(!podeUsarPoder()) return;
+    const p = poderDe(poderEquipado);
+    carga -= p.custo;
+    if(p.id === 'sacode'){
+      /* Reaproveita a onda da bola de poder, mas centrada no topo da pilha:
+         o problema que ele resolve e a pilha perto da linha, nao o meio. */
+      let alvo = null;
+      for(const b of balls) if(!alvo || b.y - b.r < alvo.y - alvo.r) alvo = b;
+      const cx = alvo ? alvo.x : W/2, cy = alvo ? alvo.y : H/2;
+      for(const b of balls){
+        const dx = b.x - cx, dy = b.y - cy;
+        const d = Math.hypot(dx, dy) || 0.001;
+        if(d > SHOCKWAVE_RADIUS * 1.9) continue;
+        const f = 1 - d / (SHOCKWAVE_RADIUS * 1.9);
+        b.vx += (dx/d) * SHOCKWAVE_STRENGTH * 1.1 * f;
+        b.vy += (dy/d) * SHOCKWAVE_STRENGTH * 0.5 * f + 120 * f;  // empurra pra BAIXO
+      }
+      spawnBurst(cx, cy, '#fbbf24');
+      spawnPopup(cx, cy, 'SACODE!');
+      sfx('poder');
+    }
+    if(p.id === 'quieto'){
+      quietoT = 8;
+      pawState = 'idle';
+      pawNextAt = elapsed + 8;
+      spawnPopup(W/2, HOVER_Y + 40, 'O GATO PAROU');
+      sfx('gatoErra');
+    }
+    if(p.id === 'comprime'){
+      comprimeT = 6;
+      spawnPopup(W/2, H/2, 'COMPRESSÃO');
+      sfx('poder');
+    }
+    atualizarBotaoPoder();
+  }
+
+  function atualizarBotaoPoder(){
+    const b = document.getElementById('poder-btn');
+    if(!b) return;
+    if(modo !== 'campanha'){ b.style.display = 'none'; return; }
+    const p = poderDe(poderEquipado);
+    b.style.display = '';
+    b.disabled = !podeUsarPoder();
+    b.innerHTML = p.icone + '<i>' + Math.floor(carga) + '</i>';
+    b.title = p.nome + ' — ' + p.desc + ' (custa ' + p.custo + ' de carga)';
+    b.setAttribute('aria-label', b.title);
+    const barra = document.getElementById('carga-fill');
+    if(barra) barra.style.width = carga + '%';
+  }
+
   const SOM_KEY = 'fusionRushSom';
   let som = localStorage.getItem(SOM_KEY) !== '0';
   function somLigado(){ return som; }
@@ -748,6 +857,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     scoreVal.textContent = score;
     comboVal.textContent = 'x' + multiplier;
     levelVal.textContent = 'T' + (highestTier + 1);
+    atualizarBotaoPoder();
     const rv = document.getElementById('restam-val');
     if(rv){
       const faltam = Math.max(0, bolhasDaPartida() - bolhasSoltas);
@@ -849,6 +959,9 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   }
 
   function addScore(tierIdx, bonusMult){
+    // socorro tem preco: fundir durante a Compressao rende metade, senao ela
+    // seria pontuacao de graca disfarcada de salvamento
+    if(comprimeT > 0) bonusMult = bonusMult * 0.5;
     const nowT = performance.now();
     if(nowT - lastMergeTime <= COMBO_WINDOW){
       combo += 1;
@@ -1022,9 +1135,13 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
         spawnPopup(midX, midY, '+' + gained);
         highestTier = Math.max(highestTier, newTierIdx);
           sfx('fusao', newTierIdx);
+          ganharCarga(newTierIdx + 1);
           if(multiplier > 1) sfx('combo', multiplier);
       }
     }
+
+    // COMPRESSAO: encolhe tudo enquanto dura, e devolve ao normal ao acabar
+    if(comprimeT > 0) for(const b of balls) b.r = TIERS[b.tier].r * 0.72;
 
     // danger check
     let danger = false;
@@ -1042,6 +1159,11 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     orelhaT -= dt;
     if(orelhaT <= 0){ orelha = 0.3; orelhaT = 1.1 + Math.random() * 2.8; }
     if(orelha > 0) orelha -= dt;
+    if(quietoT > 0) quietoT = Math.max(0, quietoT - dt);
+    if(comprimeT > 0){
+      comprimeT = Math.max(0, comprimeT - dt);
+      if(comprimeT === 0) for(const b of balls) b.r = TIERS[b.tier].r;
+    }
     if(pawFlash > 0) pawFlash = Math.max(0, pawFlash - dt);
     dangerTimer = danger ? dangerTimer + dt * 1000 : 0;
     // toca uma vez ao ENTRAR no perigo, nao a cada quadro enquanto durar
@@ -1154,6 +1276,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   }
 
   function updateCat(dt){
+    if(quietoT > 0) return;          // GATO, QUIETO!: ele nem tenta
     if(pawState === 'idle'){
       if(elapsed >= pawNextAt){
         const target = pickFallingTarget();
@@ -1641,6 +1764,11 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     return `Fusion Rush #${dayNumber} — ${finalScore} pts · ${marca}\n${squares}`;
   }
 
+  document.getElementById('poder-btn').addEventListener('click', usarPoder);
+  window.addEventListener('keydown', e => {
+    // ESPACO usa o poder: fica longe do toque de soltar bolha, que e no canvas
+    if(e.code === 'Space' && running){ usarPoder(); e.preventDefault(); }
+  });
   document.getElementById('som-btn').addEventListener('click', alternarSom);
   window.addEventListener('keydown', e => {
     if(e.code === 'KeyM'){ alternarSom(); e.preventDefault(); }
@@ -1695,11 +1823,23 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       }
       html += '</div></div>';
     }
+    /* O poder e escolhido AQUI, antes de entrar. Nenhum menu abre no meio da
+       partida -- e o erro classico do genero, e o LOOP foi explicito nisso. */
+    html += '<div class="estante"><h3><span>PODER EQUIPADO</span></h3><div class="potes" style="grid-template-columns:repeat(3,1fr)">';
+    for(const pd of PODERES){
+      html += '<button class="pote' + (poderEquipado === pd.id ? ' escolhido' : '') +
+              '" data-poder="' + pd.id + '" title="' + pd.desc + ' · custa ' + pd.custo + ' de carga">' +
+              '<b>' + pd.icone + '</b><span class="estrelas">' + pd.nome.split(' ')[0] + '</span></button>';
+    }
+    html += '</div></div>';
     html += '<button class="ghost" id="btn-voltar">Voltar</button>';
     ov.innerHTML = html;
     canvas.parentElement.appendChild(ov);
     overlay = ov;
-    ov.querySelectorAll('.pote:not(.travado)').forEach(b => {
+    ov.querySelectorAll('[data-poder]').forEach(b => {
+      b.addEventListener('click', () => { poderEquipado = b.dataset.poder; ov.remove(); telaCampanha(); });
+    });
+    ov.querySelectorAll('.pote[data-pote]:not(.travado)').forEach(b => {
       b.addEventListener('click', () => {
         poteAtual = poteDe(b.dataset.pote);
         modo = 'campanha';
@@ -1714,6 +1854,9 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     reiniciarDia();          // toda tentativa do dia joga a MESMA sequencia
     bolhasSoltas = 0;
     multiplicadorMax = 1;
+    carga = 0; quietoT = 0; comprimeT = 0;
+    document.getElementById('carga-wrap').style.display = modo === 'campanha' ? '' : 'none';
+    atualizarBotaoPoder();
     pawBloqueado = false; contraToques = 0; pawFlash = 0;
     balls = [];
     particles = [];
