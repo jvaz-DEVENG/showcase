@@ -488,6 +488,75 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   /* O som nasce LIGADO, mas a preferencia fica salva. Chave separada do
      recorde de proposito: BEST_KEY guarda um numero cru e trocar o formato
      dele quebraria o recorde de quem ja joga. */
+  /* ============================= SAVE ==============================
+     Ate aqui o jogo guardava UM NUMERO -- o recorde -- e mais nada. Progressao,
+     campanha e loja precisam de um objeto, entao ele vira um.
+
+     A migracao importa mais que o formato: quem ja joga tem um recorde gravado
+     em fusionRushBest, e perder isso seria o pior jeito possivel de estrear uma
+     atualizacao. O carregador le a chave antiga, absorve o recorde e so entao
+     escreve a nova -- e o numero cru continua sendo gravado junto, para uma
+     eventual volta atras nao apagar o progresso de ninguem.
+
+     A leitura e tolerante por construcao: campo ausente, nulo, de tipo errado
+     ou save inteiro corrompido caem no padrao em vez de quebrar o jogo. */
+  const SAVE_KEY = 'fusionRush.v2';
+  const saveBase = () => ({
+    recorde: 0,
+    xp: 0, nivel: 1,
+    contas: 0,                  // moeda, ganha jogando
+    potes: {},                  // id do pote -> estrelas (1 a 3)
+    conquistas: [],
+    melhor: {},                 // melhor placar por pote
+    diario: {dia: 0, melhor: 0, sequencia: 0, ultimo: 0}
+  });
+  function carregarSave(){
+    const base = saveBase();
+    let cru = null;
+    try{ cru = JSON.parse(localStorage.getItem(SAVE_KEY)); }catch(e){}
+    if(!cru || typeof cru !== 'object' || Array.isArray(cru)){
+      // sem save novo: puxa o recorde da chave antiga, se existir
+      const velho = Number(localStorage.getItem('fusionRushBest') || 0);
+      base.recorde = Number.isFinite(velho) && velho > 0 ? Math.floor(velho) : 0;
+      return base;
+    }
+    const num = (v, padrao) => Number.isFinite(+v) ? Math.max(0, Math.floor(+v)) : padrao;
+    const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    return {
+      recorde: Math.max(num(cru.recorde, 0), num(localStorage.getItem('fusionRushBest'), 0)),
+      xp: num(cru.xp, 0),
+      nivel: Math.max(1, num(cru.nivel, 1)),
+      contas: num(cru.contas, 0),
+      potes: obj(cru.potes),
+      conquistas: Array.isArray(cru.conquistas) ? cru.conquistas.slice() : [],
+      melhor: obj(cru.melhor),
+      diario: Object.assign({dia:0, melhor:0, sequencia:0, ultimo:0}, obj(cru.diario))
+    };
+  }
+  function gravarSave(){
+    try{
+      localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+      // mantem a chave antiga viva: uma volta atras nao pode apagar o recorde
+      localStorage.setItem('fusionRushBest', String(save.recorde));
+    }catch(e){}
+  }
+  let save = carregarSave();
+  /* Grava logo na abertura: a migracao do recorde antigo tem que persistir
+     mesmo se a pessoa so abrir e fechar o jogo sem jogar. */
+  try{ gravarSave(); }catch(e){}
+
+  // XP: curva rapida no comeco, mais longa depois
+  const xpNecessario = nv => 90 + nv * 60;
+  function ganharXp(v){
+    save.xp += v;
+    while(save.xp >= xpNecessario(save.nivel)){
+      save.xp -= xpNecessario(save.nivel);
+      save.nivel++;
+      spawnPopup(W/2, H/2, 'NÍVEL ' + save.nivel);
+      sfx('poder');
+    }
+  }
+
   const SOM_KEY = 'fusionRushSom';
   let som = localStorage.getItem(SOM_KEY) !== '0';
   function somLigado(){ return som; }
@@ -506,8 +575,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     b.setAttribute('aria-pressed', som ? 'false' : 'true');
   }
 
-  function getBest(){ return Number(localStorage.getItem(BEST_KEY) || 0); }
-  function setBest(v){ localStorage.setItem(BEST_KEY, String(v)); }
+  function getBest(){ return save.recorde; }
+  function setBest(v){ save.recorde = v; gravarSave(); }
 
   function updateHud(){
     scoreVal.textContent = score;
@@ -1393,7 +1462,27 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     const finalScore = score;
     const best = getBest();
     const isNewBest = finalScore > best;
-    if(isNewBest) setBest(finalScore);
+    if(isNewBest) save.recorde = finalScore;
+
+    /* Contas nao sao o placar. Se fossem, "jogar bem" e "ter dinheiro" seriam
+       a mesma metrica e a loja viraria um segundo placar redundante. Elas vem
+       de MATERIAL trabalhado -- bolhas soltas e o tier que voce alcancou --,
+       entao quem chega ao fim das 65 ganha mais que quem transbordou cedo,
+       mesmo com placar parecido. */
+    const contas = Math.round(bolhasSoltas * 1.5 + highestTier * 14 + (completou ? 60 : 0));
+    save.contas += contas;
+    ganharXp(Math.round(bolhasSoltas + highestTier * 8 + (completou ? 40 : 0)));
+
+    // sequencia de dias: o gancho de retorno mais barato que existe num diario
+    const hoje = dayNumber;
+    if(save.diario.ultimo !== hoje){
+      save.diario.sequencia = save.diario.ultimo === hoje - 1 ? save.diario.sequencia + 1 : 1;
+      save.diario.ultimo = hoje;
+      save.diario.melhor = finalScore;
+    }else if(finalScore > save.diario.melhor){
+      save.diario.melhor = finalScore;
+    }
+    gravarSave();
 
     const shareText = buildShareText(finalScore);
 
@@ -1402,7 +1491,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     end.innerHTML = `
       <h2>🫧 O pote transbordou!</h2>
       <div class="big-score">${finalScore}</div>
-      <p class="best-line">Recorde: <b>${isNewBest ? finalScore : best}</b> pontos</p>
+      <p class="best-line">Recorde: <b>${isNewBest ? finalScore : best}</b> pontos${save.diario.sequencia > 1 ? ` · 🔥 <b>${save.diario.sequencia}</b> dias seguidos` : ''}</p>
+      <p class="best-line">🪙 <b>+${contas}</b> contas · nível <b>${save.nivel}</b></p>
       <p class="best-line">🐱 o gato roubou <b>${catSteals}</b> bolha${catSteals === 1 ? '' : 's'}${contraToques ? ` · você bloqueou <b>${contraToques}</b>` : ''}</p>
       <div class="share-box" id="share-box">${shareText}</div>
       <div class="btn-row">
