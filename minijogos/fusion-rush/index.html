@@ -362,11 +362,34 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   const dayNumber = Math.max(1, Math.round((todayMidnight - epoch) / 86400000) + 1);
   dayNumEl.textContent = '#' + dayNumber;
 
+  /* A fila guarda o SORTEIO CRU (0..1), nao o tier ja resolvido. O tier sai na
+     hora do consumo, a partir do pool daquele momento -- e assim a escalada
+     abaixo cabe sem quebrar o desafio diario. */
   const spawnQueue = [];
   function ensureQueue(minLen){
-    while(spawnQueue.length < minLen){
-      spawnQueue.push(SPAWN_POOL[Math.floor(rng() * SPAWN_POOL.length)]);
-    }
+    while(spawnQueue.length < minLen) spawnQueue.push(rng());
+  }
+
+  /* O pote nao enchia. As fusoes limpavam mais rapido do que da pra empilhar:
+     45 bolhas soltas e sobravam 6 no pote. A causa nao era o gato -- era o
+     SPAWN_POOL entregar so tiers 1-4 a partida inteira, e bolha pequena fundir
+     trivialmente.
+
+     O que enche um pote neste genero e receber peca MAIOR com o tempo: duas T5
+     sao raras, entao elas ficam e ocupam espaco.
+
+     A escalada e por CONTAGEM DE BOLHAS SOLTAS, e nao por enchimento, de
+     proposito. Enchimento depende de como cada um joga -- se o pool dependesse
+     dele, dois jogadores com a mesma semente do dia receberiam sequencias
+     diferentes, e o desafio diario deixaria de comparar a mesma coisa. Pela
+     contagem, a enesima bolha e a mesma pra todo mundo. */
+  const POOLS = [
+    [0,0,0,0,1,1,1,2,2,3],   // ate a 20a: como sempre foi
+    [0,0,1,1,1,2,2,3,3,4],   // 21a a 45a: comeca a pesar
+    [0,1,1,2,2,3,3,4,4,5]    // 46a em diante: o pote cobra
+  ];
+  function poolDe(indice){
+    return POOLS[indice < 20 ? 0 : indice < 45 ? 1 : 2];
   }
   ensureQueue(260);
   let queuePos = 0;
@@ -387,7 +410,14 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   }
   function nextTier(){
     ensureQueue(queuePos + 5);
-    return spawnQueue[queuePos++];
+    const pool = poolDe(queuePos);
+    return pool[Math.floor(spawnQueue[queuePos++] * pool.length)];
+  }
+  // usado so pela previa: le sem consumir
+  function espiarTier(){
+    ensureQueue(queuePos + 5);
+    const pool = poolDe(queuePos);
+    return pool[Math.floor(spawnQueue[queuePos] * pool.length)];
   }
 
   // ---------- game state ----------
@@ -413,6 +443,13 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   let pawReach = 0, pawMaxReach = 0, pawPhaseT = 0, pawActed = false;
   let pawTargetBallId = null;
   let pawNextAt = 0;
+  /* Contra-toque: tocar na pata durante o avanco cancela o roubo. Ate aqui o
+     gato era 100% sorte -- o jogador nao tinha NENHUMA acao contra ele, e era
+     por isso que a unica IA do jogo parecia decoracao. Agora ele e habilidade:
+     a janela e curta e existe risco de tocar cedo demais e perder o drop. */
+  let pawBloqueado = false;
+  let contraToques = 0;
+  let pawFlash = 0;
   let catMood = 'normal'; // normal | angry (while venting a stress-pop)
   let powerBallPending = false;
   let catSteals = 0;
@@ -456,7 +493,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     const g = cv.getContext('2d');
     g.clearRect(0, 0, cv.width, cv.height);
     if(!running) return;
-    const t = spawnQueue[queuePos];
+    const t = espiarTier();
     if(t == null) return;
     const cor = TIERS[t].color;
     const cx = cv.width/2, cy = cv.height/2;
@@ -484,6 +521,27 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
   function clampPreviewX(x, r){
     return Math.min(W - r, Math.max(r, x));
+  }
+
+  /* Devolve true se o toque acertou a pata -- ai ele NAO vira um drop. Esse e
+     o custo do contra-toque: errar o tempo gasta o seu toque. */
+  function tentarContraToque(px, py){
+    if(pawState !== 'reach' && pawState !== 'hold') return false;
+    if(pawBloqueado || pawActed) return false;
+    const tipX = pawAnchorX - pawSide * pawReach;
+    const tipY = pawAnchorY;
+    if(Math.hypot(px - tipX, py - tipY) > 46) return false;
+    pawBloqueado = true;
+    pawActed = true;                       // a investida morre sem sortear nada
+    pawState = 'retract';
+    pawPhaseT = 0;
+    pawFlash = 0.35;
+    contraToques++;
+    failStreak = 0;                        // defendeu: o gato nao acumula estresse
+    spawnBurst(tipX, tipY, '#e2e8f0');
+    spawnPopup(tipX, tipY, 'BLOQUEADO');
+    sfx('gatoErra');
+    return true;
   }
 
   function tryDrop(){
@@ -683,6 +741,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       if(b.y - b.r < DANGER_Y && speed < 25){ danger = true; break; }
     }
     const perigoAntes = dangerTimer > 0;
+    if(pawFlash > 0) pawFlash = Math.max(0, pawFlash - dt);
     dangerTimer = danger ? dangerTimer + dt * 1000 : 0;
     // toca uma vez ao ENTRAR no perigo, nao a cada quadro enquanto durar
     if(dangerTimer > 0 && !perigoAntes) sfx('perigo');
@@ -705,11 +764,81 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     popups = popups.filter(p => p.life > 0);
   }
 
+  /* ====================== RITMO DA PARTIDA =========================
+     O jogo nao tinha nada que apertasse com o tempo. O gato atacava a cada
+     2,5-6s do primeiro ao ultimo segundo, e mais nada crescia -- entao soltar
+     bolha devagar em coluna vazia era a estrategia otima, e tediosa. Da pra
+     empilhar 50 bolhas sem transbordar: um jogador cauteloso nao perde, ele
+     desiste.
+
+     Sem cronometro (que descaracterizaria o genero), o relogio natural e o
+     proprio ENCHIMENTO DO POTE. Ele ja e o que decide a derrota; agora tambem
+     decide a pressao. Tres atos:
+
+       Ato 1  (0-40%)  aprendizado -- o ritmo de hoje
+       Ato 2  (40-70%) o gato acelera, a pilha comeca a cobrar
+       Ato 3  (70%+)   climax -- ele fica quase constante
+
+     Assim a tensao sobe junto com o unico numero que o jogador ja acompanha
+     com o olho: a altura da pilha. */
+  function enchimento(){
+    // 0 = pote vazio, 1 = bolha parada na linha de perigo
+    /* Mede por bolha PARADA, e nao por `landed`: bolha criada por fusao nunca
+       recebe esse campo (nasce com vy:-90 e sem ele), e a pilha e feita quase
+       toda de bolhas fundidas. Medir por landed dava um pote quase sempre
+       vazio. E o mesmo criterio que a checagem de perigo ja usa. */
+    let topo = H;
+    for(const b of balls){
+      if(Math.abs(b.vx) + Math.abs(b.vy) >= 25) continue;
+      if(b.y - b.r < topo) topo = b.y - b.r;
+    }
+    if(topo >= H) return 0;
+    const bruto = (H - topo) / (H - DANGER_Y);
+    return Math.max(0, Math.min(1, bruto));
+  }
+  function ato(){
+    const e = enchimento();
+    return e < 0.40 ? 1 : e < 0.70 ? 2 : 3;
+  }
+  /* O gato SEMPRE foi ameaca ao placar, nunca a sobrevivencia: ele rouba bolha
+     ainda no ar, e bolha roubada e bolha que nao empilha. Deixa-lo mais
+     agressivo, sozinho, tornaria o jogo MAIS FACIL no fim -- o oposto do que
+     precisamos.
+
+     Entao a partir do ato 2 ele tambem JOGA bolha pra dentro. E o unico jeito
+     de a pressao crescer de verdade num pote: acrescentar material. E combina
+     com o bicho -- gato empurrando coisa pra dentro do vidro e exatamente o
+     que um gato faz. */
+  function gatoJogaDentro(){
+    const lado = rng() < 0.5 ? -1 : 1;
+    const t = rng() < 0.65 ? 0 : 1;              // sempre tier baixo: atrapalha, nao pune
+    const r = TIERS[t].r;
+    balls.push({
+      id: idSeq++,
+      x: clampPreviewX(lado < 0 ? r + 6 : W - r - 6, r),
+      y: HOVER_Y + 10,
+      vx: lado * (40 + rng() * 50), vy: 60,
+      r, tier: t, landed: false
+    });
+    spawnPopup(lado < 0 ? 30 : W - 30, HOVER_Y + 24, 'O GATO JOGOU UMA');
+    sfx('gatoPega');
+  }
+
+  // intervalo entre investidas: 2,5-6s no ato 1, 1,2-2,6s no ato 3
+  function intervaloGato(){
+    const e = enchimento();
+    const base = 2.5 - e * 1.4;          // 2,5 -> 1,1
+    const janela = 3.5 - e * 2.0;        // 3,5 -> 1,5
+    return Math.max(1.0, base) + rng() * Math.max(0.8, janela);
+  }
+
   function grabChance(tierIdx){
-    if(tierIdx <= 1) return 0.55;
-    if(tierIdx <= 3) return 0.4;
-    if(tierIdx <= 5) return 0.25;
-    return 0.15;
+    const base = tierIdx <= 1 ? 0.55 : tierIdx <= 3 ? 0.40 : tierIdx <= 5 ? 0.25 : 0.15;
+    /* Sobe pouco de proposito (ate +10 pontos percentuais no pote cheio): o
+       que deve endurecer e a FREQUENCIA das investidas, nao a sorte de cada
+       uma. Punir por dado ruim no fim da partida seria injusto -- e agora o
+       jogador tem contra-toque, que e habilidade, nao sorte. */
+    return Math.min(0.75, base + enchimento() * 0.10);
   }
 
   function pickFallingTarget(){
@@ -727,6 +856,15 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     if(pawState === 'idle'){
       if(elapsed >= pawNextAt){
         const target = pickFallingTarget();
+        /* Sem bolha no ar pra roubar, ele nao fica parado: do ato 2 em diante
+           joga uma pra dentro. Antes disso a investida so era perdida, e era
+           por isso que o gato sumia justamente quando o jogador parava de
+           soltar -- premiando quem jogava devagar. */
+        if(!target && ato() >= 2){
+          gatoJogaDentro();
+          pawNextAt = elapsed + intervaloGato();
+          return;
+        }
         if(target){
           pawSide = target.x < W / 2 ? -1 : 1;
           pawTargetBallId = target.id;
@@ -807,13 +945,44 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       pawReach = pawMaxReach * (1 - easeOutCubic(t));
       if(pawPhaseT >= 1){
         pawState = 'idle';
+    pawBloqueado = false; contraToques = 0; pawFlash = 0;
         pawReach = 0;
-        pawNextAt = elapsed + 2.5 + rng() * 3.5;
+        pawNextAt = elapsed + intervaloGato();   // aperta conforme o pote enche
       }
     }
   }
 
   const CAT_FUR = { light: '#ffe8d1', base: '#e8a06a', shade: '#c97f4a', ink: '#3a2416' };
+
+  /* Anel de alvo na ponta da pata enquanto ela avanca. Sem um sinal visivel de
+     que ali da pra tocar, ninguem descobre o contra-toque -- e mecanica que o
+     jogador nao enxerga e mecanica que nao existe. Branco, e nao a cor do
+     gato, porque precisa ler como "toque aqui" e nao como parte dele. */
+  function drawAlvoPata(anchorX, anchorY, side, reach){
+    if(pawState !== 'reach' && pawState !== 'hold') return;
+    if(pawActed || pawBloqueado) return;
+    const x = anchorX - side * reach, y = anchorY;
+    const pulso = 0.55 + Math.sin(performance.now() / 90) * 0.25;
+    ctx.save();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = pulso;
+    ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = pulso * 0.5;
+    ctx.beginPath(); ctx.arc(x, y, 30 - pulso*6, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+  function drawFlashBloqueio(){
+    if(pawFlash <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = pawFlash / 0.35 * 0.5;
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 3;
+    const x = pawAnchorX - pawSide * pawReach;
+    ctx.beginPath(); ctx.arc(x, pawAnchorY, 22 + (1 - pawFlash/0.35) * 26, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
 
   function drawPaw(anchorX, anchorY, side, reach, mood){
     ctx.save();
@@ -1008,6 +1177,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       const peekX = pawAnchorX - pawSide * 14;
       drawCatHead(peekX, pawAnchorY - 24, pawSide, catMood);
       drawPaw(pawAnchorX, pawAnchorY, pawSide, pawReach, catMood);
+      drawAlvoPata(pawAnchorX, pawAnchorY, pawSide, pawReach);
+      drawFlashBloqueio();
     }
 
     for(const p of particles){
@@ -1073,6 +1244,13 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
   });
   canvas.addEventListener('pointerdown', (ev) => {
     if(!running) return;
+    /* O contra-toque tem prioridade sobre o drop: se voce acertou a pata, o
+       toque foi pra defesa. Se errou, ele vira drop normal -- entao apressar
+       a defesa custa uma bolha solta no lugar errado. */
+    const r = canvas.getBoundingClientRect();
+    const px = (ev.clientX - r.left) * (canvas.width / r.width);
+    const py = (ev.clientY - r.top) * (canvas.height / r.height);
+    if(tentarContraToque(px, py)) return;
     if(pending){
       previewX = clampPreviewX(pointerXFromEvent(ev), TIERS[pending.tier].r);
       pending.x = previewX;
@@ -1163,7 +1341,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       <h2>🫧 O pote transbordou!</h2>
       <div class="big-score">${finalScore}</div>
       <p class="best-line">Recorde: <b>${isNewBest ? finalScore : best}</b> pontos</p>
-      <p class="best-line">🐱 o gato roubou <b>${catSteals}</b> bolha${catSteals === 1 ? '' : 's'}</p>
+      <p class="best-line">🐱 o gato roubou <b>${catSteals}</b> bolha${catSteals === 1 ? '' : 's'}${contraToques ? ` · você bloqueou <b>${contraToques}</b>` : ''}</p>
       <div class="share-box" id="share-box">${shareText}</div>
       <div class="btn-row">
         <button id="restart-btn">Jogar de novo</button>
