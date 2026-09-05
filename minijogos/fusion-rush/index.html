@@ -182,12 +182,13 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 <body>
 
   <h1>🫧 <span>Fusion Rush</span></h1>
-  <p class="subtitle">Solte as bolhas, funda as iguais e monte combo. Sem cronômetro — só acaba se o pote transbordar. Fique de olho nas laterais: tem um gato tentando roubar bolhas.</p>
+  <p class="subtitle">Solte as bolhas, funda as iguais e monte combo. Você tem <b>65 bolhas</b> — a mesma sequência que todo mundo hoje. Chegue ao fim sem o pote transbordar, e fique de olho nas laterais: o gato quer roubar.</p>
   <div class="day-tag">Desafio do dia <b id="day-num">#1</b> — mesma sequência de bolhas (e do gato) pra todo mundo hoje</div>
 
   <div class="hud">
     <div class="stat" id="score-stat"><b id="score-val">0</b><span>Pontos</span></div>
     <div class="stat" id="combo-stat"><b id="combo-val">x1</b><span>Combo</span></div>
+    <div class="stat" id="restam-stat"><b id="restam-val">65</b><span>Bolhas</span></div>
     <div class="stat" id="level-stat"><b id="level-val">T1</b><span>Maior nível</span></div>
     <!-- prévia: sem ver a próxima, escolher coluna é reagir, não planejar -->
     <div class="stat next" id="next-stat"><canvas id="next-cv" width="34" height="34"></canvas><span>Próxima</span></div>
@@ -198,12 +199,12 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     <canvas class="arena" id="arena" width="340" height="460"></canvas>
     <div class="overlay" id="overlay">
       <h2>Funda as bolhas iguais</h2>
-      <p>Mova o dedo/mouse pra escolher a coluna e solte. Bolhas do mesmo nível se fundem numa maior. Se empilhar até a linha do topo, o jogo acaba. Um gatinho fica tentando pegar bolhas pelas laterais — se ele conseguir, você ganha uma bola de força que sacode a pilha; se ele errar 5 vezes seguidas, ele se estressa, mia e estoura sua maior bolha.</p>
+      <p>Mova o dedo/mouse pra escolher a coluna e solte. Bolhas do mesmo nível se fundem numa maior. São <b>65 bolhas</b>, iguais pra todo mundo hoje — aguente até o fim sem empilhar até a linha vermelha. Toque na pata do gato pra bloquear o roubo.</p>
       <button id="start-btn">Começar</button>
     </div>
   </div>
 
-  <footer>Fusion Rush <span class="ver">v1.2.0</span> — física própria, feito com HTML, CSS e JS puro, sem dependências.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></footer>
+  <footer>Fusion Rush <span class="ver">v2.0.0</span> — física própria, feito com HTML, CSS e JS puro, sem dependências.<br>Por <a href="https://github.com/jvaz-DEVENG" target="_blank" rel="noopener">@jvaz-DEVENG</a> · <a href="../../">← voltar ao showcase</a></footer>
 
 <script>
 (function(){
@@ -301,6 +302,23 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       case 'fim':       [392,349,294,196].forEach((f,i) => tom(f, 0.34, 'sine', 0.08, i*0.13)); ruido(0.5, 0.05, 500); break;
     }
   }
+
+  /* ===================== TETO DE BOLHAS ============================
+     O pote nao transborda. Medido: 160 bolhas soltas, pilha compacta ate perto
+     da linha de perigo, e a partida nao acaba. Um jogador cauteloso nao perde
+     -- ele desiste. Isso e pior que um jogo dificil: e um jogo sem fim.
+
+     A saida nao e so dar um fim qualquer. O desafio diario e a melhor coisa
+     que este jogo tem, e ele hoje NAO COMPARA NADA: dois jogadores com a mesma
+     semente terminam com placares diferentes so porque um jogou mais tempo. O
+     numero compartilhado nao mede habilidade, mede paciencia.
+
+     Com um teto igual pra todo mundo, a mesma semente entrega a mesma
+     sequencia E a mesma quantidade -- e ai o placar do dia passa a significar
+     algo. E a derrota continua existindo: transbordar antes do fim e falhar,
+     chegar ao fim e completar. O teto e o objetivo, nao a saida. */
+  const BOLHAS_POR_PARTIDA = 65;
+  let bolhasSoltas = 0;
 
   const DROP_COOLDOWN = 380;
   const COMBO_WINDOW = 1300;
@@ -495,6 +513,13 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     scoreVal.textContent = score;
     comboVal.textContent = 'x' + multiplier;
     levelVal.textContent = 'T' + (highestTier + 1);
+    const rv = document.getElementById('restam-val');
+    if(rv){
+      const faltam = Math.max(0, BOLHAS_POR_PARTIDA - bolhasSoltas);
+      rv.textContent = faltam;
+      // ultimas 10: vira alerta, e quando cada coluna escolhida pesa mais
+      rv.style.color = faltam === 0 ? 'var(--muted)' : faltam <= 10 ? '#fbbf24' : '';
+    }
   }
 
   /* Desenha o tier que vem DEPOIS do pendente. Sem isso o jogador so reage a
@@ -574,6 +599,16 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       landed: false
     });
     sfx('drop', TIERS[tierIdx].r);
+    bolhasSoltas++;
+    if(bolhasSoltas >= BOLHAS_POR_PARTIDA){
+      /* Deixa a ultima cair e assentar antes de fechar o placar -- encerrar no
+         instante do toque roubaria a fusao que ela ainda vai causar. */
+      pending = null;
+      setTimeout(() => { if(running) endGame(true); }, 2200);
+      updateHud();
+      desenharProxima();
+      return;
+    }
     spawnPending();
     desenharProxima();
   }
@@ -966,7 +1001,6 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
       pawReach = pawMaxReach * (1 - easeOutCubic(t));
       if(pawPhaseT >= 1){
         pawState = 'idle';
-    pawBloqueado = false; contraToques = 0; pawFlash = 0;
         pawReach = 0;
         pawNextAt = elapsed + intervaloGato();   // aperta conforme o pote enche
       }
@@ -1308,7 +1342,12 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     for(let i=0;i<SQUARE_EMOJI.length;i++){
       squares += i < filled ? SQUARE_EMOJI[i] : '⬜';
     }
-    return `Fusion Rush #${dayNumber} — ${finalScore} pts\n${squares}`;
+    /* O simbolo diz de cara se a pessoa aguentou as 65 ou transbordou antes --
+       sem isso, dois placares iguais contariam historias diferentes. */
+    const marca = bolhasSoltas >= BOLHAS_POR_PARTIDA
+      ? '✅ completou'
+      : '💥 ' + bolhasSoltas + '/' + BOLHAS_POR_PARTIDA;
+    return `Fusion Rush #${dayNumber} — ${finalScore} pts · ${marca}\n${squares}`;
   }
 
   document.getElementById('som-btn').addEventListener('click', alternarSom);
@@ -1319,6 +1358,8 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
 
   function startGame(){
     reiniciarDia();          // toda tentativa do dia joga a MESMA sequencia
+    bolhasSoltas = 0;
+    pawBloqueado = false; contraToques = 0; pawFlash = 0;
     balls = [];
     particles = [];
     popups = [];
@@ -1344,7 +1385,7 @@ if(/[?&]attract=1(&|$)/.test(location.search)){
     rafId = requestAnimationFrame(loop);
   }
 
-  function endGame(){
+  function endGame(completou){
     sfx('fim');
     running = false;
     cancelAnimationFrame(rafId);
