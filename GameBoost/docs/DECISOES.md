@@ -451,6 +451,60 @@ estão no teste.
 
 ---
 
+## 2026-09-14 — Detecção de jogo por polling, não por WMI
+
+A seção 5.1 sugere `Win32_ProcessStartTrace`, que entrega o evento no instante em
+que o processo nasce. A alternativa é listar processos de tempos em tempos.
+
+Ficou o polling de 2 segundos, e o motivo é medido, não teórico: na Fase 1 a
+coleta de métricas chegou a **5,02% de CPU**, e o WMI era a maior parcela
+daquilo. O `ProcessStartTrace` exige uma consulta WMI viva o tempo todo — é
+exatamente a forma que saiu de lá. Listar processos por
+`NtQuerySystemInformation` custa microssegundos.
+
+Dois segundos de atraso não importam para isto. O que acontece ao detectar é uma
+pergunta num diálogo; ninguém percebe a diferença entre responder no segundo 0 e
+no segundo 2. Se um dia houver um caso que precise do instante exato, o
+argumento muda.
+
+## 2026-09-14 — `UseWindowsForms` contaminou a aplicação inteira
+
+O WPF não tem ícone de bandeja. O caminho normal é o `NotifyIcon` do WinForms,
+que exige `<UseWindowsForms>true</UseWindowsForms>` no csproj.
+
+O que esse switch faz, além de referenciar a biblioteca, é injetar `global using
+System.Windows.Forms` e `global using System.Drawing` em **todo arquivo do
+projeto**. `Control`, `Application`, `Brush` e `MouseEventArgs` existem nos dois
+mundos, então metade da aplicação parou de compilar por ambiguidade — inclusive
+o `Treemap` e o `MiniGrafico`, que não têm nada a ver com bandeja.
+
+A correção é remover só os usings implícitos, mantendo a referência:
+
+```xml
+<ItemGroup>
+  <Using Remove="System.Windows.Forms" />
+  <Using Remove="System.Drawing" />
+</ItemGroup>
+```
+
+O arquivo da bandeja declara os dele explicitamente. O resto da aplicação
+continua vendo só o WPF.
+
+## 2026-09-14 — O timer de 0,5 ms não faz o que dizem que faz
+
+`NtSetTimerResolution(0.5 ms)` é receita fixa de todo guia de otimização. Desde o
+Windows 10 2004 o pedido é **por processo**: o GameBoost pedir 0,5 ms afeta o
+GameBoost, não o jogo. O que sobra é o sistema honrar a menor resolução pedida
+por alguém para temporizadores globais, e é daí que vem o ganho residual que
+ainda aparece no Windows 10.
+
+Ele entrou no perfil porque é reversível e não custa nada, fica **desligado por
+padrão**, e o texto na tela não promete FPS. É o mesmo tratamento dado ao
+`SystemResponsiveness` e ao `NetworkThrottlingIndex` na Fase 5: marginal escrito
+como marginal.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

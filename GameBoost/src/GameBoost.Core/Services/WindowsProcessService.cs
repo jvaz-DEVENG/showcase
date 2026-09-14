@@ -240,6 +240,79 @@ public sealed class WindowsProcessService : IProcessService
         }
     }
 
+    public bool SetAffinity(int pid, IReadOnlyList<int> nucleos)
+    {
+        try
+        {
+            using var p = Process.GetProcessById(pid);
+
+            // Lista vazia = devolver a maquina inteira. E assim que o perfil
+            // reverte a afinidade ao fim do jogo.
+            if (nucleos.Count == 0)
+            {
+                p.ProcessorAffinity = (IntPtr)MascaraCompleta();
+                return true;
+            }
+
+            var total = Environment.ProcessorCount;
+
+            // Indice fora da maquina atual derrubaria o processo. Um perfil
+            // gravado num PC de 16 nucleos vai parar num de 4 mais cedo ou
+            // mais tarde.
+            if (nucleos.Any(n => n < 0 || n >= total))
+            {
+                _log.Warn("Process", "SetAffinity", pid.ToString(),
+                    $"perfil pede nucleo fora dos {total} desta maquina");
+                return false;
+            }
+
+            long mascara = 0;
+
+            foreach (var n in nucleos)
+                mascara |= 1L << n;
+
+            p.ProcessorAffinity = (IntPtr)mascara;
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            _log.Warn("Process", "SetAffinity", pid.ToString(), $"falhou: {ex.Message}");
+            return false;
+        }
+    }
+
+    public IReadOnlyList<int> GetAffinity(int pid)
+    {
+        try
+        {
+            using var p = Process.GetProcessById(pid);
+            var mascara = (long)p.ProcessorAffinity;
+            var nucleos = new List<int>();
+
+            for (var i = 0; i < Environment.ProcessorCount; i++)
+            {
+                if ((mascara & (1L << i)) != 0)
+                    nucleos.Add(i);
+            }
+
+            return nucleos;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return Array.Empty<int>();
+        }
+    }
+
+    private static long MascaraCompleta()
+    {
+        long mascara = 0;
+
+        for (var i = 0; i < Environment.ProcessorCount; i++)
+            mascara |= 1L << i;
+
+        return mascara;
+    }
+
     public ProcessPriority? GetPriority(int pid)
     {
         try

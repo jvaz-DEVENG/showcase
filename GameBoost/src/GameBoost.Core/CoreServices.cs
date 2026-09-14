@@ -8,6 +8,7 @@ using GameBoost.Core.Modules.DiskAnalyzer;
 using GameBoost.Core.Modules.Startup;
 using GameBoost.Core.Modules.Drivers;
 using GameBoost.Core.Modules.Network;
+using GameBoost.Core.Modules.Profiles;
 using GameBoost.Core.Modules.Tweaks;
 using GameBoost.Core.Modules.Uninstaller;
 using GameBoost.Core.Modules.Tools;
@@ -101,6 +102,11 @@ public static class CoreServices
         services.AddSingleton<SpeedTest>();
         services.AddSingleton<NetworkModule>();
         services.AddSingleton<GpuDriverInfo>();
+
+        // Fase 6: perfis por jogo.
+        services.AddSingleton<ProfileStore>();
+        services.AddSingleton<GameWatcher>();
+        services.AddSingleton<ProfileRunner>();
 
         services.AddSingleton<SystemSilencer>();
         services.AddSingleton<GameDetector>();

@@ -71,6 +71,8 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
         _temaEscuro = !string.Equals(settings.Tema, "Light", StringComparison.OrdinalIgnoreCase);
         _iniciarComWindows = settings.IniciarComWindows;
         _permitirAcessoARede = settings.PermitirAcessoARede;
+        _mostrarNaBandeja = settings.MostrarNaBandeja;
+        _detectarJogosAutomaticamente = settings.DetectarJogosAutomaticamente;
         _iniciarMinimizado = settings.IniciarMinimizado;
         _carregando = false;
 
@@ -89,6 +91,8 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
     [ObservableProperty] private bool _iniciarComWindows;
     [ObservableProperty] private bool _iniciarMinimizado;
     [ObservableProperty] private bool _permitirAcessoARede;
+    [ObservableProperty] private bool _mostrarNaBandeja;
+    [ObservableProperty] private bool _detectarJogosAutomaticamente;
     [ObservableProperty] private bool _ehAdministrador;
     [ObservableProperty] private string _status = string.Empty;
 
@@ -169,6 +173,8 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
         _settings.Tema = TemaEscuro ? "Dark" : "Light";
         _settings.IniciarComWindows = IniciarComWindows;
         _settings.PermitirAcessoARede = PermitirAcessoARede;
+        _settings.MostrarNaBandeja = MostrarNaBandeja;
+        _settings.DetectarJogosAutomaticamente = DetectarJogosAutomaticamente;
         _settings.IniciarMinimizado = IniciarMinimizado;
         _store.Save(_settings);
     }
@@ -187,6 +193,27 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
     }
 
     partial void OnIniciarMinimizadoChanged(bool value) => Salvar();
+
+    partial void OnMostrarNaBandejaChanged(bool value)
+    {
+        Salvar();
+
+        Status = value
+            ? "O ícone volta a aparecer na bandeja na próxima abertura."
+            : "Sem o ícone na bandeja, fechar a janela fecha o GameBoost de vez. "
+            + "A mudança vale na próxima abertura.";
+    }
+
+    partial void OnDetectarJogosAutomaticamenteChanged(bool value)
+    {
+        Salvar();
+
+        Status = value
+            ? "Ao abrir um jogo, o GameBoost vai perguntar se você quer ativar o Modo Game. "
+            + "Ele nunca ativa sozinho, a não ser que o perfil daquele jogo mande."
+            : "O GameBoost deixa de vigiar os processos. O Modo Game continua funcionando "
+            + "pelo botão de sempre. Vale na próxima abertura.";
+    }
 
     partial void OnPermitirAcessoARedeChanged(bool value)
     {

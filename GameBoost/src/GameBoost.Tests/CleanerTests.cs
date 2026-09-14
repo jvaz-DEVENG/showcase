@@ -52,7 +52,10 @@ public sealed class CleanerTests
         public ProcessPriority? GetPriority(int pid) => ProcessPriority.Normal;
         public bool Start(string executablePath, string? arguments, string? workingDirectory) => true;
         public long TrimWorkingSet(int pid) => 0;
-    }
+    
+    public bool SetAffinity(int pid, IReadOnlyList<int> nucleos) => true;
+    public IReadOnlyList<int> GetAffinity(int pid) => Array.Empty<int>();
+}
 
     // ---------------- Catálogo ----------------
 

@@ -67,4 +67,20 @@ public sealed class AppSettings
     /// sobre a maquina; ainda assim, sair para a rede e uma escolha dele.
     /// </summary>
     public bool PermitirAcessoARede { get; set; }
+
+    /// <summary>Icone na bandeja com o menu da secao 6.</summary>
+    public bool MostrarNaBandeja { get; set; } = true;
+
+    /// <summary>
+    /// Vigiar os processos e avisar quando um jogo abrir (secao 5.1).
+    ///
+    /// Ligado por padrao: e a funcao que o usuario espera de um booster, e o
+    /// custo e um polling de 2 s numa thread de prioridade baixa. Mesmo ligado,
+    /// ele **pergunta** antes de ativar qualquer coisa, a nao ser que o perfil
+    /// daquele jogo diga o contrario.
+    /// </summary>
+    public bool DetectarJogosAutomaticamente { get; set; } = true;
+
+    /// <summary>As tres telas da primeira abertura ja foram vistas.</summary>
+    public bool OnboardingConcluido { get; set; }
 }

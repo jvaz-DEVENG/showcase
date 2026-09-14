@@ -69,6 +69,24 @@
                            Foreground="{StaticResource TextoSecundario}"
                            Text="Desligado por padrão. Serve só para o teste de velocidade da página Rede, que baixa e envia cerca de 100 MB de bytes aleatórios. O GameBoost não tem telemetria: nada sobre você ou sobre esta máquina sai daqui, com esta opção ligada ou desligada." />
 
+                <CheckBox Margin="0,18,0,0"
+                          Content="Mostrar o ícone na bandeja do sistema"
+                          IsChecked="{Binding MostrarNaBandeja}"
+                          AutomationProperties.Name="Mostrar o icone na bandeja do sistema" />
+
+                <TextBlock Margin="24,4,0,0" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextoSecundario}"
+                           Text="Com o ícone ligado, fechar a janela esconde o GameBoost na bandeja em vez de encerrar. Para sair de vez, clique com o botão direito no ícone e escolha Sair." />
+
+                <CheckBox Margin="0,18,0,0"
+                          Content="Reconhecer quando um jogo abre"
+                          IsChecked="{Binding DetectarJogosAutomaticamente}"
+                          AutomationProperties.Name="Reconhecer quando um jogo abre" />
+
+                <TextBlock Margin="24,4,0,0" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextoSecundario}"
+                           Text="Verifica os processos a cada 2 segundos, numa thread de prioridade baixa. Ao encontrar um jogo, ele pergunta se quer ativar o Modo Game — nunca ativa sozinho, a não ser que o perfil daquele jogo mande. Ao fechar o jogo, tudo é desfeito." />
+
                         <Rectangle Height="1" Fill="{StaticResource Borda}" Margin="0,18" />
 
                         <TextBlock Text="Dados" FontWeight="SemiBold" Margin="0,0,0,8" />

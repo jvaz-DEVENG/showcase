@@ -434,6 +434,92 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public void Perfil_grava_e_le_de_volta()
+    {
+        var store = _provider.GetRequiredService<Core.Modules.Profiles.ProfileStore>();
+
+        var perfil = Core.Modules.Profiles.GameProfile.Padrao(
+            "gb-teste-perfil.exe", "Jogo de teste", @"C:\Jogos\teste", "Steam");
+
+        perfil.TimerDeMeioMilissegundo = true;
+        perfil.Afinidade.AddRange(new[] { 0, 1, 2, 3 });
+        perfil.FecharApps.Add("chrome");
+
+        try
+        {
+            store.Salvar(perfil);
+            store.Recarregar();
+
+            var lido = store.Buscar("GB-Teste-Perfil.EXE");
+
+            Assert.NotNull(lido);
+            Assert.Equal("Jogo de teste", lido!.Nome);
+            Assert.True(lido.TimerDeMeioMilissegundo);
+            Assert.Equal(4, lido.Afinidade.Count);
+
+            // Regra 3: perfil novo nunca ativa sozinho.
+            Assert.False(lido.Automatico);
+        }
+        finally
+        {
+            store.Remover("gb-teste-perfil");
+        }
+    }
+
+    [Theory]
+    [InlineData("Valorant.exe", "valorant")]
+    [InlineData("CS2.EXE", "cs2")]
+    [InlineData("  RDR2  ", "rdr2")]
+    public void Nome_de_executavel_vira_chave_normalizada(string entrada, string esperada)
+        => Assert.Equal(esperada, Core.Modules.Profiles.GameProfile.Normalizar(entrada));
+
+    [Fact]
+    public void Afinidade_recusa_nucleo_que_nao_existe_nesta_maquina()
+    {
+        var processos = _provider.GetRequiredService<Core.Abstractions.IProcessService>();
+        var eu = Environment.ProcessId;
+
+        // Um perfil gravado num PC de 64 nucleos nao pode derrubar o processo
+        // num de 8. O indice 999 nao existe em maquina nenhuma.
+        Assert.False(processos.SetAffinity(eu, new[] { 999 }));
+
+        // O nucleo 0 existe em toda maquina: este tem que passar.
+        var antes = processos.GetAffinity(eu);
+        Assert.True(processos.SetAffinity(eu, new[] { 0 }));
+        Assert.Equal(new[] { 0 }, processos.GetAffinity(eu));
+
+        // Lista vazia devolve a maquina inteira.
+        Assert.True(processos.SetAffinity(eu, Array.Empty<int>()));
+        Assert.Equal(Environment.ProcessorCount, processos.GetAffinity(eu).Count);
+
+        processos.SetAffinity(eu, antes);
+    }
+
+    [Fact]
+    public void Deteccao_de_tela_cheia_responde_sem_travar()
+    {
+        // Nao da para afirmar que HA janela em tela cheia numa maquina de
+        // teste. O que da para exigir e que a varredura de janelas termine e
+        // nao exploda com um pid que nao existe.
+        var relogio = System.Diagnostics.Stopwatch.StartNew();
+
+        var proprio = Core.Native.WindowInfo.EstaEmTelaCheia(Environment.ProcessId);
+        var inexistente = Core.Native.WindowInfo.EstaEmTelaCheia(999999);
+
+        relogio.Stop();
+
+        Assert.False(inexistente);
+        Assert.True(relogio.ElapsedMilliseconds < 2000,
+            $"a varredura de janelas levou {relogio.ElapsedMilliseconds} ms");
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-perfis.txt"),
+            $"MEDIDO: varredura de janelas em {relogio.ElapsedMilliseconds} ms, "
+          + $"proprio processo em tela cheia = {proprio}, "
+          + $"{Environment.ProcessorCount} nucleos, "
+          + $"pid em primeiro plano = {Core.Native.WindowInfo.PidEmPrimeiroPlano()}");
+    }
+
+    [Fact]
     public async Task Winget_lista_atualizacoes_da_maquina_real()
     {
         var winget = _provider.GetRequiredService<Core.Modules.Uninstaller.WingetService>();

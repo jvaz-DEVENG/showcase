@@ -89,11 +89,21 @@ desativado ou firewall. Corrige o que é do Windows, com desfazer, e para o rest
 marcas de roteador. O teste de velocidade é um botão à parte e desligado por padrão, porque
 gasta 100 MB da sua franquia.
 
+**Perfis por jogo.** O GameBoost reconhece quando um jogo abre e pergunta se quer ativar o
+Modo Game para ele. Cada jogo pode ter o seu perfil — prioridade, núcleos, tweaks, apps a
+fechar — aplicado ao entrar e **desfeito ao sair**, sem exceção. Perfil novo nunca ativa
+sozinho: só passa a agir sem perguntar quem você marcar como automático.
+
+**Bandeja e primeira abertura.** Ícone ao lado do relógio com Ativar Modo Game, Limpar RAM,
+Abrir e Sair. Fechar a janela esconde na bandeja, e ele avisa isso na primeira vez —
+programa que some sem dizer para onde foi é o motivo de as pessoas irem no Gerenciador de
+Tarefas. Na primeira abertura, três telas explicando o contrato: tudo é reversível, nada
+sai daqui, e o que faz diferença de verdade.
+
 ## O que vem depois
 
 | Fase | Módulo |
 |---|---| Tweaks de jogos, serviços, rede, drivers |
-| 6 | Perfis por jogo com detecção automática, bandeja, onboarding |
 | 7 | Distribuição: auto-update, CI completo, portátil, assinatura |
 
 ---

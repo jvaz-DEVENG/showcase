@@ -25,6 +25,18 @@ public interface IProcessService
     bool SetPriority(int pid, ProcessPriority priority);
     ProcessPriority? GetPriority(int pid);
 
+    /// <summary>
+    /// Restringe o processo a um conjunto de nucleos, por indice.
+    ///
+    /// Lista vazia devolve o processo a todos os nucleos, que e como reverter.
+    /// Devolve false quando algum indice nao existe nesta maquina: um perfil
+    /// gravado num PC de 16 nucleos nao pode derrubar o jogo num de 4.
+    /// </summary>
+    bool SetAffinity(int pid, IReadOnlyList<int> nucleos);
+
+    /// <summary>Nucleos em que o processo pode rodar agora.</summary>
+    IReadOnlyList<int> GetAffinity(int pid);
+
     /// <summary>Relanca um executavel na sessao do usuario. Usado para reabrir os apps essenciais.</summary>
     bool Start(string executablePath, string? arguments, string? workingDirectory);
 

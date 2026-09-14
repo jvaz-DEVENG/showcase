@@ -3,6 +3,11 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!--
+      WinForms entra so pelo NotifyIcon: o WPF nao tem icone de bandeja
+      proprio, e a alternativa seria uma dependencia externa so para isso.
+    -->
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>GameBoost.App</RootNamespace>
     <AssemblyName>GameBoost</AssemblyName>
     <!-- ReadyToRun reduz o tempo de abertura do single-file (secao 10). -->
@@ -34,6 +39,18 @@
           Condition="'$(SemElevacao)' == 'true' AND '$(Configuration)' == 'Release'">
     <Error Text="SemElevacao=true e so para desenvolvimento. O Release precisa do manifesto requireAdministrator." />
   </Target>
+
+  <!--
+    WinForms entra so pelo NotifyIcon, mas o SDK dele injeta using global de
+    System.Windows.Forms e System.Drawing em TODO arquivo. Isso torna Control,
+    Application, Brush e MouseEventArgs ambiguos com os tipos do WPF na
+    aplicacao inteira. Os usings saem daqui; o arquivo da bandeja declara os
+    dele explicitamente.
+  -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />

@@ -104,6 +104,8 @@ public sealed class QuickToolsCatalogTests
         public IReadOnlyList<Core.Abstractions.ProcessInfo> GetProcesses() => Array.Empty<Core.Abstractions.ProcessInfo>();
         public Core.Abstractions.ProcessInfo? GetProcess(int pid) => null;
         public bool TryCloseGracefully(int pid, TimeSpan timeout) => true;
+        public bool SetAffinity(int pid, IReadOnlyList<int> nucleos) => true;
+        public IReadOnlyList<int> GetAffinity(int pid) => Array.Empty<int>();
         public bool Kill(int pid) => true;
         public bool SetPriority(int pid, Core.Abstractions.ProcessPriority priority) => true;
         public Core.Abstractions.ProcessPriority? GetPriority(int pid) => null;

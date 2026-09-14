@@ -41,6 +41,10 @@
                 <views:ConfiguracoesPage />
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type vm:JogosPageViewModel}">
+                <views:JogosPage />
+            </DataTemplate>
+
             <!-- A pagina de Apps tem tres abas, entao tem tela propria. -->
             <DataTemplate DataType="{x:Type vm:AppsPageViewModel}">
                 <views:AppsPage />

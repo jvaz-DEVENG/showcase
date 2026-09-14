@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GameBoost.Core.Abstractions;
 using GameBoost.Core.Logging;
 using GameBoost.Core.Modules;
 using GameBoost.Core.Modules.Bottleneck;
@@ -26,6 +27,8 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
     private readonly IRollbackEngine _rollback;
     private readonly ISessionStore _sessions;
     private readonly HealthReportModule _saude;
+    private readonly IMemoryService _memoria;
+    private readonly IProcessService _processos;
     private readonly IGameBoostLogger _log;
     private CancellationTokenSource? _ctsSaude;
 
@@ -35,10 +38,14 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
         IRollbackEngine rollback,
         ISessionStore sessions,
         HealthReportModule saude,
+        IMemoryService memoria,
+        IProcessService processos,
         IGameBoostLogger log)
         : base(gameMode, backup)
     {
         _gameMode = gameMode;
+        _memoria = memoria;
+        _processos = processos;
         _saude = saude;
         _backup = backup;
         _rollback = rollback;
@@ -204,6 +211,46 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
 
         ModoGameAtivo = false;
         AvisoDeRestauracao = null;
+    }
+
+    /// <summary>
+    /// Libera memoria sem ativar o Modo Game. E o item "Limpar RAM" da bandeja.
+    ///
+    /// O ganho e medido, nao estimado: mede a RAM livre antes, roda, mede
+    /// depois e mostra a diferenca. Boosters costumam anunciar aqui um numero
+    /// inventado; quando o Windows ja estava bem de memoria, o numero honesto
+    /// e "quase nada", e e isso que aparece.
+    /// </summary>
+    [RelayCommand]
+    private void LimparRam()
+    {
+        if (!EhAdministrador)
+        {
+            Status = "Liberar memoria precisa de privilegios de administrador.";
+            return;
+        }
+
+        var antes = _memoria.GetSnapshot();
+
+        var processos = 0;
+
+        foreach (var p in _processos.GetProcesses())
+        {
+            if (_processos.TrimWorkingSet(p.Pid) > 0)
+                processos++;
+        }
+
+        var purgou = _memoria.PurgeStandbyList();
+        var depois = _memoria.GetSnapshot();
+        var ganho = depois.AvailableBytes - antes.AvailableBytes;
+
+        Status = ganho > 0
+            ? $"{Core.Modules.GameMode.GameModeModule.Formatar(ganho)} a mais de RAM livre "
+            + $"({processos} processos{(purgou ? ", Standby List purgada" : string.Empty)})."
+            : "A memoria ja estava livre: nao havia o que liberar. "
+            + "Isso e normal em maquina com RAM sobrando.";
+
+        _log.Info("gamemode", "LimparRam", null, Status);
     }
 
     /// <summary>Botao Reverter tudo: sempre visivel, desfaz qualquer alteracao pendente.</summary>

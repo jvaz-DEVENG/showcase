@@ -4,6 +4,45 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - em desenvolvimento
 
+### Fase 6 - Perfis por jogo, bandeja e onboarding (2026-09-14)
+
+#### Adicionado
+- Perfis por jogo (secao 5.11): um arquivo por jogo em `profiles/*.json`. Um perfil diz o
+  que fazer quando o jogo abre e o que desfazer quando ele fecha; a reversao nao e
+  opcional nem configuravel.
+- Deteccao automatica de jogo (secao 5.1): vigia os processos a cada 2 s numa thread de
+  prioridade baixa, cruzando nome conhecido, pasta de launcher e janela em tela cheia.
+- Perfil novo **nunca** ativa sozinho. O convite aparece, e so quem marcar "ativa sozinho"
+  passa a ter o perfil aplicado sem perguntar (regra 3).
+- Afinidade de CPU por perfil, desligada por padrao, recusando indice de nucleo que nao
+  existe na maquina atual.
+- Resolucao de timer em 0,5 ms por perfil, desligada por padrao e com o texto dizendo que
+  vale menos do que a internet promete.
+- Pagina Jogos: biblioteca dos launchers cruzada com os perfis. Medido: 14 jogos,
+  974,2 GB.
+- Icone na bandeja com o menu da secao 6 (Ativar Modo Game, Limpar RAM, Abrir, Sair).
+  Fechar a janela esconde na bandeja, com aviso na primeira vez; "Sair" sai de verdade.
+- "Limpar RAM" como acao propria, com ganho medido antes e depois. Quando nao ha o que
+  liberar, o texto diz isso em vez de inventar um numero.
+- Onboarding de tres telas na primeira abertura: reversivel, sem telemetria, e o que faz
+  diferenca de verdade. Nao vende FPS.
+- Dois interruptores novos em Configuracoes: icone na bandeja e deteccao automatica.
+
+#### Corrigido
+- `UseWindowsForms` (necessario para o NotifyIcon) injeta using global de
+  `System.Windows.Forms` e `System.Drawing` em todo arquivo, tornando `Control`,
+  `Application`, `Brush` e `MouseEventArgs` ambiguos com os tipos do WPF na aplicacao
+  inteira. Os usings implicitos foram removidos no csproj.
+- O texto de estado vazio da pagina Jogos aparecia por cima da lista cheia: a
+  visibilidade dependia do Resumo, que nunca fica vazio.
+
+#### Notas
+- A deteccao e por polling, nao por `Win32_ProcessStartTrace`. WMI em laco foi o que
+  estourou o orcamento de CPU na Fase 1; 2 segundos de atraso nao importam para algo que
+  o usuario vai confirmar num dialogo.
+- Sair do app desfaz o perfil aplicado antes de encerrar. Sem isso, prioridade e tweaks
+  ficariam de pe depois que o processo sumiu.
+
 ### Complemento da Fase 4 - aba Atualizacoes (winget) e aba Restos na tela (2026-09-14)
 
 Entrega retroativa: a secao 5.3 ganhou a aba de atualizacoes depois que a Fase 4 ja

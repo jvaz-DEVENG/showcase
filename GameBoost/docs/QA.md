@@ -154,6 +154,28 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] Comparar a classificação de NAT com o que o app do Xbox mostra na mesma rede
 - [ ] Máquina no Wi-Fi: conferir SSID, padrão e banda
 
+## Fase 6 — perfis, bandeja e onboarding
+
+- [x] Perfil grava e lê de volta, com afinidade e timer
+- [x] Perfil novo nunca vem com "ativa sozinho" marcado
+- [x] Afinidade recusa índice de núcleo que não existe na máquina (medido: 20 núcleos)
+- [x] Afinidade com lista vazia devolve todos os núcleos
+- [x] Varredura de janelas para tela cheia responde rápido (medido: 3 ms)
+- [x] Biblioteca cruza com perfis (medido: 14 jogos, 974,2 GB, 0 com perfil)
+- [x] Ícone na bandeja aparece e o vigia inicia (confirmado no log)
+- [x] Onboarding aparece na primeira abertura e é alcançável pela automação
+- [ ] Abrir um jogo de verdade e conferir o convite
+- [ ] Aceitar o convite e conferir que o perfil é aplicado
+- [ ] Fechar o jogo e conferir que tudo é desfeito sozinho
+- [ ] Marcar "ativa sozinho" e conferir que o próximo boot do jogo não pergunta
+- [ ] Recusar o convite e conferir que ele não volta na mesma sessão
+- [ ] Matar o GameBoost com perfil aplicado e conferir o aviso na reabertura
+- [ ] Fechar a janela e conferir que o app fica na bandeja, com o aviso uma vez só
+- [ ] "Sair" da bandeja encerra o processo de verdade
+- [ ] "Limpar RAM" pela bandeja com o app minimizado
+- [ ] Onboarding marcado como concluído não volta na segunda abertura
+- [ ] Perfil com afinidade num jogo real: conferir no Gerenciador de Tarefas
+
 ## Ambiente
 
 - [x] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso
@@ -186,6 +208,8 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | Perfis, afinidade, tela cheia, bandeja e onboarding | Passou apos 2 correcoes |
+| 14/09/2026 | Telas de Jogos e onboarding renderizadas | Passou |
 | 14/09/2026 | winget: 35 atualizacoes lidas e classificadas | Passou apos 3 correcoes |
 | 14/09/2026 | Abas de Apps (Instalados, Atualizacoes, Restos) renderizadas | Passou |
 | 14/09/2026 | Tweaks, servicos, NAT, velocidade e driver de video (nao elevado) | Passou apos 4 correcoes |
