@@ -28,6 +28,15 @@ public sealed class ActionItem
 
     public string? MotivoBloqueio { get; init; }
 
+    /// <summary>
+    /// Texto do selo quando o item esta bloqueado. O padrao e "Protegido", mas
+    /// nem todo bloqueio e protecao: um ajuste que so precisa de elevacao
+    /// aparece bloqueado e **nao** e protegido — chamar os dois da mesma coisa
+    /// faz o usuario achar que o GameBoost se recusa a mexer, quando na verdade
+    /// basta reabrir como administrador.
+    /// </summary>
+    public string RotuloBloqueio { get; init; } = "Protegido";
+
     /// <summary>Carga util especifica do modulo (ex.: o ProcessInfo por tras do item).</summary>
     public object? Payload { get; init; }
 }

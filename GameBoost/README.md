@@ -64,11 +64,27 @@ uma estimativa grosseira do peso no boot — declarada como grosseira, porque ve
 do arquivo e não de medição. Desativar grava exatamente o mesmo formato do Gerenciador de
 Tarefas, e dá para reverter aqui, lá ou os dois.
 
+**Ajustes do Windows.** Doze tweaks de jogo e doze serviços do Windows na mesma lista, cada
+um com o efeito real escrito sem promessa: quando um ajuste é marginal, está escrito que é
+marginal. O isolamento de núcleo aparece explicado e **não** é alterado — essa escolha é
+sua, na tela da Microsoft. SysMain, os serviços do Xbox e o Windows Update aparecem
+bloqueados para explicar por que toda lista de otimização da internet erra ao mandar
+desligar. Nada vem marcado, nem o que o próprio GameBoost recomenda.
+
+**Rede.** Responde duas perguntas: "minha internet está boa pra jogar?" e "por que eu não
+entro na partida do meu amigo?". Mede latência, jitter e perda, compara o seu DNS com
+Cloudflare, Google e Quad9, e descobre o tipo do seu NAT com um cliente STUN próprio —
+aberto, moderado ou estrito, no mesmo vocabulário que o jogo usa. Quando é estrito, diz
+**por quê**: CGNAT da operadora, dois roteadores em série, UPnP desligado, Teredo
+desativado ou firewall. Corrige o que é do Windows, com desfazer, e para o resto abre
+[docs/PORTAS.md](docs/PORTAS.md) com as portas de cada jogo e onde fica cada coisa em sete
+marcas de roteador. O teste de velocidade é um botão à parte e desligado por padrão, porque
+gasta 100 MB da sua franquia.
+
 ## O que vem depois
 
 | Fase | Módulo |
-|---|---|
-| 5 | Tweaks de jogos, serviços, rede, drivers |
+|---|---| Tweaks de jogos, serviços, rede, drivers |
 | 6 | Perfis por jogo com detecção automática, bandeja, onboarding |
 | 7 | Distribuição: auto-update, CI completo, portátil, assinatura |
 

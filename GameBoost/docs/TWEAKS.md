@@ -8,6 +8,97 @@ escrito que é marginal.
 
 ---
 
+## Implementados na Fase 5 (página Tweaks)
+
+Catálogo completo da seção 5.8, aplicado item a item, cada um com ChangeRecord
+antes da escrita. **Nada vem pré-marcado**, nem o que está marcado como
+recomendado: recomendação é informação, não consentimento.
+
+### Jogos
+
+| Tweak | Chave | Valor | Efeito real | Risco |
+|---|---|---|---|---|
+| Agendamento de GPU por hardware (HAGS) | `HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` → `HwSchMode` | `2` | Obrigatório para o Frame Generation do DLSS 3. Em RTX 30+ e RX 6000+ com driver atual costuma melhorar a regularidade dos quadros; em CPU antiga pode piorar. Usa até 1 GB de VRAM. **Exige reinício** | Médio |
+| Modo Jogo do Windows | `HKCU\Software\Microsoft\GameBar` → `AutoGameModeEnabled` | `1` | No 22H2+ segura o Windows Update e a instalação de driver durante o jogo, que é o ganho concreto. Recomendado | Baixo |
+| Gravação em segundo plano (Game DVR) | `HKCU\System\GameConfigStore` → `GameDVR_Enabled` e `HKCU\Software\Microsoft\GameBar` → `UseNexusForGameBarEnabled` | `0` | Desliga a gravação contínua. Ganho real em máquina modesta, pequeno em PC forte. Perde o atalho de gravar os últimos 30 s | Baixo |
+| Prioridade da categoria Jogos | `HKLM\...\SystemProfile\Tasks\Games` → `GPU Priority`=8, `Priority`=6, `Scheduling Category`=High | — | **Marginal.** Nenhuma medição pública consistente mostra ganho em hardware atual. Está no catálogo por ser reversível e sem custo, não por render FPS | Baixo |
+| Desativar Multi-Plane Overlay (MPO) | `HKLM\SOFTWARE\Microsoft\Windows\Dwm` → `OverlayTestMode` | `5` | Só vale com o sintoma: piscada preta, tremulação ou stutter na área de trabalho, comum em NVIDIA com dois monitores. **Não dá FPS.** Exige reinício | Médio |
+
+### Sistema
+
+| Tweak | Chave | Valor | Efeito real | Risco |
+|---|---|---|---|---|
+| Reserva de CPU para tarefas de fundo | `HKLM\...\SystemProfile` → `SystemResponsiveness` | `0` | **Marginal.** Devolve ao primeiro plano os 20% que o Windows reserva para multimídia de fundo. Pode causar engasgo em gravação e transmissão — o padrão 20 existe para proteger áudio | Baixo |
+| Efeitos visuais no melhor desempenho | `HKCU\...\Explorer\VisualEffects` → `VisualFXSetting` | `2` | Ajuda só em máquina fraca ou sem GPU dedicada. Não afeta jogo em tela cheia, que nem passa pelo DWM | Baixo |
+
+### Rede
+
+| Tweak | Chave | Valor | Efeito real | Risco |
+|---|---|---|---|---|
+| Desativar limite de tráfego multimídia | `HKLM\...\SystemProfile` → `NetworkThrottlingIndex` | `0xFFFFFFFF` | **Marginal.** O limite de 10 pacotes/ms foi criado para placas de rede de 2007 e praticamente não morde em hardware atual | Baixo |
+
+### Mouse e teclado
+
+| Tweak | Chave | Valor | Efeito real | Risco |
+|---|---|---|---|---|
+| Desativar aceleração do mouse | `HKCU\Control Panel\Mouse` → `MouseSpeed`, `MouseThreshold1`, `MouseThreshold2` | `0` | Consistência de mira, não desempenho. Jogos que usam Raw Input já ignoram isto. Vai atrapalhar quem está acostumado com a aceleração ligada | Baixo |
+
+### Energia
+
+| Tweak | Onde | Efeito real | Risco |
+|---|---|---|---|
+| Desativar limitação de energia do processador | `HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling` → `PowerThrottlingOff` = 1 | Faz diferença em notebook, onde a limitação é agressiva. Em desktop na tomada, quase nada. Custa consumo e temperatura | Baixo |
+| Desativar hibernação | `powercfg /h off` | Libera em disco o equivalente à RAM instalada. Perde hibernação e Inicialização Rápida, e o boot fica alguns segundos mais lento. Vale por espaço, não por desempenho | Médio |
+
+### Segurança: aparece, explica e não mexe
+
+| Item | Por quê |
+|---|---|
+| Isolamento de núcleo (VBS) | Aparece **só de leitura**. As medições da comunidade põem o custo entre 5% e 15% em jogos limitados por CPU, e em troca é o que impede um driver malicioso de ler a memória do sistema. Num PC que também é banco e trabalho, desligar é troca ruim; num PC só de jogo é escolha defensável — do dono, na tela da Microsoft. O botão abre Segurança do Windows |
+| Mitigações de Spectre/Meltdown | **Não estão no catálogo, nem bloqueadas.** Item na tela vira ideia na cabeça de alguém. Desligar rende alguns por cento em CPU antiga e abre um buraco de segurança real |
+
+### Como o estado é lido
+
+Um tweak "desligado" quase nunca significa valor zero: na maioria das chaves
+significa **valor ausente**, com o Windows assumindo o padrão. Por isso a
+reversão apaga o valor quando ele não existia antes, em vez de gravar zero —
+confundir os dois é o que faz ferramenta de tweak deixar lixo que nunca sai.
+
+A hibernação é lida do registro (`HibernateEnabled`, com `HibernateEnabledDefault`
+como fallback), não pela existência de `C:\hiberfil.sys`: aquele arquivo é de
+sistema e `File.Exists` devolve falso sem elevação, o que faria o app dizer "já
+desligada" para quem abriu sem ser administrador.
+
+---
+
+## Serviços do Windows (seção 5.7, Fase 5)
+
+Régua diferente da dos tweaks: um serviço desligado por engano não tira alguns
+FPS, tira a impressora, a busca ou o Game Pass.
+
+### Dá para desativar
+
+| Serviço | Sugestão | O que você perde |
+|---|---|---|
+| `DiagTrack` | Desativado | Nada de sistema. O motivo de desligar é privacidade, não FPS |
+| `MapsBroker` | Desativado | Mapas offline do aplicativo Mapas |
+| `RemoteRegistry` | Desativado | Nada. Já vem desativado no Windows doméstico |
+| `WMPNetworkSvc` | Desativado | Compartilhar a biblioteca do Media Player na rede |
+| `Fax` | Desativado | Fax por modem |
+| `WSearch` | Manual | A busca do Iniciar e do Explorer fica lenta. Vale em HDD; em SSD o índice compensa |
+| `Spooler` | Manual | Impressão, **inclusive salvar em PDF** |
+
+### Aparece para explicar por que **não** mexer
+
+| Serviço | Por quê |
+|---|---|
+| `SysMain` | Toda lista de otimização manda desligar, e está errada. Em SSD ele quase não faz leitura antecipada; o que faz hoje é gerenciar memória. Desligar não devolve RAM, devolve cache — e o Windows usa RAM livre para cache de qualquer jeito |
+| `XblAuthManager`, `XboxNetApiSvc` | Sem eles o Game Pass não abre e alguns anti-cheat falham. Parados não custam nada; desligados quebram o Game Pass |
+| `wuauserv` | Nunca desativar. Máquina sem atualização de segurança é problema maior que qualquer FPS. O Modo Game já pausa o Update durante o jogo e religa depois |
+| `WinDefend`, `SecurityHealthService` | O GameBoost não desliga antivírus, nem o do Windows nem o de terceiros |
+
+---
+
 ## Implementados na Fase 0 (Modo Game)
 
 Aplicados em bloco pelo Modo Game, revertidos no desligamento. Ver
@@ -50,25 +141,15 @@ tudo", na próxima abertura após travamento **e** no desinstalador.
 
 ---
 
-## Catálogo da Fase 5 (ainda não implementados)
+## Do catálogo da seção 5.8, o que ficou de fora
 
-Listados aqui para que a pesquisa não se perca entre as fases. Nada disso está no código.
+Três itens do spec não entraram na Fase 5, e cada um tem um motivo diferente.
 
-| Tweak | Onde | Efeito real | Risco |
-|---|---|---|---|
-| HAGS | `HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` → `HwSchMode = 2` (exige reboot) | **Obrigatório para DLSS Frame Generation.** Melhora frame pacing em RTX 30+/RX 6000+ com driver atual, **piora** em CPU antiga ou certas versões de driver. Custa até 1 GB de VRAM — atenção em placas de 8 GB. É o único ajuste que precisa ser **testado** em vez de só ligado: oferecer "Testar com/sem" | Médio |
-| Game Mode do Windows | `HKCU\Software\Microsoft\GameBar` → `AutoGameModeEnabled` | Positivo no 22H2+; bloqueia Windows Update durante o jogo. Recomendar **ligado**; desligar só em conflito com streaming | Baixo |
-| Fullscreen Optimizations por exe | `HKCU\System\GameConfigStore` → `GameDVR_FSEBehaviorMode` e `HKCU\...\AppCompatFlags\Layers` → `DISABLEDXMAXIMIZEDWINDOWEDMODE` | Depende do jogo. Oferecer por perfil, nunca global | Baixo |
-| Multi-Plane Overlay (MPO) | `HKLM\SOFTWARE\Microsoft\Windows\Dwm` → `OverlayTestMode = 5` | Resolve stutter e flicker em alguns setups NVIDIA. Não faz nada na maioria | Médio |
-| Nagle | `HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\<GUID>` → `TcpAckFrequency`, `TCPNoDelay` | **Marginal.** Só ajuda em jogos com muitos pacotes TCP pequenos; a maioria usa UDP | Baixo |
-| Network Throttling Index | `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile` → `NetworkThrottlingIndex = 0xFFFFFFFF` | **Marginal** | Baixo |
-| SystemResponsiveness | mesma chave → `SystemResponsiveness = 0` | Prioriza o processo em foreground. Efeito pequeno | Baixo |
-| Games task priority | `...\SystemProfile\Tasks\Games` → `GPU Priority = 8`, `Priority = 6`, `Scheduling Category = High` | **Marginal** | Baixo |
-| Aceleração do mouse | `HKCU\Control Panel\Mouse` → `MouseSpeed = 0`, `MouseThreshold1/2 = 0` | Consistência de mira. Não muda FPS | Baixo |
-| Power throttling off | `powercfg /setacvalueindex … PERFBOOSTMODE` e `HKLM\…\Power\PowerThrottling` → `PowerThrottlingOff` | Evita clock baixo em notebook | Baixo |
-| Desativar hibernação | `powercfg /h off` | Libera espaço igual ao tamanho da RAM. **Perde a Inicialização Rápida** | Médio |
-| Efeitos visuais "melhor desempenho" | `HKCU\…\Explorer\VisualEffects` | Ajuda só em máquina muito fraca; piora a experiência de uso | Baixo |
-| Timer resolution | `NtSetTimerResolution(0.5 ms)` enquanto o Modo Game estiver ativo | O Windows 11 já lida bem; ajuda mais no 10. P/Invoke já existe em `NativeMethodsBridge` | Baixo |
+| Tweak | Por que não entrou |
+|---|---|
+| Fullscreen Optimizations por executável | `GameDVR_FSEBehaviorMode` e `DISABLEDXMAXIMIZEDWINDOWEDMODE` são ajustes **por jogo**, não globais. O spec já diz "oferecer por perfil", e perfil por jogo é a Fase 6 |
+| Nagle (`TcpAckFrequency`, `TCPNoDelay`) | A chave fica em `...\Tcpip\Parameters\Interfaces\<GUID>`, uma por adaptador, e o ganho é marginal mesmo no melhor caso: a maioria dos jogos usa UDP, onde Nagle não existe. Entra junto com o perfil por jogo, que sabe qual jogo justifica mexer |
+| Timer resolution | O P/Invoke existe em `NativeMethodsBridge`, mas a resolução de timer só vale enquanto o processo que pediu está vivo. Faz sentido dentro da sessão do Modo Game, não como um botão que liga e desliga sozinho. Fase 6 |
 
 ### Nunca alterados
 

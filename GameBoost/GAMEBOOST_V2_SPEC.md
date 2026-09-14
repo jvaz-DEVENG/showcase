@@ -166,7 +166,7 @@ GameBoost/
 │   │       ├── Startup/             # Inicialização, tarefas agendadas
 │   │       ├── Services/            # Serviços do Windows
 │   │       ├── Tweaks/              # Tweaks de jogos reversíveis
-│   │       ├── Network/             # Diagnóstico e ajustes de rede
+│   │       ├── Network/             # Velocidade, NAT (STUN), UPnP, Teredo, firewall
 │   │       ├── Drivers/             # Verificação de drivers de GPU
 │   │       ├── Profiles/            # Perfis por jogo
 │   │       └── HealthReport/        # Relatório e pontuação
@@ -182,6 +182,7 @@ GameBoost/
 ├── docs/
 │   ├── DECISOES.md
 │   ├── TWEAKS.md                    # Catálogo de cada tweak: chave, valor, efeito, risco, fonte
+│   ├── PORTAS.md                    # Portas por jogo/launcher para UPnP e firewall
 │   └── PROTECAO.md                  # Listas de blindagem documentadas
 ├── CLAUDE.md                        # Regras resumidas para o Claude Code (gerar a partir da seção 2)
 └── README.md
@@ -269,14 +270,20 @@ Cada módulo abaixo tem: objetivo, fonte de dados/API, itens gerados, regras, UI
 4. Após cada desinstalação, **varredura de restos**: pasta `InstallLocation` residual, `%APPDATA%\<Publisher|Nome>`, `%LOCALAPPDATA%\<Nome>`, `%PROGRAMDATA%\<Nome>`, chaves `HKCU\Software\<Nome>` e `HKLM\Software\<Nome>`. Só sugerir se o nome tiver match exato (nunca substring curta). Restos vão para a Lixeira / chave exportada em `.reg` antes de apagar.
 5. Ponto de restauração do sistema opcional antes de lote grande (`Checkpoint-Computer` via PowerShell ou `SystemRestore` WMI), com aviso de que o Windows limita a 1 por 24 h por padrão.
 
-**Aba "Restos de apps antigos"** (pedido de 13/09/2026, além da varredura pós-desinstalação):
-
-- Varrer `%APPDATA%`, `%LOCALAPPDATA%` e `%PROGRAMDATA%` e listar pastas cujo nome **não corresponde a nenhum app instalado**.
-- Match **exato**, ignorando maiúsculas. Nunca substring curta.
-- Ignorar pastas de Microsoft, Windows, NVIDIA, AMD e Intel, e tudo que estiver na lista de proteção (seção 9).
-- Mostrar tamanho da pasta e data da última modificação.
-- **Nunca pré-marcado.** Remoção vai para a Lixeira (`FOF_ALLOWUNDO`).
-- A lista de pastas ignoradas é documentada em `docs/PROTECAO.md`.
+**Aba "Atualizações" (winget):**
+- Verificar se o `winget` está disponível (`winget --version`; vem com o App Installer no Windows 10 1709+ e 11). Se não estiver, oferecer instalar pela Store (`ms-appinstaller:`).
+- Listar desatualizados com `winget upgrade --include-unknown --accept-source-agreements --disable-interactivity` e parsear a saída (ou usar `--output json` quando disponível na versão instalada; detectar pela versão do winget). Colunas: nome, versão atual, versão nova, fonte (winget / msstore).
+- Cruzar com a lista de instalados da aba principal pra mostrar tamanho e último uso ao lado.
+- Ações: "Atualizar selecionados" (`winget upgrade --id <Id> --silent --accept-package-agreements --accept-source-agreements`) e "Atualizar tudo" (mesmo comando por item, em sequência, com progresso por app; evitar `--all` pra poder pular e mostrar erro por app).
+- Regras:
+  - Nunca pré-marcar launchers e apps que se atualizam sozinhos (Steam, Epic, Discord, navegadores, Spotify, NVIDIA App): mostrar com tag "atualiza sozinho" e explicar que forçar pelo winget pode conflitar.
+  - Nunca atualizar drivers ou runtimes (Visual C++, .NET) sem o usuário marcar explicitamente; badge de risco Médio.
+  - Se um app estiver aberto, avisar "feche X antes" e oferecer fechar (reutilizando a lógica de encerramento gracioso do Modo Game).
+  - Apps com versão "desconhecida" (`--include-unknown`) ficam em grupo separado com aviso de que o winget não consegue comparar.
+  - Log de cada atualização em `updates-history.json`; se um update falhar, mostrar o código de erro do winget e link pro log em `%LOCALAPPDATA%\Packages\Microsoft.DesktopAppInstaller_*\LocalState\DiagOutputDir`.
+- Finding no Diagnóstico: "N apps desatualizados (M de segurança: navegadores, Java, 7-Zip)".
+- Agendamento opcional: checar semanalmente e notificar na bandeja, nunca atualizar sozinho.
+- Também pode ser usado pra **desinstalar** apps que o winget conhece (`winget uninstall --id`), como alternativa quando o `UninstallString` estiver quebrado.
 
 **Critérios de aceite:** lista bate com "Aplicativos instalados" do Windows (±2 itens de diferença aceitável por apps ocultos); desinstalação silenciosa de um app MSI de teste funciona; restos de app removido são detectados; nenhum item protegido aparece selecionável.
 
@@ -387,12 +394,59 @@ Cada tweak: chave/valor, efeito, evidência, risco, reversão. Todos desligados 
 | Core Isolation / VBS (Memory Integrity) | **Não alterar.** Detectar via `msinfo32`/WMI `Win32_DeviceGuard` e mostrar Finding: "VBS ativo, custo medido pela comunidade de 5 a 15% em jogos CPU-bound". Botão abre Configurações → Segurança do Windows → Isolamento do núcleo. Explicar o trade-off (PC só de jogo vs. máquina de trabalho/banco) | Alto |
 | Spectre/Meltdown mitigations | **Nunca.** | Alto |
 
-### 5.9 Rede
+### 5.9 Rede: velocidade, NAT e conectividade para jogar online
 
-- Diagnóstico: ping para 3 hosts (gateway, 1.1.1.1, servidor de jogo configurado), jitter, perda, DNS resolução tempo (comparar DNS atual vs. Cloudflare/Google/Quad9, mostrar tabela, deixar o usuário decidir).
-- Ações: `ipconfig /flushdns`, resetar Winsock (`netsh winsock reset`, exige reboot, risco Médio), trocar DNS do adaptador (`SetDNSServerSearchOrder` via WMI, reversível).
-- Mostrar quem está usando banda agora (`GetExtendedTcpTable` + contadores de processo).
-- Wi-Fi: mostrar banda (2,4/5/6 GHz), sinal, canal, e recomendar cabo para jogo competitivo.
+**Objetivo:** responder "minha internet está boa pra jogar?" e "por que não consigo entrar na partida/festa do meu amigo?" (NAT estrito), corrigindo o que for do Windows e apontando com precisão o que é do roteador ou da operadora.
+
+**5.9.1 Teste de velocidade**
+- Download/upload contra endpoints públicos (Cloudflare `speed.cloudflare.com/__down?bytes=N` e `__up`; fallback: arquivos de teste de CDNs conhecidas). Rodar 3 amostras de 10 s, reportar mediana. Nunca usar API da Ookla (termos restritos).
+- Ping/jitter/perda (ICMP `Ping` + TCP connect quando ICMP bloqueado) para: gateway, 1.1.1.1, 8.8.8.8 e servidores de jogo cadastrados pelo usuário (lista inicial com regiões de Riot, Valve, Blizzard, Epic, EA em São Paulo).
+- Resultado com semáforo: ping < 30 ms verde, 30 a 80 amarelo, > 80 vermelho; jitter > 15 ms e perda > 1% viram Finding.
+- Histórico em `network-history.json` pra mostrar "sua conexão piorou à noite".
+
+**5.9.2 Detecção do tipo de NAT (STUN, RFC 5389/5780)**
+- Cliente STUN próprio em UDP (poucas centenas de linhas): enviar Binding Request para 2 servidores públicos (ex.: `stun.l.google.com:19302`, `stun.cloudflare.com:3478`) por 2 portas locais e comparar os endereços mapeados. Classificar:
+  - **Aberto** (full cone / sem NAT): mesmo mapeamento em todos os testes e recebe de qualquer origem.
+  - **Moderado** (restricted / port-restricted cone): mapeamento estável, mas só recebe de quem já falou.
+  - **Estrito** (simétrico): mapeamento muda por destino. É o que impede duas pessoas com NAT estrito de se conectarem.
+- Exibir no mesmo vocabulário que Xbox/Call of Duty/Discord usam (Open/Moderate/Strict) e explicar em uma frase o que cada um bloqueia.
+
+**5.9.3 Detecção das causas**
+
+| Verificação | Como | Finding |
+|---|---|---|
+| **CGNAT** da operadora | IP WAN do roteador (via UPnP `GetExternalIPAddress` ou página do gateway) na faixa `100.64.0.0/10`, ou diferente do IP visto pelo STUN/`api.ipify.org` | "Sua operadora usa CGNAT. Nenhum ajuste no PC ou no roteador resolve NAT estrito. Peça IP público (às vezes chamado de IP fixo) ou use IPv6" |
+| **NAT duplo** | `tracert` para 1.1.1.1: dois ou mais saltos iniciais com IP privado (10/8, 172.16/12, 192.168/16) | "Dois roteadores em cascata. Coloque o modem da operadora em modo bridge ou use só um deles" |
+| **UPnP** | Descoberta SSDP (`M-SEARCH` para `239.255.255.250:1900`, `urn:schemas-upnp-org:device:InternetGatewayDevice:1`), depois `AddPortMapping` de teste e `DeletePortMapping` | "UPnP desligado no roteador: os jogos não conseguem abrir portas sozinhos" |
+| **Teredo / rede Xbox** | `netsh interface teredo show state` (estado `qualified` é o bom), serviço `XblAuthManager`/`XboxNetApiSvc`, e a leitura que o Windows mostra em Configurações → Jogos → Rede Xbox | "Teredo bloqueado. Festas e jogos que usam a rede Xbox no PC não vão conectar" |
+| **IPv6** | Interface tem endereço global e `ping -6` para `2606:4700:4700::1111` responde | Informativo: "IPv6 ativo, isso contorna o CGNAT em jogos que suportam" |
+| **Firewall do Windows** | `INetFwPolicy2` (COM) buscando regras para o exe do jogo detectado; verificar perfil ativo (Público vs Privado) | "Sua rede está marcada como Pública e o jogo não tem regra de entrada" |
+| **Wi-Fi** | `WlanQueryInterface`: banda, sinal, canal, taxa de conexão | "Wi-Fi 2,4 GHz com sinal de 40%. Para competitivo, use cabo ou 5 GHz" |
+| **Adaptador** | Velocidade de link (`Win32_NetworkAdapter.Speed`), duplex, driver com mais de 2 anos | "Placa de rede negociou 100 Mbps num plano de 500" |
+| **DNS** | Tempo de resolução com o DNS atual vs Cloudflare/Google/Quad9 | Tabela comparativa, o usuário escolhe |
+| **Banda em uso** | `GetExtendedTcpTable`/`GetExtendedUdpTable` + bytes por processo | "Steam baixando a 45 MB/s enquanto você joga" |
+
+**5.9.4 Correções que o app aplica (todas com snapshot e "Desfazer")**
+
+| Ação | Comando/API | Risco |
+|---|---|---|
+| Ativar Teredo e serviço de rede Xbox | `netsh interface teredo set state type=enterpriseclient servername=win1910.ipv6.microsoft.com` (padrão `default` como primeira tentativa), `Start-Service XboxNetApiSvc` | Baixo |
+| Criar regra de firewall pro jogo detectado (entrada e saída, TCP/UDP) | `INetFwRule` via COM | Baixo |
+| Marcar rede atual como Privada | `Set-NetConnectionProfile -NetworkCategory Private` | Baixo (explicar que não é pra fazer em Wi-Fi público) |
+| Abrir portas via UPnP para o jogo em execução (tabela de portas por jogo em `docs/PORTAS.md`) | `AddPortMapping` com lease de 24 h, removido ao sair do jogo | Baixo |
+| Limpar DNS, renovar IP | `ipconfig /flushdns`, `/release`, `/renew` | Baixo |
+| Resetar Winsock e pilha TCP/IP | `netsh winsock reset`, `netsh int ip reset` (exige reinício) | Médio |
+| Trocar DNS do adaptador | `SetDNSServerSearchOrder` (WMI) | Baixo |
+| Desativar Nagle na interface do jogo | Ver 5.8 | Baixo |
+
+**5.9.5 O que o app não corrige (e como orienta)**
+- **CGNAT**: mostrar o nome da operadora (via ASN do IP público, tabela estática dos principais ASNs BR) e um texto pronto pra copiar no chat de suporte pedindo IP público, além de sugerir IPv6 e, como paliativo, serviços de roteamento (ExitLag, WTFast, GearUP) com a ressalva de que custam por mês e não resolvem CGNAT em todo jogo.
+- **Roteador**: botão "Abrir configuração do roteador" (gateway em `http://` ou `https://`), lista das portas do jogo detectado e passo a passo por marca (TP-Link, Intelbras, Huawei, ZTE, Mercusys, Asus, D-Link) pra ligar UPnP, abrir portas ou DMZ pro IP do PC. Recomendar reservar IP fixo no DHCP antes de abrir porta.
+- **NAT duplo**: instruções de modo bridge por marca e aviso de que isso é feito no modem da operadora.
+
+**UI:** página Rede com três blocos: "Velocidade" (gráfico e histórico), "Posso jogar online?" (NAT com semáforo grande, lista de causas encontradas, botão "Corrigir o que é do Windows" e cartões de orientação pro resto) e "Ajustes" (DNS, firewall, tabela de portas).
+
+**Critérios de aceite:** classificação de NAT bate com o que o Xbox app / Call of Duty mostram na mesma rede; CGNAT detectado corretamente em conexão com IP 100.64.x.x; todas as correções revertem; nenhuma alteração de roteador é tentada além de UPnP com lease.
 
 ### 5.10 Drivers de GPU
 
@@ -532,7 +586,7 @@ Motivo: é o que faz o usuário abrir o app todo dia e entender o valor do resto
 
 ### Fase 4 · Desinstalador (5.3) + Inicialização (5.6)
 
-### Fase 5 · Tweaks (5.8) + Serviços (5.7) + Rede (5.9) + Drivers (5.10)
+### Fase 5 · Tweaks (5.8) + Serviços (5.7) + Rede completa com NAT (5.9) + Drivers (5.10)
 
 ### Fase 6 · Perfis por jogo com detecção automática (5.1 + 5.11), bandeja, onboarding
 

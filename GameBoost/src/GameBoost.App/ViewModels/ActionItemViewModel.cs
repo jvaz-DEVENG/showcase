@@ -31,6 +31,7 @@ public sealed partial class ActionItemViewModel : ObservableObject
     public bool Bloqueado => Item.Bloqueado;
     public bool PodeSelecionar => !Item.Bloqueado;
     public string? MotivoBloqueio => Item.MotivoBloqueio;
+    public string RotuloBloqueio => Item.RotuloBloqueio;
 
     public string TextoDeRisco => Item.Risco switch
     {

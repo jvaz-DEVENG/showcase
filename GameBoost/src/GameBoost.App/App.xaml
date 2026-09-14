@@ -41,6 +41,12 @@
                 <views:ConfiguracoesPage />
             </DataTemplate>
 
+            <!-- A Rede vem antes do generico: ela tem tela propria, com as
+                 tabelas de medicao acima da lista de acoes. -->
+            <DataTemplate DataType="{x:Type vm:RedePageViewModel}">
+                <views:RedePage />
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type vm:ModulePageViewModel}">
                 <views:ModuloPage />
             </DataTemplate>

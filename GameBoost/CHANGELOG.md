@@ -4,6 +4,63 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - em desenvolvimento
 
+### Fase 5 - Tweaks, servicos, rede com NAT e drivers (2026-09-14)
+
+#### Adicionado
+- Pagina Tweaks (secoes 5.8 e 5.7): 12 ajustes do catalogo e 12 servicos do Windows na
+  mesma lista, agrupados por categoria. Cada ajuste tras o efeito real, a evidencia, o
+  risco e como desfazer. Medido: 24 itens, 1 ja ativo na maquina de teste.
+- Nada e pre-marcado, nem o que o proprio GameBoost recomenda: o selo "recomendado"
+  aparece no texto e a caixa continua vazia (regra 3).
+- Isolamento de nucleo (VBS) aparece so de leitura, com o custo declarado (5% a 15%
+  segundo testes publicos) e o botao que abre a tela da Microsoft. Mitigacoes de
+  Spectre/Meltdown nao entram nem como item bloqueado.
+- SysMain, servicos do Xbox e Windows Update aparecem bloqueados **para explicar por que
+  nao mexer**: a informacao de que nao se deve desligar vale tanto quanto a sugestao de
+  desligar.
+- Pagina Rede (secao 5.9) em tres blocos: "Posso jogar online?" com semaforo, "Velocidade"
+  e as tabelas de latencia, DNS e conexoes.
+- Cliente STUN proprio (RFC 5389) com dois servidores por duas portas locais. Classifica o
+  NAT no vocabulario dos jogos: aberto, moderado, estrito. Medido na maquina real: aberto.
+- Deteccao das causas: CGNAT pela faixa 100.64.0.0/10, NAT duplo por saltos privados no
+  traceroute, UPnP por SSDP, Teredo pelo registro e perfis do firewall.
+- Teste de velocidade com 3 amostras e mediana, opt-in: gasta cerca de 100 MB, entao
+  depende de permissao explicita em Configuracoes, desligada por padrao.
+- Reativacao do Teredo, reversivel, com ChangeRecord por chave. E a correcao do caso mais
+  comum de "Game Pass nao conecta": alguem desativou seguindo tutorial de otimizacao.
+- Troca de DNS por adaptador, reversivel inclusive para "automatico (DHCP)", e reset de
+  Winsock com risco Alto e o aviso de que nao tem desfazer.
+- Comparacao de DNS por consulta UDP montada a mao, porque `Dns.GetHostEntry` perguntaria
+  sempre ao resolvedor do sistema.
+- Leitura do driver de video (secao 5.10) pelo registro, com traducao da versao da NVIDIA
+  para a de marketing (32.0.16.1664 vira 616.64) e a idade em meses.
+- `docs/PORTAS.md`: portas por launcher e por jogo, o que fazer em CGNAT e em NAT duplo, e
+  onde fica UPnP em sete marcas de roteador.
+
+#### Corrigido
+- O badge "Protegido" aparecia em ajuste que so precisava de elevacao. Sao coisas
+  diferentes: protegido e o GameBoost se recusando a mexer; precisar de admin some ao
+  reabrir elevado. `ActionItem` ganhou `RotuloBloqueio`.
+- A leitura da hibernacao procurava `C:\hiberfil.sys`, e `File.Exists` devolve **false**
+  para aquele arquivo mesmo com a hibernacao ligada: a ACL barra a consulta sem elevacao.
+  O app diria "ja desligada" para todo mundo que abrisse sem ser administrador. Agora le o
+  registro.
+- O driver de video listava o adaptador virtual do Hyper-V, carimbado com 21/06/2006, e a
+  tela anunciaria "seu driver tem 242 meses" numa maquina com driver do mes passado.
+- A lista de quem usa a rede repetia o mesmo nome varias vezes, uma por PID. Agora agrupa
+  por nome e diz quantos processos sao.
+- A barra de status da pagina Rede repetia a explicacao do NAT que ja tem bloco proprio, e
+  saia cortada no meio da frase.
+
+#### Notas
+- O spec foi substituido no meio desta fase. Os conflitos entre o que ja estava escrito e o
+  texto novo estao listados em docs/DECISOES.md, com o que foi corrigido e o que ficou
+  pendente.
+- A aba "Atualizacoes" via winget (secao 5.3) e da Fase 4, que ja foi entregue. Entra como
+  complemento retroativo depois desta fase, com commit proprio.
+- Banda por processo nao e possivel como o spec descreve: `GetExtendedTcpTable` devolve
+  conexoes com o PID dono, nao contadores de trafego. A tela mostra conexoes e diz isso.
+
 ### Fase 4 - Desinstalador e gerenciador de inicializacao (2026-09-14)
 
 #### Adicionado

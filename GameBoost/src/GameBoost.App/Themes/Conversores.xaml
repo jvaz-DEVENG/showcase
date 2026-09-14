@@ -20,5 +20,7 @@
     <conv:BoolParaVisibilidadeConverter x:Key="BoolParaVisibilidade" />
     <conv:InverterBoolConverter x:Key="InverterBool" />
     <conv:TextoParaVisibilidadeConverter x:Key="TextoParaVisibilidade" />
+    <conv:BoolParaPesoConverter x:Key="BoolParaPeso" />
+    <conv:SemaforoParaCorConverter x:Key="SemaforoParaCor" />
 
 </ResourceDictionary>

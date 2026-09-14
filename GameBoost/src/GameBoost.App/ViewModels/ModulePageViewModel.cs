@@ -95,6 +95,8 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
                 ? string.Join("  ", resultado.Avisos)
                 : "Varredura concluida. Revise a lista antes de confirmar.";
             JaVarreu = true;
+
+            AposVarrer(resultado);
         }
         catch (OperationCanceledException)
         {
@@ -213,6 +215,15 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
             $"Confirmar - {Titulo}", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
         return resposta == MessageBoxResult.Yes;
+    }
+
+    /// <summary>
+    /// Gancho para a pagina que tem conteudo proprio alem da lista. A pagina de
+    /// Rede usa isto para preencher as tabelas de latencia e DNS, que nao cabem
+    /// no formato de ActionItem.
+    /// </summary>
+    protected virtual void AposVarrer(ScanResult resultado)
+    {
     }
 
     protected virtual void AposAplicar(ApplyResult resultado)

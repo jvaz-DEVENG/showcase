@@ -306,6 +306,92 @@ ele não tem assinatura não diria nada sobre o programa.
 
 ---
 
+## 2026-09-14 — O spec foi atualizado no meio da Fase 5: o que conflita
+
+O `GAMEBOOST_V2_SPEC.md` foi substituído por uma versão nova enquanto a Fase 5
+estava sendo escrita. Duas seções mudaram de tamanho: a **5.9 (Rede)** virou um
+módulo inteiro com NAT, e a **5.3 (Desinstalador)** ganhou uma aba de
+atualizações via `winget` — esta última atribuída à Fase 4, que já foi entregue.
+
+Antes de tocar em código, o que já existe e diverge do texto novo:
+
+### Onde o arquivo estava
+
+O spec novo não chegou ao repositório: o `GAMEBOOST_V2_SPEC.md` de lá continuava
+sendo o de 13/09, e as duas versões novas estavam em `C:\Users\User\Downloads`
+como `GAMEBOOST_V2_SPEC (1).md` e `(2).md`. A `(2)`, de 14/09 12:20, é a única
+com as duas mudanças (8 menções a `winget`, 4 a `STUN`); foi ela que entrou no
+repositório.
+
+### 5.9 — o que já estava escrito e diverge
+
+| O que existe | O que o spec novo pede | Situação |
+|---|---|---|
+| NAT em 5 categorias próprias (sem NAT, aberto, simétrico, CGNAT, duplo) | 3 categorias no vocabulário do Xbox: **Aberto / Moderado / Estrito** | Corrigido nesta fase |
+| STUN de **uma** porta local para 2 servidores | 2 servidores **por 2 portas locais** | Corrigido nesta fase |
+| Semáforo do ping em 20/50/100 ms | 30 / 80 ms | Corrigido nesta fase |
+| Teste de velocidade: um download de 25 MB | 3 amostras de 10 s, reportar a **mediana** | Corrigido nesta fase |
+| Aviso de jitter a partir de 5 ms no gateway | Finding com jitter > 15 ms e perda > 1% | Os dois convivem: ver nota abaixo |
+| DNS trocado por `netsh` | `SetDNSServerSearchOrder` via WMI | Fica como está: ver nota abaixo |
+| Banda por processo: recusada, mostra contagem de conexões | bytes por processo via `GetExtendedTcpTable`/`GetExtendedUdpTable` | Não é possível como descrito: ver nota abaixo |
+
+**Jitter.** O spec define o Finding em 15 ms, e está certo para a conexão como um
+todo. O aviso de 5 ms que já existia é outra coisa e continua: ele mede o jitter
+até o **próprio roteador**, onde 5 ms já é anormal e aponta problema dentro de
+casa. São duas medidas diferentes com dois limiares diferentes, não uma
+contradição.
+
+**DNS por `netsh`, não por WMI.** `SetDNSServerSearchOrder` pertence à
+`Win32_NetworkAdapterConfiguration`, congelada desde o Windows 8, e falha em
+adaptador configurado por DHCP em parte das máquinas. O `netsh` é o caminho que o
+próprio Windows usa, e é ele que permite voltar ao estado "automático (DHCP)" —
+que o método WMI não expressa. A reversão para automático é justamente o caso
+mais fácil de perder.
+
+**Bytes por processo.** `GetExtendedTcpTable` devolve **conexões com o PID dono**,
+não contadores de tráfego. Não existe contador por processo de rede no Windows
+sem ETW, e um consumidor de ETW rodando continuamente estoura o teto de 1,5% de
+CPU da regra 9. O que a tela faz é o que dá para afirmar: quantas conexões cada
+processo mantém e para onde. O texto na tela diz isso com todas as letras, em vez
+de apresentar contagem de conexão como se fosse velocidade.
+
+### 5.9 — o que o spec novo pede e ainda não existe
+
+Fica como pendência declarada desta fase, não como coisa feita:
+
+- Histórico em `network-history.json` ("sua conexão piorou à noite").
+- Ping para servidores de jogo por região (Riot, Valve, Blizzard, Epic, EA em
+  São Paulo).
+- UPnP hoje é só descoberta SSDP. O `AddPortMapping` de teste, e a abertura de
+  porta com lease de 24 h removida ao sair do jogo, dependem do detector de jogo
+  em execução, que é da Fase 6.
+- Firewall: hoje lê o estado dos perfis pelo registro. `INetFwPolicy2` via COM
+  para procurar regra do executável do jogo, e `Set-NetConnectionProfile` para
+  marcar a rede como Privada, também dependem do jogo detectado.
+- Checagem de IPv6 e de velocidade de link do adaptador.
+- Tabela de ASN para nomear a operadora, texto pronto para o suporte e passo a
+  passo por marca de roteador.
+
+### 5.3 — a aba "Atualizações" (winget) é da Fase 4, que já foi entregue
+
+O spec novo põe a aba de atualizações via `winget` na seção 5.3, e a seção 12
+mantém a 5.3 na **Fase 4**, que foi fechada e commitada antes desta versão do
+documento existir.
+
+Ela **não** foi feita, e não vai ser embutida na Fase 5 fingindo que sempre
+esteve lá. Entra como a primeira coisa depois que a Fase 5 fechar, com o commit
+dizendo que é complemento retroativo da Fase 4. Misturar as duas deixaria o
+histórico mentindo sobre o que cada fase entregou.
+
+Na mesma seção 5.3 há outros dois pontos ainda não atendidos:
+
+- A varredura de restos cobre pastas, mas não as chaves `HKCU\Software\<Nome>` e
+  `HKLM\Software\<Nome>`, nem a exportação para `.reg` antes de apagar.
+- O ponto de restauração antes de um lote grande existe em Ferramentas, mas não é
+  oferecido dentro do fluxo de desinstalação.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

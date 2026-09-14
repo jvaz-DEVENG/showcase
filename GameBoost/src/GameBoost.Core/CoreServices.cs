@@ -6,6 +6,9 @@ using GameBoost.Core.Modules.Bottleneck;
 using GameBoost.Core.Modules.Cleaner;
 using GameBoost.Core.Modules.DiskAnalyzer;
 using GameBoost.Core.Modules.Startup;
+using GameBoost.Core.Modules.Drivers;
+using GameBoost.Core.Modules.Network;
+using GameBoost.Core.Modules.Tweaks;
 using GameBoost.Core.Modules.Uninstaller;
 using GameBoost.Core.Modules.Tools;
 using GameBoost.Core.Modules.GameMode;
@@ -89,6 +92,14 @@ public static class CoreServices
         services.AddSingleton<LeftoverScanner>();
         services.AddSingleton<UninstallerModule>();
         services.AddSingleton<StartupModule>();
+
+        // Fase 5: tweaks e servicos.
+        services.AddSingleton<TweaksModule>();
+        services.AddSingleton<NetworkDiagnostics>();
+        services.AddSingleton<NatDiagnostics>();
+        services.AddSingleton<SpeedTest>();
+        services.AddSingleton<NetworkModule>();
+        services.AddSingleton<GpuDriverInfo>();
 
         services.AddSingleton<SystemSilencer>();
         services.AddSingleton<GameDetector>();

@@ -386,6 +386,209 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public void Driver_de_video_e_lido_do_registro_com_idade()
+    {
+        var info = _provider.GetRequiredService<Core.Modules.Drivers.GpuDriverInfo>();
+        var placas = info.Listar();
+
+        Assert.NotEmpty(placas);
+
+        Assert.All(placas, p =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(p.Nome));
+            Assert.False(string.IsNullOrWhiteSpace(p.VersaoDoDriver));
+        });
+
+        // Adaptador virtual vem carimbado com 21/06/2006 e faria a tela
+        // anunciar um driver de 20 anos numa maquina atualizada.
+        Assert.DoesNotContain(placas, p =>
+            Core.Modules.Drivers.GpuDriverInfo.EhAdaptadorVirtual(p.Nome));
+
+        Assert.All(placas, p =>
+            Assert.True(p.MesesDeIdade is null or < 120,
+                $"{p.Nome} com driver de {p.MesesDeIdade} meses: parece adaptador virtual"));
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-drivers.txt"),
+            "MEDIDO: " + string.Join(" | ", placas.Select(p =>
+                $"{p.Nome} [{p.Fabricante}] driver {p.VersaoDoDriver}"
+              + (p.VersaoDeMarketing is null ? string.Empty : $" = {p.VersaoDeMarketing}")
+              + $", data {p.DataDoDriver:dd/MM/yyyy}, {p.MesesDeIdade} meses")));
+    }
+
+    [Theory]
+    [InlineData("32.0.15.7680", "576.80")]
+    [InlineData("31.0.15.3623", "536.23")]
+    [InlineData("30.0.14.9709", "497.09")]
+    public void Versao_da_nvidia_vira_a_versao_de_marketing(string bruta, string esperada)
+        => Assert.Equal(esperada, Core.Modules.Drivers.GpuDriverInfo.Traduzir(
+            Core.Modules.Drivers.FabricanteGpu.Nvidia, bruta));
+
+    [Fact]
+    public void Amd_e_intel_nao_ganham_versao_de_marketing_chutada()
+    {
+        // Nao ha correspondencia previsivel: devolver algo aqui seria inventar.
+        Assert.Null(Core.Modules.Drivers.GpuDriverInfo.Traduzir(
+            Core.Modules.Drivers.FabricanteGpu.Amd, "31.0.21921.1000"));
+        Assert.Null(Core.Modules.Drivers.GpuDriverInfo.Traduzir(
+            Core.Modules.Drivers.FabricanteGpu.Intel, "31.0.101.4502"));
+    }
+
+    [Fact]
+    public async Task Nat_e_classificado_no_vocabulario_dos_jogos()
+    {
+        var nat = _provider.GetRequiredService<Core.Modules.Network.NatDiagnostics>();
+        var resultado = await nat.DiagnosticarAsync(CancellationToken.None);
+
+        // O texto nunca pode sair vazio: ele e o produto desta tela.
+        Assert.False(string.IsNullOrWhiteSpace(resultado.Explicacao));
+        Assert.False(string.IsNullOrWhiteSpace(resultado.NomeCurto));
+        Assert.Contains(resultado.Semaforo, new[] { "verde", "amarelo", "vermelho", "cinza" });
+
+        // Se o STUN respondeu, o endereco publico nao pode ser privado: seria
+        // sinal de que lemos o campo errado do pacote.
+        if (resultado.EnderecoPublico is not null)
+        {
+            var b = resultado.EnderecoPublico.GetAddressBytes();
+            var privado = b[0] == 10
+                       || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
+                       || (b[0] == 192 && b[1] == 168);
+
+            Assert.False(privado,
+                $"STUN devolveu {resultado.EnderecoPublico}, que e endereco privado");
+        }
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-nat.txt"),
+            $"MEDIDO: NAT {resultado.NomeCurto} ({resultado.Semaforo}) | "
+          + $"publico {resultado.EnderecoPublico?.ToString() ?? "nao detectado"} | "
+          + $"local {resultado.EnderecoLocal} | saltos privados {resultado.SaltosPrivados} | "
+          + $"porta estavel {resultado.PortaEstavel} | teredo {resultado.Teredo} | "
+          + $"upnp {resultado.UpnpDisponivel} | firewall {string.Join(", ", resultado.PerfisDeFirewallAtivos)}");
+    }
+
+    [Fact]
+    public async Task Teste_de_velocidade_respeita_a_permissao_de_rede()
+    {
+        var teste = _provider.GetRequiredService<Core.Modules.Network.SpeedTest>();
+
+        // A permissao e desligada por padrao (regra 8). Sem ela o teste nao sai
+        // para a rede e devolve o motivo, em vez de falhar calado.
+        if (!teste.Permitido)
+        {
+            var bloqueado = await teste.MedirAsync(null, CancellationToken.None);
+
+            Assert.False(bloqueado.Funcionou);
+            Assert.NotNull(bloqueado.Erro);
+            Assert.Equal(0, bloqueado.BytesBaixados);
+
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-velocidade.txt"),
+                "MEDIDO: permissao de rede desligada, teste nao saiu para a internet. " + bloqueado.Erro);
+            return;
+        }
+
+        var resultado = await teste.MedirAsync(null, CancellationToken.None);
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-velocidade.txt"),
+            $"MEDIDO: download {resultado.DownloadMbps} Mbps, upload {resultado.UploadMbps} Mbps, "
+          + $"{resultado.BytesBaixados / 1024 / 1024} MB baixados em {resultado.Duracao.TotalSeconds:0.0}s");
+    }
+
+    [Fact]
+    public async Task Rede_mede_latencia_e_dns_de_verdade()
+    {
+        var modulo = _provider.GetRequiredService<Core.Modules.Network.NetworkModule>();
+        var resultado = await modulo.ScanAsync(null, CancellationToken.None);
+
+        Assert.NotEmpty(resultado.Itens);
+        Assert.DoesNotContain(resultado.Itens, i => i.PreMarcado);
+
+        // O reset de Winsock nao tem desfazer: tem que estar como risco alto.
+        var winsock = resultado.Itens.Single(i => i.Id == "rede:winsock");
+        Assert.Equal(Core.Modules.RiskLevel.Alto, winsock.Risco);
+
+        // Ping ate a internet precisa ter respondido; se nem isso funciona, a
+        // medicao nao vale nada e o teste tem que gritar.
+        var internet = modulo.UltimoPing.Where(p => p.Rotulo.StartsWith("Internet")).ToList();
+        Assert.NotEmpty(internet);
+
+        var texto = "MEDIDO: " + resultado.Resumo + " | ping: "
+            + string.Join("; ", modulo.UltimoPing.Select(p =>
+                $"{p.Rotulo} {p.Alvo} {(p.Respondeu ? $"{p.MediaMs}ms jitter {p.JitterMs}ms perda {p.PerdaPercentual}%" : "sem resposta")}"))
+            + " | dns: "
+            + string.Join("; ", modulo.UltimoDns.Select(d =>
+                $"{d.Nome} {d.Endereco} {(d.Respondeu ? d.MediaMs + "ms" : "sem resposta")}{(d.EmUso ? " (em uso)" : string.Empty)}"))
+            + " | wifi: " + (modulo.UltimoWifi is null ? "cabo" : $"{modulo.UltimoWifi.Ssid} {modulo.UltimoWifi.Padrao} {modulo.UltimoWifi.Banda} {modulo.UltimoWifi.SinalPercentual}%")
+            + " | conexoes: "
+            + string.Join("; ", modulo.UltimosConsumidores.Take(6).Select(c => $"{c.Nome}={c.Conexoes}"));
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-rede.txt"), texto);
+    }
+
+    [Fact]
+    public async Task Tweaks_leem_o_estado_real_da_maquina_e_nao_pre_marcam_nada()
+    {
+        var modulo = _provider.GetRequiredService<Core.Modules.Tweaks.TweaksModule>();
+        var resultado = await modulo.ScanAsync(null, CancellationToken.None);
+
+        Assert.NotEmpty(resultado.Itens);
+
+        // Regra 3: nenhum ajuste do sistema vem marcado, nem o recomendado.
+        Assert.DoesNotContain(resultado.Itens, i => i.PreMarcado);
+
+        // Regra 4: todo item precisa dizer o que faz e como desfazer.
+        Assert.All(resultado.Itens, i =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(i.Descricao));
+            Assert.False(string.IsNullOrWhiteSpace(i.ComoDesfazer));
+        });
+
+        // O VBS aparece, mas so de leitura: alterar isso nao e decisao daqui.
+        var vbs = resultado.Itens.Single(i => i.Id == "tweak:vbs");
+        Assert.True(vbs.Bloqueado);
+
+        // Windows Update e antivirus tem que estar bloqueados.
+        foreach (var nome in new[] { "servico:wuauserv", "servico:WinDefend" })
+        {
+            var item = resultado.Itens.FirstOrDefault(i => i.Id == nome);
+            if (item is not null)
+            {
+                Assert.True(item.Bloqueado, $"{nome} deveria estar bloqueado");
+                Assert.False(string.IsNullOrWhiteSpace(item.MotivoBloqueio));
+            }
+        }
+
+        var ligados = resultado.Itens
+            .Where(i => i.Payload is Core.Modules.Tweaks.TweaksModule.TweakEstado { Ligado: true })
+            .Select(i => i.Titulo)
+            .ToList();
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-tweaks.txt"),
+            $"MEDIDO: {resultado.Resumo} | ja ativos: {string.Join("; ", ligados)} | "
+          + "servicos: " + string.Join("; ", resultado.Itens
+                .Where(i => i.Id.StartsWith("servico:", StringComparison.Ordinal))
+                .Select(i => $"{i.Titulo}={i.GanhoEstimado}{(i.Bloqueado ? " (bloqueado)" : string.Empty)}")));
+    }
+
+    [Fact]
+    public async Task Dry_run_dos_tweaks_nao_grava_nada_no_registro()
+    {
+        var modulo = _provider.GetRequiredService<Core.Modules.Tweaks.TweaksModule>();
+        var backup = _provider.GetRequiredService<Core.State.IStateBackup>();
+
+        await modulo.ScanAsync(null, CancellationToken.None);
+
+        var antes = backup.Todos.Count;
+
+        // Um tweak de HKCU, que nao precisa de elevacao: se o dry-run vazasse
+        // escrita, seria justamente aqui.
+        var resultado = await modulo.ApplyAsync(
+            new[] { "tweak:aceleracao-mouse" }, dryRun: true, CancellationToken.None);
+
+        Assert.True(resultado.DryRun);
+        Assert.Equal(antes, backup.Todos.Count);
+        Assert.All(resultado.Acoes, a => Assert.True(a.Sucesso));
+    }
+
+    [Fact]
     public async Task Tamanho_total_dos_apps_nao_passa_da_capacidade_dos_discos()
     {
         // A primeira tela real da Fase 4 anunciou "1812,4 GB no total" numa

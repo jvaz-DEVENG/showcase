@@ -105,6 +105,33 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] Reverter a desativação e conferir que o programa volta a abrir no boot
 - [ ] Enviar uma pasta de resto para a Lixeira e restaurar
 
+## Fase 5 — tweaks, serviços, rede e drivers
+
+- [x] Catálogo lê o estado real de cada ajuste (medido: 24 itens, 1 já ativo)
+- [x] Nada pré-marcado, nem o que está marcado como recomendado
+- [x] VBS aparece bloqueado e só informativo
+- [x] Windows Update e Defender aparecem bloqueados com o motivo
+- [x] Ajuste que só precisa de elevação diz "Precisa de admin", não "Protegido"
+- [x] Estado da hibernação lido do registro, correto sem elevação
+- [x] Dry-run dos tweaks não escreve ChangeRecord nenhum
+- [x] NAT classificado como aberto/moderado/estrito (medido: aberto, semáforo verde)
+- [x] STUN devolve endereço público de verdade, nunca um privado
+- [x] CGNAT, NAT duplo, UPnP, Teredo e firewall detectados e explicados
+- [x] Teste de velocidade recusa sair para a rede sem a permissão, e diz por quê
+- [x] Driver de vídeo lido com versão de marketing (medido: GTX 1660 Ti, 616.64, 0 meses)
+- [x] Adaptador virtual do Hyper-V não entra na lista de placas
+- [ ] Aplicar um tweak de HKCU elevado e conferir a chave no `regedit`
+- [ ] Aplicar um tweak de HKLM e reverter, conferindo que valor ausente volta a ausente
+- [ ] Mudar um serviço para Manual e conferir em `services.msc`
+- [ ] Reverter o serviço e conferir que o estado de execução também volta
+- [ ] Trocar o DNS do adaptador e reverter para automático (DHCP)
+- [ ] Reativar o Teredo numa máquina onde ele está desligado e conferir `netsh interface teredo show state`
+- [ ] Teste de velocidade com a permissão ligada, comparando com um teste conhecido
+- [ ] Máquina em CGNAT: conferir que o diagnóstico acusa e não sugere abrir porta
+- [ ] Máquina com NAT duplo: conferir a contagem de saltos privados
+- [ ] Comparar a classificação de NAT com o que o app do Xbox mostra na mesma rede
+- [ ] Máquina no Wi-Fi: conferir SSID, padrão e banda
+
 ## Ambiente
 
 - [x] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso
@@ -137,6 +164,8 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | Tweaks, servicos, NAT, velocidade e driver de video (nao elevado) | Passou apos 4 correcoes |
+| 14/09/2026 | Telas de Tweaks e Rede renderizadas e conferidas | Passou |
 | 14/09/2026 | Inventario de apps, restos, inicializacao (nao elevado) | Passou. 217 apps, 30 restos, 26 entradas |
 | 14/09/2026 | Telas de Apps e Inicializacao renderizadas e conferidas | Passou apos 4 correcoes |
 | 13/09/2026 | Ciclo real ativar → desligar, com privilégios | **Passou.** Ver detalhe abaixo |

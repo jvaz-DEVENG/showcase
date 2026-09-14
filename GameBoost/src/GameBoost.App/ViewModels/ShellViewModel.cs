@@ -21,6 +21,8 @@ public sealed partial class ShellViewModel : ObservableObject
         EspacoPageViewModel espaco,
         AppsPageViewModel apps,
         InicializacaoPageViewModel inicializacao,
+        TweaksPageViewModel tweaks,
+        RedePageViewModel rede,
         FerramentasPageViewModel ferramentas,
         ConfiguracoesPageViewModel configuracoes)
     {
@@ -50,29 +52,9 @@ public sealed partial class ShellViewModel : ObservableObject
                     "Tudo revertido quando o jogo fecha"
                 }),
 
-            new PlaceholderPageViewModel(
-                "Tweaks", "Tweaks de jogos",
-                "Catalogo de ajustes com efeito real, risco e reversao, todos desligados por padrao.",
-                "\uE90F", fase: 5, secaoDoSpec: "5.8",
-                new[]
-                {
-                    "HAGS com teste antes e depois, porque ajuda em uns e atrapalha em outros",
-                    "Game Mode, Game DVR, Fullscreen Optimizations e MPO",
-                    "Cada tweak diz o ganho honesto: marginal continua escrito marginal",
-                    "Isolamento do nucleo e mitigacoes de CPU sao informados, nunca alterados"
-                }),
+            tweaks,
 
-            new PlaceholderPageViewModel(
-                "Rede", "Diagnostico e ajustes de rede",
-                "Mede latencia, jitter e perda, e mostra quem esta consumindo a banda agora.",
-                "\uE839", fase: 5, secaoDoSpec: "5.9",
-                new[]
-                {
-                    "Ping, jitter e perda para o gateway e para servidores publicos",
-                    "Comparacao de DNS, com a escolha final sendo sua",
-                    "Consumo de banda por processo",
-                    "Wi-Fi: banda, sinal e canal, com a recomendacao honesta de usar cabo"
-                }),
+            rede,
 
             ferramentas,
 

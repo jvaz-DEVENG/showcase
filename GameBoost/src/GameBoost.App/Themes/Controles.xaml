@@ -34,7 +34,7 @@
                         <Border Background="{StaticResource Borda}" CornerRadius="3" Padding="6,1" Margin="8,0,0,0"
                                 VerticalAlignment="Center"
                                 Visibility="{Binding Bloqueado, Converter={StaticResource BoolParaVisibilidade}}">
-                            <TextBlock Text="Protegido" FontSize="10" Foreground="{StaticResource TextoSecundario}" />
+                            <TextBlock Text="{Binding RotuloBloqueio}" FontSize="10" Foreground="{StaticResource TextoSecundario}" />
                         </Border>
                     </StackPanel>
                     <TextBlock Text="{Binding Descricao}" Foreground="{StaticResource TextoSecundario}" FontSize="12" />

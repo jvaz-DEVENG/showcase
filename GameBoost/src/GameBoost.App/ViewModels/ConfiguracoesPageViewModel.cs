@@ -70,6 +70,7 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
         _carregando = true;
         _temaEscuro = !string.Equals(settings.Tema, "Light", StringComparison.OrdinalIgnoreCase);
         _iniciarComWindows = settings.IniciarComWindows;
+        _permitirAcessoARede = settings.PermitirAcessoARede;
         _iniciarMinimizado = settings.IniciarMinimizado;
         _carregando = false;
 
@@ -87,6 +88,7 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
     [ObservableProperty] private bool _temaEscuro;
     [ObservableProperty] private bool _iniciarComWindows;
     [ObservableProperty] private bool _iniciarMinimizado;
+    [ObservableProperty] private bool _permitirAcessoARede;
     [ObservableProperty] private bool _ehAdministrador;
     [ObservableProperty] private string _status = string.Empty;
 
@@ -166,6 +168,7 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
 
         _settings.Tema = TemaEscuro ? "Dark" : "Light";
         _settings.IniciarComWindows = IniciarComWindows;
+        _settings.PermitirAcessoARede = PermitirAcessoARede;
         _settings.IniciarMinimizado = IniciarMinimizado;
         _store.Save(_settings);
     }
@@ -184,4 +187,15 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
     }
 
     partial void OnIniciarMinimizadoChanged(bool value) => Salvar();
+
+    partial void OnPermitirAcessoARedeChanged(bool value)
+    {
+        Salvar();
+
+        Status = value
+            ? "O teste de velocidade da página Rede foi liberado. Nenhum dado seu é enviado: "
+            + "o teste só baixa e envia bytes aleatórios para medir a conexão."
+            : "Acesso à internet desligado. O teste de velocidade fica indisponível; "
+            + "ping, DNS e detecção de NAT continuam funcionando.";
+    }
 }

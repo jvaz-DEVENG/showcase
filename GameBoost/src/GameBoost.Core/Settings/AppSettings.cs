@@ -57,4 +57,14 @@ public sealed class AppSettings
     public bool IniciarComWindows { get; set; }
     public bool IniciarMinimizado { get; set; }
     public bool VerificarAtualizacoes { get; set; } = true;
+
+    /// <summary>
+    /// Autoriza o app a falar com a internet: teste de velocidade, consulta
+    /// STUN para descobrir o tipo de NAT e comparacao de DNS.
+    ///
+    /// **Desligado por padrao.** Regra 8 do spec: sem telemetria e sem chamada
+    /// externa que o usuario nao tenha pedido. Nada aqui manda dado nenhum
+    /// sobre a maquina; ainda assim, sair para a rede e uma escolha dele.
+    /// </summary>
+    public bool PermitirAcessoARede { get; set; }
 }

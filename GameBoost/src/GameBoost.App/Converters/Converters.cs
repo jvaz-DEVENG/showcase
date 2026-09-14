@@ -58,3 +58,38 @@ public sealed class TextoParaVisibilidadeConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// True vira negrito. Serve para destacar a linha "em uso agora" na tabela de
+/// DNS sem precisar de uma cor a mais na paleta.
+/// </summary>
+public sealed class BoolParaPesoConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true ? FontWeights.Bold : FontWeights.Normal;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Semaforo do NAT e da latencia: verde, amarelo, vermelho, cinza.
+///
+/// Usa as MESMAS cores do badge de risco, de proposito. Um verde aqui e um
+/// verde la precisam ser o mesmo verde, senao o usuario aprende duas escalas
+/// de cor no mesmo aplicativo.
+/// </summary>
+public sealed class SemaforoParaCorConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => (value as string) switch
+        {
+            "verde" => new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50)),
+            "amarelo" => new SolidColorBrush(Color.FromRgb(0xE3, 0xB3, 0x41)),
+            "vermelho" => new SolidColorBrush(Color.FromRgb(0xE0, 0x5B, 0x4F)),
+            _ => new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x7A))
+        };
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
