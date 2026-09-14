@@ -4,6 +4,7 @@ using GameBoost.Core;
 using GameBoost.Core.Modules;
 using GameBoost.Core.Modules.GameMode;
 using GameBoost.Core.Modules.Bottleneck;
+using GameBoost.Core.Modules.Cleaner;
 using GameBoost.Core.Modules.HealthReport;
 using GameBoost.Core.State;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,7 +44,7 @@ public sealed class CommandRunner
             CliCommand.GameModeOff => await GameModeAsync(opcoes, ligar: false, ct),
             CliCommand.RevertAll => ReverterTudo(opcoes),
             CliCommand.Report => await ReportAsync(opcoes, ct),
-            CliCommand.Clean => NaoImplementado("--clean", "Fase 2 (Limpeza, secao 5.2)"),
+            CliCommand.Clean => await CleanAsync(opcoes, ct),
             _ => Ajuda()
         };
     }
@@ -58,6 +59,79 @@ public sealed class CommandRunner
     {
         _saida.WriteLine($"{comando} ainda nao esta disponivel. Chega na {fase}.");
         return 3;
+    }
+
+    /// <summary>
+    /// Presets da secao 8. "seguro" leva so o que o catalogo ja marca por
+    /// padrao; "completo" leva tudo que nao esta bloqueado, e por isso avisa
+    /// antes do que esta levando junto.
+    /// </summary>
+    private async Task<int> CleanAsync(CommandLineOptions opcoes, CancellationToken ct)
+    {
+        if (!opcoes.DryRun && !CoreServices.RodandoComoAdministrador())
+            _saida.WriteLine("Aviso: sem privilegios de administrador, partes do sistema ficam de fora.");
+
+        var modulo = _services.GetRequiredService<CleanerModule>();
+
+        _saida.WriteLine("Medindo o que pode ser liberado...");
+        var scan = await modulo.ScanAsync(
+            new Progress<ModuleProgress>(p => _saida.WriteLine($"  {p.Percentual,3}%  {p.Etapa}")), ct);
+
+        _saida.WriteLine();
+        _saida.WriteLine(scan.Resumo);
+        _saida.WriteLine();
+
+        var selecionados = Selecionar(scan, opcoes).ToList();
+
+        foreach (var item in scan.Itens)
+        {
+            var marca = item.Bloqueado ? "[x]" : selecionados.Contains(item.Id) ? "[*]" : "[ ]";
+            _saida.WriteLine($"  {marca} {item.Titulo,-42} {item.GanhoEstimado,10}   risco {item.Risco}");
+
+            if (item.MotivoBloqueio is not null)
+                _saida.WriteLine($"      {item.MotivoBloqueio}");
+        }
+
+        if (selecionados.Count == 0)
+        {
+            _saida.WriteLine();
+            _saida.WriteLine("Nada selecionado. Use --preset seguro, --preset completo ou --categorias.");
+            return 0;
+        }
+
+        _saida.WriteLine();
+        var resultado = await modulo.ApplyAsync(selecionados, opcoes.DryRun, ct);
+
+        foreach (var acao in resultado.Acoes)
+            _saida.WriteLine($"  {(acao.Sucesso ? "ok  " : "FALHA")} {acao.Detalhe}");
+
+        _saida.WriteLine();
+        _saida.WriteLine(resultado.Resumo);
+        _saida.WriteLine(resultado.GanhoMedido);
+
+        return resultado.Falhas > 0 ? 1 : 0;
+    }
+
+    private static IEnumerable<string> Selecionar(ScanResult scan, CommandLineOptions opcoes)
+    {
+        var disponiveis = scan.Itens.Where(i => !i.Bloqueado);
+
+        if (opcoes.Categorias.Count > 0)
+        {
+            // Casa pelo sufixo do id: "temp" pega temp-usuario e temp-sistema.
+            return disponiveis
+                .Where(i => opcoes.Categorias.Any(c =>
+                    i.Id.Contains(c, StringComparison.OrdinalIgnoreCase)
+                    || i.Categoria.Equals(c, StringComparison.OrdinalIgnoreCase)))
+                .Select(i => i.Id);
+        }
+
+        return opcoes.Preset switch
+        {
+            "completo" => disponiveis.Select(i => i.Id),
+            "seguro" => disponiveis.Where(i => i.PreMarcado).Select(i => i.Id),
+            _ => Enumerable.Empty<string>()
+        };
     }
 
     private async Task<int> ReportAsync(CommandLineOptions opcoes, CancellationToken ct)

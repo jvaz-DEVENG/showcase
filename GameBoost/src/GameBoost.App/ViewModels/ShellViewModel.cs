@@ -17,6 +17,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public ShellViewModel(
         InicioPageViewModel inicio,
         DiagnosticoPageViewModel diagnostico,
+        LimpezaPageViewModel limpeza,
         ConfiguracoesPageViewModel configuracoes)
     {
         Paginas = new ObservableCollection<PageViewModelBase>
@@ -25,17 +26,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
             diagnostico,
 
-            new PlaceholderPageViewModel(
-                "Limpeza", "Limpeza de temporarios e caches",
-                "Libera espaco com seguranca, mostrando exatamente o que sera apagado e quanto ocupa.",
-                "\uE74D", fase: 2, secaoDoSpec: "5.2",
-                new[]
-                {
-                    "Temporarios, cache do Windows Update, relatorios de erro e dumps",
-                    "Cache de navegadores e Discord, so com o app fechado. Nunca cookies, senhas ou historico",
-                    "Shader cache separado, com o aviso de que o jogo engasga ate recriar",
-                    "Arquivos de usuario sempre vao para a Lixeira"
-                }),
+            limpeza,
 
             new PlaceholderPageViewModel(
                 "Espaco", "Analisador de espaco em disco",
