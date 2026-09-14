@@ -5,6 +5,7 @@ using GameBoost.Core.Modules;
 using GameBoost.Core.Modules.Bottleneck;
 using GameBoost.Core.Modules.Cleaner;
 using GameBoost.Core.Modules.DiskAnalyzer;
+using GameBoost.Core.Modules.Startup;
 using GameBoost.Core.Modules.Uninstaller;
 using GameBoost.Core.Modules.Tools;
 using GameBoost.Core.Modules.GameMode;
@@ -86,6 +87,8 @@ public static class CoreServices
         // Fase 4: desinstalador.
         services.AddSingleton<AppInventory>();
         services.AddSingleton<LeftoverScanner>();
+        services.AddSingleton<UninstallerModule>();
+        services.AddSingleton<StartupModule>();
 
         services.AddSingleton<SystemSilencer>();
         services.AddSingleton<GameDetector>();

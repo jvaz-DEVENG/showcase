@@ -241,6 +241,71 @@ enquanto a página de Espaço está aberta.
 
 ---
 
+## 2026-09-14 — Fase 4: `Get-AppxPackage` devolvia zero numa máquina com 142 pacotes
+
+Duas causas somadas, e cada uma sozinha já bastava para zerar a lista.
+
+A primeira: `powershell -Command "..."` passa pela análise de linha de comando do próprio
+PowerShell, que reinterpreta pipe e cifrão antes de o script existir. A correção é
+`-EncodedCommand` com o script em Base64 UTF-16LE — o texto chega intacto.
+
+A segunda é mais traiçoeira. O `stderr` estava redirecionado e ninguém lia. O PowerShell
+escreve o progresso ali em CLIXML; o buffer do pipe encheu, o processo parou de escrever à
+espera de alguém ler, e morreu no timeout de 30 s sem uma linha de erro. Agora as **duas**
+saídas são lidas em paralelo, e o script começa com `$ProgressPreference = 'SilentlyContinue'`.
+
+Vale para qualquer processo filho: redirecionar um fluxo obriga a lê-lo.
+
+## 2026-09-14 — O casamento exato de nomes acusava app instalado como resto
+
+A primeira varredura de restos devolveu 53 pastas e 26 GB, e entre elas estavam
+`BraveSoftware`, `EpicGamesLauncher` e uma pasta `Programs` de 9 GB. Os dois primeiros estão
+instalados — só escrevem a pasta sem os espaços do nome. `Programs` é guarda-chuva: tem
+vários apps ativos dentro, não é resto de nada.
+
+A comparação passou a normalizar (fora espaço e pontuação, tudo minúsculo) e a aceitar
+prefixo a partir de 5 caracteres, e as pastas guarda-chuva entraram na lista de ignoradas.
+Caiu para 30 pastas e 3,9 GB.
+
+O corte de 5 caracteres é arbitrário e foi escolhido por um motivo assimétrico: **deixar de
+listar um resto custa espaço em disco; apontar um app ativo como resto custa os dados do
+usuário.** Quando errar é inevitável, errar para o lado barato.
+
+## 2026-09-14 — O resumo dos apps anunciava 1812 GB num disco de 953 GB
+
+A tela ficou pronta, rodou na máquina real e disse "217 aplicativos, 1812,4 GB no total".
+Nenhum teste pegaria: cada tamanho individual estava certo. O que estava errado era somar.
+
+Dois erros diferentes, os dois só visíveis no total:
+
+1. Instalador que grava `InstallLocation` apontando para `C:\Program Files` ou para a raiz
+   do disco. Medir aquela pasta atribui o disco inteiro a um programa só. Agora pasta
+   genérica é recusada e o app fica sem tamanho medido, que é a resposta honesta.
+2. Vários apps declarando a **mesma** pasta — componentes de uma suíte, por exemplo. A soma
+   contava a pasta uma vez por app. Agora agrupa por pasta antes de somar.
+
+Deu 1044 GB para 2145 GB de disco. O teste que trava isso não confere um número exato: ele
+compara o total com a capacidade real dos discos e recusa qualquer app que sozinho responda
+por mais de um terço. É o tipo de invariante que sobrevive à máquina mudar.
+
+No mesmo teste apareceu um terceiro erro. A lista vinha ordenada pelo tamanho **declarado no
+registro**, porque o inventário ordena antes de a medição acontecer. O ARK, com 309 GB
+reais, aparecia atrás do AutoCAD, que declara 4 GB — exatamente o contrário do que a tela
+serve para mostrar.
+
+## 2026-09-14 — "Sem assinatura digital" era acusação falsa
+
+O Teams aparecia na inicialização com a observação "sem assinatura digital". O executável
+dele mora em `WindowsApps`, cuja ACL barra leitura até para o administrador: o
+`WinVerifyTrust` não reprovou a assinatura, ele nunca conseguiu abrir o arquivo.
+
+`Assinado` virou tri-estado (`bool?`): verdadeiro, falso e **não deu para verificar**. São
+coisas diferentes e a tela agora diz qual é qual. Atalho da pasta Inicializar não fala de
+assinatura nenhuma — o `.lnk` aponta para outro lugar e nunca é assinado, então dizer que
+ele não tem assinatura não diria nada sobre o programa.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

@@ -50,11 +50,24 @@ biblioteca de jogos — com o tamanho de cada um e quando você jogou pela últi
 que são `hiberfil.sys` e `pagefile.sys` em vez de só mostrar o tamanho. Não apaga nada: abre
 no Explorer ou manda para a Lixeira, com confirmação.
 
+**Aplicativos instalados.** Lista tudo que está instalado — registro, Microsoft Store e o
+que o Windows registra de uso — com o tamanho medido de verdade, não o declarado no
+registro, e quando você usou pela última vez. Desinstala em lote, sempre chamando o
+desinstalador do próprio app, e depois procura o que ficou para trás. Uma aba à parte varre
+`%APPDATA%`, `%LOCALAPPDATA%` e `%PROGRAMDATA%` atrás de pastas de programas que você já
+desinstalou. Runtimes, drivers e antivírus aparecem bloqueados, com o motivo. **Nada vem
+marcado** — nem o bloatware mais óbvio, nem o resto mais antigo.
+
+**O que abre com o Windows.** Chaves `Run`, pastas Inicializar e o estado real de cada item,
+lido de onde o Gerenciador de Tarefas lê. Mostra o fabricante, se o executável é assinado e
+uma estimativa grosseira do peso no boot — declarada como grosseira, porque vem do tamanho
+do arquivo e não de medição. Desativar grava exatamente o mesmo formato do Gerenciador de
+Tarefas, e dá para reverter aqui, lá ou os dois.
+
 ## O que vem depois
 
 | Fase | Módulo |
 |---|---|
-| 4 | Desinstalador (Win32 + Store + restos), gerenciador de inicialização |
 | 5 | Tweaks de jogos, serviços, rede, drivers |
 | 6 | Perfis por jogo com detecção automática, bandeja, onboarding |
 | 7 | Distribuição: auto-update, CI completo, portátil, assinatura |

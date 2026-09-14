@@ -34,6 +34,8 @@ public partial class App : Application
         colecao.AddSingleton<DiagnosticoPageViewModel>();
         colecao.AddSingleton<LimpezaPageViewModel>();
         colecao.AddSingleton<EspacoPageViewModel>();
+        colecao.AddSingleton<AppsPageViewModel>();
+        colecao.AddSingleton<InicializacaoPageViewModel>();
         colecao.AddSingleton<FerramentasPageViewModel>();
         colecao.AddSingleton<ConfiguracoesPageViewModel>();
         colecao.AddSingleton<ShellViewModel>();

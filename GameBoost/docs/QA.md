@@ -84,6 +84,27 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] Varredura de um segundo volume (D:)
 - [ ] Cancelar a varredura no meio deixa a interface utilizável
 
+## Fase 4 — desinstalador e inicialização
+
+- [x] Inventário lê a máquina real (medido: 217 apps, 113 da Store, 78 protegidos)
+- [x] Nada vem pré-marcado, nem o bloatware mais óbvio (rodapé abre em "Aplicar 0 selecionados")
+- [x] IDEs e apps de desenvolvimento aparecem na lista e **nunca** pré-marcados (regra 3)
+- [x] Runtimes, drivers e antivírus aparecem bloqueados com o motivo visível
+- [x] Total declarado é plausível (1044 GB para 2145 GB de disco; antes dizia 1812 GB)
+- [x] Lista ordenada pelo tamanho **medido**, não pelo declarado no registro
+- [x] Aba "Restos de apps antigos" sem falso positivo óbvio (30 pastas, 3,9 GB)
+- [x] Inicialização lê registro e pastas (medido: 26 entradas, 4 bloqueadas, 8 sugeridas)
+- [x] O número bate com o que o módulo de Diagnóstico informa
+- [x] Dry-run da inicialização não escreve `ChangeRecord` nenhum
+- [x] App da Store em WindowsApps não é acusado de "sem assinatura digital"
+- [ ] Desinstalar um app de verdade pelo `QuietUninstallString` e conferir a varredura de restos
+- [ ] Desinstalar um app da Store (`Remove-AppxPackage`)
+- [ ] Desinstalar um app cujo desinstalador abre janela própria (o GameBoost espera, não trava)
+- [ ] Desativar um item de inicialização e conferir no Gerenciador de Tarefas que ele
+      aparece como "Desabilitado" (mesmo formato de byte)
+- [ ] Reverter a desativação e conferir que o programa volta a abrir no boot
+- [ ] Enviar uma pasta de resto para a Lixeira e restaurar
+
 ## Ambiente
 
 - [x] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso
@@ -116,6 +137,8 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | Inventario de apps, restos, inicializacao (nao elevado) | Passou. 217 apps, 30 restos, 26 entradas |
+| 14/09/2026 | Telas de Apps e Inicializacao renderizadas e conferidas | Passou apos 4 correcoes |
 | 13/09/2026 | Ciclo real ativar → desligar, com privilégios | **Passou.** Ver detalhe abaixo |
 | 13/09/2026 | `--scan`, `--report` (HTML, JSON e texto) no binário de produção | Passou |
 | 13/09/2026 | Custo da coleta | 0,115% de CPU, ciclo de 36 ms, em 20 núcleos |

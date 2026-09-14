@@ -19,6 +19,8 @@ public sealed partial class ShellViewModel : ObservableObject
         DiagnosticoPageViewModel diagnostico,
         LimpezaPageViewModel limpeza,
         EspacoPageViewModel espaco,
+        AppsPageViewModel apps,
+        InicializacaoPageViewModel inicializacao,
         FerramentasPageViewModel ferramentas,
         ConfiguracoesPageViewModel configuracoes)
     {
@@ -32,30 +34,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
             espaco,
 
-            new PlaceholderPageViewModel(
-                "Apps", "Desinstalador de aplicativos",
-                "Lista tudo que esta instalado, inclusive apps da Store, e limpa os restos.",
-                "\uE71D", fase: 4, secaoDoSpec: "5.3",
-                new[]
-                {
-                    "Win32, Store e portateis detectados, com tamanho real e ultimo uso",
-                    "Desinstalacao silenciosa em lote, com varredura de restos depois",
-                    "Sugestao de bloatware conhecido, nunca pre-marcada",
-                    "Redistribuiveis, runtimes e servicos do Xbox ficam protegidos",
-                    "Aba \"Restos de apps antigos\": pastas em AppData e ProgramData que nao pertencem a nenhum app instalado"
-                }),
+            apps,
 
-            new PlaceholderPageViewModel(
-                "Inicializacao", "Gerenciador de inicializacao",
-                "Mostra o que abre junto com o Windows e o quanto cada item pesa no boot.",
-                "\uE7E8", fase: 4, secaoDoSpec: "5.6",
-                new[]
-                {
-                    "Chaves Run, pasta Inicializar, tarefas agendadas e servicos de terceiros",
-                    "Publisher e assinatura digital de cada entrada",
-                    "Desativar de forma coerente com o Gerenciador de Tarefas, ou apenas atrasar",
-                    "Antivirus, audio, video e OneDrive protegidos ou com aviso"
-                }),
+            inicializacao,
 
             new PlaceholderPageViewModel(
                 "Jogos", "Perfis por jogo",

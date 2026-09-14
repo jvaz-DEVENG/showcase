@@ -4,6 +4,40 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - em desenvolvimento
 
+### Fase 4 - Desinstalador e gerenciador de inicializacao (2026-09-14)
+
+#### Adicionado
+- Inventario de aplicativos (secao 5.3) lendo registro (32 e 64 bits, maquina e usuario),
+  Microsoft Store e UserAssist. Medido: 217 apps, 113 da Store, 78 protegidos.
+- Desinstalacao em lote, sempre pelo desinstalador do proprio app: QuietUninstallString,
+  depois `msiexec /x {GUID} /qn`, depois `Remove-AppxPackage`, e por ultimo o desinstalador
+  com janela. Limite de 10 minutos por app. Saidas 0, 3010 e 1605 contam como sucesso.
+- Varredura de restos depois de cada desinstalacao, com remocao para a Lixeira.
+- Aba "Restos de apps antigos": varre %APPDATA%, %LOCALAPPDATA% e %PROGRAMDATA% e lista
+  pastas sem app correspondente, com tamanho e data. Medido: 30 pastas, 3,9 GB.
+- Gerenciador de inicializacao (secao 5.6): chaves Run, pastas Inicializar e o estado do
+  StartupApproved. Desativar grava o mesmo formato de 12 bytes do Gerenciador de Tarefas,
+  com ChangeRecord antes de cada escrita. Medido: 26 entradas, 4 bloqueadas, 8 sugeridas.
+- Verificacao de assinatura Authenticode com WinVerifyTrust, para mostrar o fabricante.
+
+#### Corrigido
+- O resumo dos apps anunciava 1812,4 GB numa maquina com 953 GB. Eram duas contas erradas:
+  app que declara InstallLocation generica (media a pasta inteira) e varios apps declarando
+  a MESMA pasta, contada uma vez por app. Agora sao 1044 GB para 2145 GB de disco.
+- A lista vinha ordenada pelo tamanho DECLARADO no registro, medido so depois: o ARK, com
+  309 GB reais, aparecia atras do AutoCAD, que declara 4 GB.
+- App da Store cujo executavel mora em WindowsApps era acusado de "sem assinatura digital".
+  A ACL de la barra ate o administrador; nao dava para verificar, e agora o texto diz isso.
+- O impacto no boot aparecia duas vezes na mesma linha.
+- `WinVerifyTrust` rodava duas vezes por entrada de inicializacao.
+
+#### Notas
+- Desinstalacao nao tem desfazer automatico, e a tela diz isso antes de confirmar.
+- `Get-AppxPackage` so funciona com `-EncodedCommand` e com as duas saidas lidas: com
+  `-Command` o PowerShell reinterpreta pipes, e sem ler o stderr o buffer de progresso
+  CLIXML enche e o processo trava. Ver docs/DECISOES.md.
+- Nada e pre-marcado nesta fase, em nenhuma das tres listas (regra 3).
+
 ### Fase 3 - Analisador de espaco e biblioteca de jogos (2026-09-14)
 
 #### Adicionado

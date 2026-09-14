@@ -386,6 +386,57 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Tamanho_total_dos_apps_nao_passa_da_capacidade_dos_discos()
+    {
+        // A primeira tela real da Fase 4 anunciou "1812,4 GB no total" numa
+        // maquina com 953 GB. Duas causas: app cuja InstallLocation aponta para
+        // uma pasta generica (media o disco inteiro) e varios apps declarando a
+        // MESMA pasta (contada uma vez por app).
+        var modulo = _provider.GetRequiredService<Core.Modules.Uninstaller.UninstallerModule>();
+        var resultado = await modulo.ScanAsync(null, CancellationToken.None);
+
+        var capacidade = DriveInfo.GetDrives()
+            .Where(d => d.IsReady && d.DriveType == DriveType.Fixed)
+            .Sum(d => d.TotalSize);
+
+        var somado = resultado.Itens.Sum(i => i.GanhoBytes);
+
+        Assert.True(somado <= capacidade,
+            $"os apps somam {somado / 1024.0 / 1024 / 1024:0.0} GB e os discos so tem "
+          + $"{capacidade / 1024.0 / 1024 / 1024:0.0} GB");
+
+        // Nenhum app sozinho pode responder por mais de um terco do disco: se
+        // responder, foi pasta generica medida como se fosse dele.
+        var teto = capacidade / 3;
+        var gigante = resultado.Itens.FirstOrDefault(i => i.GanhoBytes > teto);
+
+        Assert.True(gigante is null,
+            $"'{gigante?.Titulo}' sozinho tem {gigante?.GanhoBytes / 1024.0 / 1024 / 1024:0.0} GB");
+
+        // A tela existe para mostrar o que ocupa espaco: o maior tem que estar
+        // no topo. Antes da correcao o inventario ordenava pelo tamanho
+        // DECLARADO no registro, medido depois.
+        var tamanhos = resultado.Itens.Select(i => i.GanhoBytes).ToList();
+        Assert.True(
+            tamanhos.SequenceEqual(tamanhos.OrderByDescending(t => t)),
+            "a lista de apps nao esta em ordem decrescente de tamanho");
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-apps-total.txt"),
+            $"MEDIDO: {resultado.Resumo} | discos: {capacidade / 1024.0 / 1024 / 1024:0.0} GB | "
+          + "maiores: " + string.Join("; ", resultado.Itens
+                .OrderByDescending(i => i.GanhoBytes).Take(8)
+                .Select(i => $"{i.Titulo} {(i.GanhoBytes / 1024.0 / 1024 / 1024):0.0}GB")));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Program Files", false)]
+    [InlineData(@"C:\", false)]
+    [InlineData("C:", false)]
+    [InlineData(@"C:\Program Files\Discord", true)]
+    public void Pasta_generica_nao_conta_como_pasta_do_app(string pasta, bool esperado)
+        => Assert.Equal(esperado, Core.Modules.Uninstaller.UninstallerModule.PastaConfiavel(pasta));
+
+    [Fact]
     public void Restos_de_apps_antigos_sao_encontrados_sem_falso_positivo_obvio()
     {
         var log = _provider.GetRequiredService<Core.Logging.IGameBoostLogger>();
@@ -414,6 +465,58 @@ public sealed class IntegrationTests : IDisposable
           + $"{(restos.Sum(r => r.Bytes) / 1024.0 / 1024):0} MB | "
           + string.Join(" | ", restos.Take(8).Select(r =>
                 $"{r.Nome} ({r.Local}) {(r.Bytes / 1024.0 / 1024):0}MB, {r.Idade}")));
+    }
+
+    [Fact]
+    public async Task Inicializacao_le_a_maquina_real_e_protege_driver_e_antivirus()
+    {
+        var modulo = _provider.GetRequiredService<Core.Modules.Startup.StartupModule>();
+
+        var scan = await modulo.ScanAsync(null, CancellationToken.None);
+
+        Assert.NotEmpty(scan.Itens);
+
+        // Regra 3: nada vem marcado. O usuario decide o que abre com a maquina.
+        Assert.DoesNotContain(scan.Itens, i => i.PreMarcado);
+
+        // O aviso sobre a estimativa grosseira e obrigatorio (regra 4).
+        Assert.Contains(scan.Avisos, a => a.Contains("grosseira"));
+
+        // Driver e antivirus tem que aparecer bloqueados.
+        foreach (var item in scan.Itens)
+        {
+            var texto = (item.Titulo + " " + item.Descricao).ToLowerInvariant();
+
+            if (texto.Contains("securityhealth") || texto.Contains("kaspersky")
+                || texto.Contains("realtek"))
+            {
+                Assert.True(item.Bloqueado, $"'{item.Titulo}' deveria estar bloqueado");
+            }
+        }
+
+        var protegidos = scan.Itens.Count(i => i.Bloqueado);
+        var sugeridos = scan.Itens.Count(i => i.Categoria == "Sugestões");
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-startup.txt"),
+            $"MEDIDO: {scan.Itens.Count} entradas, {protegidos} bloqueadas, {sugeridos} sugeridas | "
+          + scan.Resumo + " | "
+          + string.Join(" | ", scan.Itens.Take(8).Select(i => $"{i.Titulo} [{i.Categoria}] {i.GanhoEstimado}")));
+    }
+
+    [Fact]
+    public async Task Dry_run_da_inicializacao_nao_toca_no_registro()
+    {
+        var modulo = _provider.GetRequiredService<Core.Modules.Startup.StartupModule>();
+        var backup = _provider.GetRequiredService<Core.State.IStateBackup>();
+
+        var scan = await modulo.ScanAsync(null, CancellationToken.None);
+        var alvos = scan.Itens.Where(i => !i.Bloqueado).Select(i => i.Id).ToList();
+
+        var resultado = await modulo.ApplyAsync(alvos, dryRun: true, CancellationToken.None);
+
+        Assert.True(resultado.DryRun);
+        Assert.False(backup.TemPendencias, "dry-run nao pode gravar ChangeRecord");
+        Assert.All(resultado.Acoes, a => Assert.Contains("Desativaria", a.Detalhe));
     }
 
     [Fact]
