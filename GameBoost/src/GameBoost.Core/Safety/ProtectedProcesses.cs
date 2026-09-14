@@ -73,7 +73,14 @@ public static class ProtectedProcesses
         "rtss", "rivatuner", "msiafterburner",
         "obs64", "obs32", "obs", "streamlabs obs", "xsplit.core",
         "nvidia share", "nvcontainer", "radeonsoftware", "amddvr",
-        "devenv", "code", "rider64", "idea64", "pycharm64", "webstorm64",
+        // IDEs, editores e assistentes de desenvolvimento. Costumam ter trabalho
+        // nao salvo aberto, entao nunca vem marcados (regra 3).
+        "devenv", "code", "code - insiders", "vscodium", "cursor", "windsurf",
+        "antigravity", "claude", "chatgpt", "zed", "sublime_text", "notepad++",
+        "rider64", "idea64", "pycharm64", "webstorm64", "clion64", "goland64",
+        "phpstorm64", "datagrip64", "android studio", "studio64", "eclipse",
+        "atom", "brackets", "godot", "unity", "unityhub", "ue4editor", "ue5editor",
+        "blender", "obsidian", "notion", "figma",
         "photoshop", "illustrator", "premiere pro", "afterfx",
         "excel", "winword", "powerpnt", "outlook",
         "vmware", "vmware-vmx", "virtualbox", "vboxheadless", "docker desktop"

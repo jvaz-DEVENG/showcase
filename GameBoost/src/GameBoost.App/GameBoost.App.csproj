@@ -5,7 +5,6 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>GameBoost.App</RootNamespace>
     <AssemblyName>GameBoost</AssemblyName>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- ReadyToRun reduz o tempo de abertura do single-file (secao 10). -->
     <PublishReadyToRun>true</PublishReadyToRun>
     <SelfContained>true</SelfContained>
@@ -13,7 +12,29 @@
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
+    <!-- Main proprio: o modo CLI precisa rodar sem inicializar o WPF. -->
+    <StartupObject>GameBoost.App.Program</StartupObject>
   </PropertyGroup>
+
+  <!--
+    Elevacao. O padrao e o manifesto de producao (requireAdministrator).
+    Passar -p:SemElevacao=true numa build de desenvolvimento troca para o
+    manifesto asInvoker, que abre sem UAC no modo somente leitura. Serve para
+    rodar e inspecionar o app numa sessao nao elevada.
+  -->
+  <PropertyGroup>
+    <SemElevacao Condition="'$(SemElevacao)' == ''">false</SemElevacao>
+    <ApplicationManifest Condition="'$(SemElevacao)' != 'true'">app.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="'$(SemElevacao)' == 'true'">app-dev.manifest</ApplicationManifest>
+    <AssemblyName Condition="'$(SemElevacao)' == 'true'">GameBoost-dev</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Uma build sem elevacao nunca pode virar release por engano. -->
+  <Target Name="ConferirElevacaoNoRelease" BeforeTargets="Build"
+          Condition="'$(SemElevacao)' == 'true' AND '$(Configuration)' == 'Release'">
+    <Error Text="SemElevacao=true e so para desenvolvimento. O Release precisa do manifesto requireAdministrator." />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.5" />

@@ -202,6 +202,30 @@ public sealed class SafetyGuardTests
         Assert.False(guard.PodePreMarcar(processo));
     }
 
+    [Theory]
+    [InlineData("Code")]
+    [InlineData("devenv")]
+    [InlineData("Antigravity")]
+    [InlineData("claude")]
+    [InlineData("ChatGPT")]
+    [InlineData("Cursor")]
+    [InlineData("windsurf")]
+    [InlineData("rider64")]
+    [InlineData("idea64")]
+    [InlineData("sublime_text")]
+    [InlineData("notepad++")]
+    [InlineData("obsidian")]
+    public void Ide_editor_ou_assistente_de_desenvolvimento_nunca_e_pre_marcado(string nome)
+    {
+        // Regra 3: costumam ter trabalho nao salvo aberto. Aparecem na lista,
+        // mas quem marca e o usuario.
+        var guard = Criar();
+        var processo = Processo(nome, caminho: @"C:\Users\User\AppData\Local\" + nome + @"\" + nome + ".exe");
+
+        Assert.False(guard.CheckProcess(processo).Protegido, nome + " nao deveria estar bloqueado, so desmarcado.");
+        Assert.False(guard.PodePreMarcar(processo), nome + " veio pre-marcado e nao deveria.");
+    }
+
     [Fact]
     public void Executavel_em_pasta_de_jogo_nunca_e_pre_marcado()
     {
