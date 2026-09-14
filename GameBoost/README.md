@@ -100,11 +100,22 @@ programa que some sem dizer para onde foi é o motivo de as pessoas irem no Gere
 Tarefas. Na primeira abertura, três telas explicando o contrato: tudo é reversível, nada
 sai daqui, e o que faz diferença de verdade.
 
-## O que vem depois
+## Como instalar
 
-| Fase | Módulo |
-|---|---| Tweaks de jogos, serviços, rede, drivers |
-| 7 | Distribuição: auto-update, CI completo, portátil, assinatura |
+| Arquivo | Para quem |
+|---|---|
+| `GameBoost-Setup-*.exe` | A maioria. Instala, cria atalho e habilita a atualização automática |
+| `GameBoost-*-portatil.zip` | Pen drive ou máquina de terceiro. Guarda os dados ao lado do executável e não se atualiza sozinho |
+| `SHA256SUMS.txt` | Conferir que o download veio inteiro |
+
+O instalador pergunta se quer instalar para todos os usuários ou só para você, e
+oferece — desmarcados — o atalho na área de trabalho, iniciar com o Windows
+minimizado na bandeja, e uma limpeza semanal agendada.
+
+Se o SmartScreen avisar, é porque esta versão pode não estar assinada: **Mais
+informações → Executar assim mesmo**. O porquê está em
+[docs/ASSINATURA.md](docs/ASSINATURA.md), junto com o que foi apurado sobre
+certificado de código para quem está no Brasil.
 
 ---
 

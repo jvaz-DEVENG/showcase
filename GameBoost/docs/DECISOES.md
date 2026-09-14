@@ -505,6 +505,46 @@ como marginal.
 
 ---
 
+## 2026-09-14 — Assinatura de código: o Brasil está fora da opção barata
+
+O caminho óbvio seria o Azure Artifact Signing, ex-Trusted Signing, a US$ 9,99
+por mês. Ele não está disponível aqui: para desenvolvedor individual a Microsoft
+só aceita Estados Unidos e Canadá, e para organização a lista maior também não
+inclui o Brasil. Não é preço nem papelada, é elegibilidade geográfica.
+
+Sobra o certificado OV de uma CA — Certum, Sectigo, DigiCert —, entre US$ 70 e
+300 por ano. Desde junho de 2023 a chave privada precisa ficar em token USB ou
+HSM em nuvem, o que muda o CI: assinar deixa de ser "põe o segredo e roda".
+
+O que **não** vale é EV. Até 2024 ele pulava o SmartScreen na hora; desde então
+OV e EV passam pelo mesmo processo de reputação, e a diferença de preço parou de
+comprar alguma coisa. É informação que ainda circula desatualizada.
+
+Por isso o passo de assinatura do workflow é **condicional**. Sem o segredo, a
+release sai sem assinatura e o CI emite um aviso visível. Falhar a build inteira
+por falta de um certificado que ainda não existe impediria de publicar qualquer
+coisa. Detalhes em docs/ASSINATURA.md.
+
+## 2026-09-14 — A here-string do PowerShell é incompatível com bloco YAML
+
+O passo que monta o `portable.txt` usava uma here-string (`@'...'@`). O
+PowerShell exige o terminador `'@` no começo da linha, sem espaço antes. O YAML
+exige que todo conteúdo de um bloco `run: |` fique indentado.
+
+As duas regras não coexistem: o `'@` em coluna 0 encerra o bloco YAML no meio do
+script, e o arquivo deixa de ser YAML válido. O erro não aparece ao escrever —
+aparece quando o GitHub recusa o workflow.
+
+Trocado por um array de strings passado ao `Set-Content`, que faz o mesmo e
+respeita a indentação. Vale como regra geral para qualquer script PowerShell
+dentro de workflow.
+
+Vale registrar também **como** isso foi pego: validando o YAML com um parser
+antes do commit, e não confiando na leitura. O mesmo cuidado achou que o
+`build.yml` continuava válido.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

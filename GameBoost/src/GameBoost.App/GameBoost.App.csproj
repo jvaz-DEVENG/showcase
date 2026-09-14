@@ -8,6 +8,16 @@
       proprio, e a alternativa seria uma dependencia externa so para isso.
     -->
     <UseWindowsForms>true</UseWindowsForms>
+    <!--
+      WFO0003 manda tirar a configuracao de DPI do manifesto e usar
+      Application.SetHighDpiMode. E um analisador do WinForms, e aqui o app e
+      WPF: o manifesto e o caminho correto para declarar PerMonitorV2, e o
+      SetHighDpiMode nem se aplica. O analisador so apareceu porque o
+      UseWindowsForms entrou por causa do NotifyIcon.
+
+      Sem isto, o `-warnaserror` do CI quebra a build inteira.
+    -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <RootNamespace>GameBoost.App</RootNamespace>
     <AssemblyName>GameBoost</AssemblyName>
     <!-- ReadyToRun reduz o tempo de abertura do single-file (secao 10). -->

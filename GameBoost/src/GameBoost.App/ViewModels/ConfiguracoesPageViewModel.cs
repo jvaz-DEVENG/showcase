@@ -49,6 +49,7 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
     private readonly IStateBackup _backup;
     private readonly IRollbackEngine _rollback;
     private readonly AppPaths _paths;
+    private readonly Core.Updates.UpdateService _atualizacao;
     private readonly IGameBoostLogger _log;
     private bool _carregando;
 
@@ -58,8 +59,16 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
         IStateBackup backup,
         IRollbackEngine rollback,
         AppPaths paths,
+        Core.Updates.UpdateService atualizacao,
         IGameBoostLogger log)
     {
+        _atualizacao = atualizacao;
+        _versao = atualizacao.VersaoAtual;
+        _estadoDaAtualizacao = atualizacao.Suportado
+            ? "Clique em Verificar para procurar versao nova."
+            : "Esta copia nao foi instalada pelo instalador do GameBoost (ou esta em modo "
+            + "portatil), entao nao ha atualizacao automatica.";
+
         _settings = settings;
         _store = store;
         _backup = backup;
@@ -92,6 +101,10 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
     [ObservableProperty] private bool _iniciarMinimizado;
     [ObservableProperty] private bool _permitirAcessoARede;
     [ObservableProperty] private bool _mostrarNaBandeja;
+    [ObservableProperty] private string _versao = string.Empty;
+    [ObservableProperty] private string _estadoDaAtualizacao = string.Empty;
+    [ObservableProperty] private bool _verificandoAtualizacao;
+    [ObservableProperty] private bool _atualizacaoPronta;
     [ObservableProperty] private bool _detectarJogosAutomaticamente;
     [ObservableProperty] private bool _ehAdministrador;
     [ObservableProperty] private string _status = string.Empty;
@@ -193,6 +206,58 @@ public sealed partial class ConfiguracoesPageViewModel : PageViewModelBase
     }
 
     partial void OnIniciarMinimizadoChanged(bool value) => Salvar();
+
+    // ==================================================================
+    // Atualizacao do proprio GameBoost (secao 10)
+    // ==================================================================
+
+    /// <summary>
+    /// Verifica se ha versao nova.
+    ///
+    /// Sem permissao de rede, sem instalacao feita pelo instalador ou em modo
+    /// portatil, ele **diz o que falta** em vez de falhar calado. Um botao que
+    /// nao responde e pior que um botao que explica.
+    /// </summary>
+    [RelayCommand]
+    private async Task VerificarAtualizacaoAsync()
+    {
+        if (VerificandoAtualizacao)
+            return;
+
+        VerificandoAtualizacao = true;
+        EstadoDaAtualizacao = "Verificando...";
+
+        try
+        {
+            var estado = await _atualizacao.VerificarAsync(CancellationToken.None);
+
+            if (estado == Core.Updates.EstadoDaAtualizacao.Disponivel)
+            {
+                EstadoDaAtualizacao = _atualizacao.Motivo + " Baixando...";
+                estado = await _atualizacao.BaixarAsync(CancellationToken.None);
+            }
+
+            EstadoDaAtualizacao = _atualizacao.Motivo ?? "Nada a relatar.";
+            AtualizacaoPronta = estado == Core.Updates.EstadoDaAtualizacao.ProntaParaInstalar;
+        }
+        catch (OperationCanceledException)
+        {
+            EstadoDaAtualizacao = "Verificacao cancelada.";
+        }
+        finally
+        {
+            VerificandoAtualizacao = false;
+        }
+    }
+
+    [RelayCommand]
+    private void InstalarAtualizacao()
+    {
+        if (!AtualizacaoPronta)
+            return;
+
+        _atualizacao.InstalarEReiniciar();
+    }
 
     partial void OnMostrarNaBandejaChanged(bool value)
     {

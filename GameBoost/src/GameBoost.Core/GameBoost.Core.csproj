@@ -10,6 +10,7 @@
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.5" />
     <PackageReference Include="System.Management" Version="9.0.5" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.5" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- O projeto de teste precisa alcancar helpers internos como o ROT13. -->

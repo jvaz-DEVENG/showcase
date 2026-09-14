@@ -176,6 +176,25 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] Onboarding marcado como concluído não volta na segunda abertura
 - [ ] Perfil com afinidade num jogo real: conferir no Gerenciador de Tarefas
 
+## Fase 7 — distribuição
+
+- [x] Modo portátil grava tudo em `.\data\` ao lado do exe (medido com o binário real)
+- [x] Modo portátil não deixa nada em `%LOCALAPPDATA%\GameBoost`
+- [x] Serviço de atualização sempre explica por que não pode verificar
+- [x] YAML do workflow de release é válido (14 passos)
+- [x] `#ifndef AppVersion` deixa o CI passar a versão
+- [ ] Rodar o workflow de release por `workflow_dispatch` e conferir os artefatos
+- [ ] Instalar pelo `.exe` gerado e conferir o atalho e a entrada em Programas
+- [ ] Instalar "só para o usuário atual" sem senha de administrador
+- [ ] Instalar "para todos" e conferir que o autostart foi para HKLM
+- [ ] Desinstalar e conferir que não sobra chave de autostart
+- [ ] Marcar a limpeza semanal e conferir a tarefa em `taskschd.msc`
+- [ ] Publicar uma release e conferir que o auto-update encontra a versão nova
+- [ ] Aplicar a atualização e conferir que a versão mudou
+- [ ] Anotar exatamente o que o SmartScreen diz no primeiro download
+- [ ] Conferir se o Defender bloqueia o instalador ou a execução
+- [ ] Submeter ao Microsoft Security Intelligence se houver falso positivo
+
 ## Ambiente
 
 - [x] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso
@@ -192,7 +211,6 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] SmartScreen: anotar exatamente o que aparece no primeiro download
 - [ ] Windows Defender não bloqueia o instalador nem a execução
 - [ ] Submeter ao Microsoft Security Intelligence se houver falso positivo
-- [ ] Modo portátil: `portable.txt` ao lado do exe faz os dados irem para `.\data\`
 - [ ] Instalação limpa em máquina sem .NET instalado (publish é self-contained)
 - [ ] Desinstalação não deixa `%LOCALAPPDATA%\GameBoost` com dados do usuário sem avisar
 
@@ -208,6 +226,7 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | Modo portatil com o binario real: data\ ao lado do exe | Passou |
 | 14/09/2026 | Perfis, afinidade, tela cheia, bandeja e onboarding | Passou apos 2 correcoes |
 | 14/09/2026 | Telas de Jogos e onboarding renderizadas | Passou |
 | 14/09/2026 | winget: 35 atualizacoes lidas e classificadas | Passou apos 3 correcoes |

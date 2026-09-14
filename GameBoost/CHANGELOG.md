@@ -2,7 +2,89 @@
 
 Formato baseado em Keep a Changelog. Versionamento semantico.
 
-## [2.0.0] - em desenvolvimento
+## [2.0.0] - 2026-09-14
+
+### Fase 7 - Distribuicao: auto-update, CI de release, portatil e assinatura (2026-09-14)
+
+#### Adicionado
+- Auto-update com Velopack apontando para as releases do GitHub. Checagem silenciosa na
+  abertura, download em segundo plano, e a troca de versao so no proximo inicio ou quando
+  o usuario mandar.
+- `VelopackApp.Build().Run()` como primeira linha do Main, antes de ler argumentos: o
+  Velopack roda o proprio exe para instalar e atualizar, e essa chamada precisa
+  interceptar.
+- Secao "Versao do GameBoost" em Configuracoes: versao atual, botao Verificar e, quando
+  ha download pronto, "Instalar e reiniciar".
+- Workflow `gameboost-release.yml`: dispara em tag `gameboost-v*`, confere que a tag bate
+  com o Directory.Build.props, testa, publica, assina (quando ha certificado), empacota
+  com o Velopack, monta o instalador e o portatil, gera SHA256SUMS e anexa tudo a release.
+- Passo de assinatura condicional. Sem o segredo, a release sai sem assinatura e o CI
+  emite um aviso visivel, em vez de falhar a build inteira.
+- Portatil montado no CI: o mesmo exe, mais um `portable.txt` explicando o que ele faz.
+- Instalador com escolha entre instalar para todos os usuarios ou so para o atual. A
+  chave de autostart passou de HKCU para HKA, que resolve para a raiz certa nos dois casos.
+- `docs/ASSINATURA.md`: o que foi apurado sobre certificado (o Brasil esta fora do Azure
+  Artifact Signing, EV nao pula mais o SmartScreen desde 2024, OV e o caminho viavel) e
+  como submeter falso positivo.
+- `installer/NOTAS-DA-RELEASE.md`: o que baixar, e como conferir o SHA256 quando o
+  SmartScreen avisar.
+
+#### Corrigido
+- A here-string do PowerShell (`@'...'@`) exige o terminador na coluna 0, e isso quebrava
+  o bloco YAML do workflow, que precisa de todo conteudo indentado. Trocada por array de
+  strings.
+- O `.iss` tinha `#define AppVersion` fixo, entao o `/DAppVersion` do CI seria ignorado.
+  Agora e `#ifndef`.
+- O `UseWindowsForms` da Fase 6 ligou os analisadores do WinForms, e o WFO0003 manda tirar
+  a configuracao de DPI do manifesto — regra que nao se aplica a um app WPF. Com o
+  `-warnaserror` do CI, isso quebraria a build de Release inteira. Suprimido com o motivo
+  escrito no csproj.
+
+#### Notas
+- Modo portatil nao tem auto-update, e a tela diz isso: o Velopack atualiza uma instalacao
+  que ele mesmo montou, e um exe solto numa pasta nao tem o que atualizar.
+- O teste do modo portatil nao pode exigir que o caminho fique fora de `%LOCALAPPDATA%`:
+  a pasta temporaria do Windows mora dentro dele. A invariante testada e nao cair na pasta
+  padrao do app.
+
+### Fase 7 - Distribuicao: auto-update, CI de release, portatil e assinatura (2026-09-14)
+
+#### Adicionado
+- Auto-update com Velopack apontando para as releases do GitHub. Checagem silenciosa na
+  abertura, download em segundo plano, e a troca de versao so no proximo inicio ou quando
+  o usuario mandar.
+- `VelopackApp.Build().Run()` como primeira linha do Main, antes de ler argumentos: o
+  Velopack roda o proprio exe para instalar e atualizar, e essa chamada precisa
+  interceptar.
+- Secao "Versao do GameBoost" em Configuracoes: versao atual, botao Verificar e, quando
+  ha download pronto, "Instalar e reiniciar".
+- Workflow `gameboost-release.yml`: dispara em tag `gameboost-v*`, confere que a tag bate
+  com o Directory.Build.props, testa, publica, assina (quando ha certificado), empacota
+  com o Velopack, monta o instalador e o portatil, gera SHA256SUMS e anexa tudo a release.
+- Passo de assinatura condicional. Sem o segredo, a release sai sem assinatura e o CI
+  emite um aviso visivel, em vez de falhar a build inteira.
+- Portatil montado no CI: o mesmo exe, mais um `portable.txt` explicando o que ele faz.
+- Instalador com escolha entre instalar para todos os usuarios ou so para o atual. A
+  chave de autostart passou de HKCU para HKA, que resolve para a raiz certa nos dois casos.
+- `docs/ASSINATURA.md`: o que foi apurado sobre certificado (o Brasil esta fora do Azure
+  Artifact Signing, EV nao pula mais o SmartScreen desde 2024, OV e o caminho viavel) e
+  como submeter falso positivo.
+- `installer/NOTAS-DA-RELEASE.md`: o que baixar, e como conferir o SHA256 quando o
+  SmartScreen avisar.
+
+#### Corrigido
+- A here-string do PowerShell (`@'...'@`) exige o terminador na coluna 0, e isso quebrava
+  o bloco YAML do workflow, que precisa de todo conteudo indentado. Trocada por array de
+  strings.
+- O `.iss` tinha `#define AppVersion` fixo, entao o `/DAppVersion` do CI seria ignorado.
+  Agora e `#ifndef`.
+
+#### Notas
+- Modo portatil nao tem auto-update, e a tela diz isso: o Velopack atualiza uma instalacao
+  que ele mesmo montou, e um exe solto numa pasta nao tem o que atualizar.
+- O teste do modo portatil nao pode exigir que o caminho fique fora de `%LOCALAPPDATA%`:
+  a pasta temporaria do Windows mora dentro dele. A invariante testada e nao cair na pasta
+  padrao do app.
 
 ### Fase 6 - Perfis por jogo, bandeja e onboarding (2026-09-14)
 

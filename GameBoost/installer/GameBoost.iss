@@ -3,7 +3,11 @@
 ; Antes, publicar:  dotnet publish src\GameBoost.App\GameBoost.App.csproj -c Release -o publish
 
 #define AppName    "GameBoost"
-#define AppVersion "2.0.0"
+; O CI passa a versao com /DAppVersion=X.Y.Z. O valor abaixo so vale quando
+; o ISCC e chamado a mao, sem o parametro.
+#ifndef AppVersion
+  #define AppVersion "2.0.0"
+#endif
 #define AppAutor   "Jonathan Vaz"
 #define AppExe     "GameBoost.exe"
 
@@ -22,8 +26,15 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; O app encerra processos, controla servicos e purga a Standby List.
-PrivilegesRequired=admin
+; O app encerra processos, controla servicos e purga a Standby List, entao
+; precisa de admin para RODAR. Instalar, porem, pode ser so para o usuario
+; atual: quem nao tem a senha de administrador da maquina ainda consegue
+; instalar em %LOCALAPPDATA% e usar o app em modo somente leitura.
+;
+; "dialog" faz o Inno perguntar na primeira tela. A resposta muda {autopf}
+; entre "Program Files" e a pasta local do usuario.
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog commandline
 UninstallDisplayIcon={app}\{#AppExe}
 MinVersion=10.0.17763
 
@@ -46,7 +57,10 @@ Name: "{group}\Desinstalar {#AppName}";     Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}";           Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; \
+; HKA resolve para HKCU numa instalacao so do usuario e para HKLM numa
+; instalacao para todos. Fixar HKCU faria a opcao "todos os usuarios" gravar
+; o autostart so para quem rodou o instalador.
+Root: HKA; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; \
     ValueName: "GameBoost"; ValueData: """{app}\{#AppExe}"" --minimizado"; \
     Flags: uninsdeletevalue; Tasks: startminimized
 

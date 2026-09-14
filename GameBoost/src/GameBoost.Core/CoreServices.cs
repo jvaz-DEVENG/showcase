@@ -108,6 +108,9 @@ public static class CoreServices
         services.AddSingleton<GameWatcher>();
         services.AddSingleton<ProfileRunner>();
 
+        // Fase 7: atualizacao do proprio app.
+        services.AddSingleton<Updates.UpdateService>();
+
         services.AddSingleton<SystemSilencer>();
         services.AddSingleton<GameDetector>();
         services.AddSingleton<GameModeModule>();

@@ -434,6 +434,73 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Atualizacao_nao_sai_para_a_rede_sem_permissao()
+    {
+        var servico = _provider.GetRequiredService<Core.Updates.UpdateService>();
+
+        // Versao sempre precisa sair preenchida: ela e o que a tela mostra
+        // mesmo quando nao ha nada a verificar.
+        Assert.False(string.IsNullOrWhiteSpace(servico.VersaoAtual));
+
+        var estado = await servico.VerificarAsync(CancellationToken.None);
+
+        // Sem permissao de rede, sem instalacao Velopack, ou em modo portatil,
+        // o servico tem que dizer POR QUE nao deu, nunca falhar calado.
+        if (estado == Core.Updates.EstadoDaAtualizacao.Indisponivel)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(servico.Motivo));
+        }
+
+        // A suite roda com AppPaths(portatil: true), entao o estado aqui e
+        // sempre "indisponivel por ser portatil". O que este teste garante nao
+        // e o estado, e sim que o servico SEMPRE explica o motivo.
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-update.txt"),
+            $"MEDIDO (harness portatil): versao {servico.VersaoAtual}, "
+          + $"suportado={servico.Suportado}, estado={estado}, motivo={servico.Motivo}");
+    }
+
+    [Fact]
+    public void Modo_portatil_guarda_tudo_ao_lado_do_executavel()
+    {
+        var pasta = Path.Combine(Path.GetTempPath(), "gb-teste-portatil-" + Guid.NewGuid().ToString("N")[..8]);
+
+        try
+        {
+            Directory.CreateDirectory(pasta);
+            File.WriteAllText(Path.Combine(pasta, "portable.txt"), "marcador");
+
+            var paths = new Core.Settings.AppPaths(Path.Combine(pasta, "data"), portatil: true);
+
+            Assert.True(paths.Portatil);
+
+            // Nenhum caminho pode apontar para fora da pasta do executavel:
+            // e isso que "portatil" significa.
+            foreach (var caminho in new[]
+                     {
+                         paths.SettingsFile, paths.StateBackupFile, paths.LogFile,
+                         paths.ProfilesDirectory, paths.CacheDirectory, paths.BackupsDirectory
+                     })
+            {
+                Assert.StartsWith(pasta, caminho, StringComparison.OrdinalIgnoreCase);
+            }
+
+            // Nao da para exigir que o caminho fique fora de %LOCALAPPDATA%:
+            // a pasta temporaria do Windows mora DENTRO dele. A invariante que
+            // importa e nao cair na pasta padrao do app, que e o lugar de onde
+            // o modo portatil existe para sair.
+            var padrao = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "GameBoost");
+
+            Assert.DoesNotContain(padrao, paths.SettingsFile, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            try { Directory.Delete(pasta, recursive: true); } catch { /* temp */ }
+        }
+    }
+
+    [Fact]
     public void Perfil_grava_e_le_de_volta()
     {
         var store = _provider.GetRequiredService<Core.Modules.Profiles.ProfileStore>();

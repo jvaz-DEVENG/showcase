@@ -23,6 +23,18 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Antes de qualquer outra coisa, inclusive de ler argumentos.
+        //
+        // O Velopack usa o proprio executavel para instalar, atualizar e
+        // desinstalar: ele roda o exe com argumentos proprios e espera que esta
+        // chamada os intercepte e encerre o processo. Se ela vier depois de
+        // qualquer inicializacao, a instalacao abre a janela do app no meio do
+        // processo de update — ou trava.
+        //
+        // Em build de desenvolvimento, sem pacote Velopack por perto, isto e
+        // uma chamada que nao faz nada.
+        Velopack.VelopackApp.Build().Run();
+
         var opcoes = CommandLineOptions.Parse(args);
 
         if (!opcoes.EhCli)
