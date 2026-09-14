@@ -18,6 +18,7 @@ public sealed partial class ShellViewModel : ObservableObject
         InicioPageViewModel inicio,
         DiagnosticoPageViewModel diagnostico,
         LimpezaPageViewModel limpeza,
+        EspacoPageViewModel espaco,
         FerramentasPageViewModel ferramentas,
         ConfiguracoesPageViewModel configuracoes)
     {
@@ -29,17 +30,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
             limpeza,
 
-            new PlaceholderPageViewModel(
-                "Espaco", "Analisador de espaco em disco",
-                "Responde onde foram parar seus GB em segundos, lendo a MFT do disco.",
-                "\uE8B7", fase: 3, secaoDoSpec: "5.4",
-                new[]
-                {
-                    "Treemap navegavel e lista dos 100 maiores arquivos",
-                    "Categorias inteligentes: jogos, videos, instaladores, caches, Windows.old",
-                    "Explica hiberfil.sys e pagefile.sys em vez de so mostrar o tamanho",
-                    "So mostra e abre no Explorer: nao apaga nada sozinho"
-                }),
+            espaco,
 
             new PlaceholderPageViewModel(
                 "Apps", "Desinstalador de aplicativos",

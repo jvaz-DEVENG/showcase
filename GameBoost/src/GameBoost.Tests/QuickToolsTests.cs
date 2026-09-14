@@ -88,13 +88,12 @@ public sealed class QuickToolsCatalogTests
     }
 
     [Fact]
-    public void Ferramenta_desconhecida_nao_derruba_o_servico()
+    public async Task Ferramenta_desconhecida_nao_derruba_o_servico()
     {
         var servico = new QuickToolsService(
             new FakeProcessosVazio(), new FakeMemoria(), new FakeLogger());
 
-        var resultado = servico.ExecutarAsync("inexistente", null, CancellationToken.None)
-            .GetAwaiter().GetResult();
+        var resultado = await servico.ExecutarAsync("inexistente", null, CancellationToken.None);
 
         Assert.False(resultado.Sucesso);
         Assert.Contains("desconhecida", resultado.Mensagem);

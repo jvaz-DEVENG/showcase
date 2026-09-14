@@ -4,6 +4,7 @@ using GameBoost.Core.Logging;
 using GameBoost.Core.Modules;
 using GameBoost.Core.Modules.Bottleneck;
 using GameBoost.Core.Modules.Cleaner;
+using GameBoost.Core.Modules.DiskAnalyzer;
 using GameBoost.Core.Modules.Tools;
 using GameBoost.Core.Modules.GameMode;
 using GameBoost.Core.Modules.HealthReport;
@@ -76,6 +77,10 @@ public static class CoreServices
         services.AddSingleton<CleanupHistory>();
         services.AddSingleton<CleanerModule>();
         services.AddSingleton<QuickToolsService>();
+
+        // Fase 3: analisador de espaco.
+        services.AddSingleton<DiskScanner>();
+        services.AddSingleton<GameLibrary>();
 
         services.AddSingleton<SystemSilencer>();
         services.AddSingleton<GameDetector>();

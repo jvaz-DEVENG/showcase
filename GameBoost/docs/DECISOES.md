@@ -217,6 +217,30 @@ regra 4 proíbe.
 
 ---
 
+## 2026-09-14 — A árvore do disco custava 1,1 GB de RAM
+
+Depois da primeira varredura pela interface, o app estava com **1118 MB**. A causa era o
+`DiskNode` guardar o **caminho completo** em cada nó: numa árvore de 1,5 milhão de arquivos,
+com caminhos de 60 a 100 caracteres, isso sozinho passa de 240 MB, mais o overhead de cada
+string.
+
+O caminho já está na estrutura — é a sequência de nomes até a raiz. Agora só a raiz guarda um
+caminho completo, e os demais montam o seu subindo pelos pais.
+
+**Medido: 594 MB**, contra 1118 MB. Redução de 47%.
+
+Ao fazer isso apareceu uma armadilha: o scanner montava o caminho de cada filho a partir de
+`pasta.Caminho`, o que passou a subir a árvore inteira **por arquivo** e tornaria a varredura
+quadrática na profundidade. O caminho da pasta passou a ser calculado uma vez por pasta, não
+por arquivo. O construtor foi separado em dois — um para a raiz, um para filho — para que
+esse erro não seja possível de escrever de novo.
+
+**Ainda são 594 MB** para 1,5 milhão de nós, e não vale esconder isso: uma versão futura pode
+guardar a árvore achatada em arrays em vez de objetos ligados. Por ora o custo aparece só
+enquanto a página de Espaço está aberta.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

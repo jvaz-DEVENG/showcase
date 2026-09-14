@@ -312,6 +312,34 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public void Biblioteca_de_jogos_le_os_launchers_instalados()
+    {
+        var log = _provider.GetRequiredService<Core.Logging.IGameBoostLogger>();
+        var biblioteca = new Core.Modules.DiskAnalyzer.GameLibrary(log);
+
+        var jogos = biblioteca.Listar();
+
+        // Cada entrada precisa ser plausivel, venha de qual launcher vier.
+        Assert.All(jogos, j =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(j.Nome));
+            Assert.False(string.IsNullOrWhiteSpace(j.Launcher));
+            Assert.False(string.IsNullOrWhiteSpace(j.Pasta));
+            Assert.True(j.Bytes >= 0);
+            Assert.InRange(j.Bytes, 0, 2L * 1024 * 1024 * 1024 * 1024);
+        });
+
+        var resumo = jogos.Count == 0
+            ? "MEDIDO: nenhum jogo encontrado nos launchers"
+            : "MEDIDO: " + jogos.Count + " jogos, "
+              + (jogos.Sum(j => j.Bytes) / 1024.0 / 1024 / 1024).ToString("0.0") + " GB no total | "
+              + string.Join(" | ", jogos.Take(6).Select(j =>
+                    $"{j.Launcher}: {j.Nome} {(j.Bytes / 1024.0 / 1024 / 1024):0.0}GB, {j.QuandoJogou}"));
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-jogos.txt"), resumo);
+    }
+
+    [Fact]
     public void Arquivos_especiais_do_windows_sao_explicados()
     {
         var raiz = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))!;

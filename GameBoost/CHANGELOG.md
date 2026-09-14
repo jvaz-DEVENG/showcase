@@ -4,6 +4,29 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - em desenvolvimento
 
+### Fase 3 - Analisador de espaco e biblioteca de jogos (2026-09-14)
+
+#### Adicionado
+- Varredura de volume com FindFirstFileEx e FIND_FIRST_EX_LARGE_FETCH, paralelizada por
+  subarvore. Medido: 1.548.745 arquivos e 809,5 GB em 20,3 s, acima do volume do criterio
+  da secao 5.4 e abaixo do tempo.
+- Treemap navegavel com algoritmo squarified, colorido por categoria, com clique para
+  descer e trilha para voltar.
+- Top 100 arquivos e top 50 pastas, com abrir no Explorer e enviar para a Lixeira.
+- Categorias inteligentes: jogos, videos, imagens, instaladores, caches, sistema,
+  documentos, codigo e musica. A pasta manda mais que a extensao.
+- Arquivos especiais (hiberfil.sys, pagefile.sys, Windows.old) explicados em vez de so
+  listados, com o risco de cada um.
+- Biblioteca de jogos (secao 5.11) lendo Steam, Epic, GOG e Xbox, com tamanho e quando foi
+  jogado pela ultima vez. Jogo grande e parado ha mais de 6 meses ganha selo.
+
+#### Notas
+- A MFT crua nao foi usada: FSCTL_ENUM_USN_DATA nao devolve o tamanho do arquivo. Ver
+  docs/DECISOES.md.
+- O contador de pastas inacessiveis reportava 40.871; o numero real e 543.
+- A arvore consumia 1,1 GB de RAM por guardar o caminho completo em cada no; agora sao
+  594 MB.
+
 ### Fase 2 - Limpeza e ferramentas rapidas (2026-09-13)
 
 #### Adicionado

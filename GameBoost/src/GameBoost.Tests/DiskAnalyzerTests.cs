@@ -8,15 +8,14 @@ public sealed class DiskNodeTests
 {
     private static DiskNode Pasta(string nome, DiskNode? pai = null)
     {
-        var caminho = pai is null ? nome : Path.Combine(pai.Caminho, nome);
-        var no = new DiskNode(nome, caminho, ehPasta: true, pai);
+        var no = pai is null ? new DiskNode(nome) : new DiskNode(nome, ehPasta: true, pai);
         pai?.Filhos.Add(no);
         return no;
     }
 
     private static DiskNode Arquivo(string nome, long bytes, DiskNode pai, DiskCategory categoria = DiskCategory.Outros)
     {
-        var no = new DiskNode(nome, Path.Combine(pai.Caminho, nome), ehPasta: false, pai)
+        var no = new DiskNode(nome, ehPasta: false, pai)
         {
             TamanhoProprio = bytes,
             Categoria = categoria

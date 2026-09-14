@@ -22,18 +22,56 @@ public enum DiskCategory
 /// </summary>
 public sealed class DiskNode
 {
-    public DiskNode(string nome, string caminho, bool ehPasta, DiskNode? pai = null)
+    /// <summary>Raiz da árvore: é a única que guarda um caminho completo.</summary>
+    public DiskNode(string caminhoDaRaiz)
+    {
+        Nome = caminhoDaRaiz;
+        EhPasta = true;
+        _caminhoDaRaiz = caminhoDaRaiz;
+    }
+
+    /// <summary>
+    /// Nó filho. Guarda só o nome: o caminho completo em cada nó custava cerca
+    /// de 240 MB numa árvore de 1,5 milhão de arquivos, para uma informação que
+    /// já está na estrutura.
+    /// </summary>
+    public DiskNode(string nome, bool ehPasta, DiskNode pai)
     {
         Nome = nome;
-        Caminho = caminho;
         EhPasta = ehPasta;
         Pai = pai;
     }
 
+    private readonly string? _caminhoDaRaiz;
+
     public string Nome { get; }
-    public string Caminho { get; }
     public bool EhPasta { get; }
     public DiskNode? Pai { get; }
+
+    /// <summary>Montado sob demanda subindo até a raiz.</summary>
+    public string Caminho
+    {
+        get
+        {
+            if (_caminhoDaRaiz is not null)
+                return _caminhoDaRaiz;
+
+            var partes = new Stack<string>();
+
+            for (var no = this; no is not null; no = no.Pai)
+            {
+                if (no._caminhoDaRaiz is not null)
+                {
+                    partes.Push(no._caminhoDaRaiz);
+                    break;
+                }
+
+                partes.Push(no.Nome);
+            }
+
+            return Path.Combine(partes.ToArray());
+        }
+    }
 
     public List<DiskNode> Filhos { get; } = new();
 

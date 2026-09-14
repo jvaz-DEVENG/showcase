@@ -5,9 +5,9 @@
 Central de otimização e manutenção para PC gamer no Windows 10 e 11. Sem anúncio, sem conta,
 sem telemetria, sem assinatura. PT-BR nativo.
 
-> **Estado:** v2.0.0 em desenvolvimento — Fases 0, 1 e 2 concluídas.
-> Modo Game, diagnóstico de gargalos, relatório de saúde, limpeza e ferramentas rápidas
-> funcionais; os demais módulos chegam nas fases seguintes.
+> **Estado:** v2.0.0 em desenvolvimento — Fases 0 a 3 concluídas.
+> Modo Game, diagnóstico, relatório de saúde, limpeza, ferramentas rápidas e analisador de
+> espaço funcionais; os demais módulos chegam nas fases seguintes.
 
 ---
 
@@ -44,11 +44,16 @@ aberto bloqueia o próprio cache; `Downloads` só é listado, nunca tocado.
 criar ponto de restauração, rodar `sfc` e `DISM` com a saída ao vivo, medir a velocidade do
 disco e copiar as informações do sistema para mandar a quem dá suporte.
 
+**Onde está o seu espaço.** Varre o disco inteiro em cerca de 20 segundos e mostra num
+treemap onde foram parar os GB. Lista os 100 maiores arquivos, as 50 maiores pastas e a sua
+biblioteca de jogos — com o tamanho de cada um e quando você jogou pela última vez. Explica o
+que são `hiberfil.sys` e `pagefile.sys` em vez de só mostrar o tamanho. Não apaga nada: abre
+no Explorer ou manda para a Lixeira, com confirmação.
+
 ## O que vem depois
 
 | Fase | Módulo |
 |---|---|
-| 3 | Analisador de espaço em disco, biblioteca de jogos |
 | 4 | Desinstalador (Win32 + Store + restos), gerenciador de inicialização |
 | 5 | Tweaks de jogos, serviços, rede, drivers |
 | 6 | Perfis por jogo com detecção automática, bandeja, onboarding |

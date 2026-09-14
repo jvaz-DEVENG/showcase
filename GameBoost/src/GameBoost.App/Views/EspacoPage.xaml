@@ -1,0 +1,257 @@
+<UserControl x:Class="GameBoost.App.Views.EspacoPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:GameBoost.App.Controls">
+
+    <UserControl.Resources>
+        <!-- Mesma linha para arquivo, pasta e jogo: os tres tem nome, detalhe e tamanho. -->
+        <DataTemplate x:Key="LinhaDeEspaco">
+            <Border Background="{StaticResource SuperficieAlta}" CornerRadius="5" Padding="10,7" Margin="3,2">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Nome}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="300" />
+                            <Border Background="{StaticResource RiscoMedio}" CornerRadius="3" Padding="6,1"
+                                    Margin="8,0,0,0" VerticalAlignment="Center"
+                                    Visibility="{Binding TemMarca, Converter={StaticResource BoolParaVisibilidade}}">
+                                <TextBlock Text="{Binding Marca}" FontSize="10" Foreground="#FF0D1117" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Detalhe}" FontSize="11" Margin="0,2,8,0"
+                                   Foreground="{StaticResource TextoDesabilitado}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1" Text="{Binding Tamanho}" VerticalAlignment="Center"
+                               FontWeight="SemiBold" Margin="8,0,10,0" />
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Abrir" Style="{StaticResource BotaoBase}" Padding="9,5"
+                                Command="{Binding DataContext.AbrirNoExplorerCommand,
+                                          RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                CommandParameter="{Binding}"
+                                ToolTip="Abrir no Explorer" />
+                        <Button Content="Lixeira" Style="{StaticResource BotaoBase}" Padding="9,5" Margin="5,0,0,0"
+                                Command="{Binding DataContext.MandarParaLixeiraCommand,
+                                          RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                CommandParameter="{Binding}"
+                                ToolTip="Enviar para a Lixeira, de onde dá para recuperar" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="26,22,26,22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Cabecalho -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding Titulo}" FontSize="22" FontWeight="Bold" />
+                <TextBlock Text="{Binding Subtitulo}" Foreground="{StaticResource TextoSecundario}" Margin="0,3,12,0" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <ComboBox ItemsSource="{Binding Volumes}" SelectedItem="{Binding VolumeSelecionado}"
+                          Width="80" VerticalContentAlignment="Center" Margin="0,0,8,0"
+                          IsEnabled="{Binding Varrendo, Converter={StaticResource InverterBool}}" />
+
+                <Button Content="Varrer" Style="{StaticResource BotaoPrimario}"
+                        Command="{Binding VarrerCommand}"
+                        Visibility="{Binding Varrendo, Converter={StaticResource BoolParaVisibilidade}, ConverterParameter=inverter}" />
+
+                <Button Content="Cancelar" Style="{StaticResource BotaoBase}"
+                        Command="{Binding CancelarCommand}"
+                        Visibility="{Binding Varrendo, Converter={StaticResource BoolParaVisibilidade}}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Resumo -->
+        <Border Grid.Row="1" Background="{StaticResource Superficie}" CornerRadius="6" Padding="14,10"
+                Margin="0,0,0,12"
+                Visibility="{Binding Resumo, Converter={StaticResource TextoParaVisibilidade}}">
+            <TextBlock Text="{Binding Resumo}" FontWeight="SemiBold" />
+        </Border>
+
+        <!-- Treemap e listas -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="460" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+                    BorderThickness="1" CornerRadius="8" Margin="0,0,12,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Trilha de navegacao -->
+                    <Grid Grid.Row="0" Margin="12,10,12,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" Content="Subir" Style="{StaticResource BotaoBase}" Padding="10,5"
+                                Command="{Binding SubirCommand}" IsEnabled="{Binding PodeSubir}" />
+                        <Button Grid.Column="1" Content="Raiz" Style="{StaticResource BotaoBase}" Padding="10,5"
+                                Margin="6,0,0,0" Command="{Binding VoltarParaRaizCommand}"
+                                IsEnabled="{Binding PodeSubir}" />
+
+                        <TextBlock Grid.Column="2" Text="{Binding NoAtual.Caminho}" VerticalAlignment="Center"
+                                   Margin="12,0,0,0" FontSize="12" TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource TextoSecundario}" />
+                    </Grid>
+
+                    <ctrl:Treemap x:Name="Mapa" Grid.Row="1" Margin="10,0,10,10"
+                                  Raiz="{Binding NoAtual}" />
+                </Grid>
+            </Border>
+
+            <!-- Abas: jogos, arquivos, pastas -->
+            <TabControl Grid.Column="1" Background="Transparent" BorderThickness="0" Padding="0,10,0,0">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem">
+                        <Setter Property="Foreground" Value="{StaticResource TextoSecundario}" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TabItem">
+                                    <Border x:Name="Aba" Padding="13,8" Margin="0,0,4,0" CornerRadius="6"
+                                            Background="Transparent">
+                                        <ContentPresenter ContentSource="Header" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Aba" Property="Background" Value="{StaticResource Superficie}" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Aba" Property="Background" Value="{StaticResource SuperficieAlta}" />
+                                            <Setter Property="Foreground" Value="{StaticResource Texto}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TabControl.Resources>
+
+                <TabItem Header="Jogos">
+                    <Border Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+                            BorderThickness="1" CornerRadius="8">
+                        <Grid>
+                            <ListBox ItemsSource="{Binding Jogos}" Background="Transparent" BorderThickness="0"
+                                     Padding="6" HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ItemContainerStyle="{StaticResource ItemDeAcao}"
+                                     ItemTemplate="{StaticResource LinhaDeEspaco}" />
+
+                            <TextBlock Text="Nenhum jogo encontrado nos launchers."
+                                       Foreground="{StaticResource TextoSecundario}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Visibility="{Binding JaVarreu, Converter={StaticResource BoolParaVisibilidade}, ConverterParameter=inverter}" />
+                        </Grid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Maiores arquivos">
+                    <Border Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+                            BorderThickness="1" CornerRadius="8">
+                        <ListBox ItemsSource="{Binding MaioresArquivos}" Background="Transparent" BorderThickness="0"
+                                 Padding="6" HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ItemContainerStyle="{StaticResource ItemDeAcao}"
+                                 ItemTemplate="{StaticResource LinhaDeEspaco}" />
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Maiores pastas">
+                    <Border Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+                            BorderThickness="1" CornerRadius="8">
+                        <ListBox ItemsSource="{Binding MaioresPastas}" Background="Transparent" BorderThickness="0"
+                                 Padding="6" HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ItemContainerStyle="{StaticResource ItemDeAcao}"
+                                 ItemTemplate="{StaticResource LinhaDeEspaco}" />
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Sistema">
+                    <Border Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+                            BorderThickness="1" CornerRadius="8">
+                        <ListBox ItemsSource="{Binding Especiais}" Background="Transparent" BorderThickness="0"
+                                 Padding="6" HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ItemContainerStyle="{StaticResource ItemDeAcao}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource SuperficieAlta}" CornerRadius="5"
+                                            Padding="10,8" Margin="3,3">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding Nome}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding OQueE}" FontSize="11" Margin="0,3,0,0"
+                                                           Foreground="{StaticResource TextoSecundario}" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock HorizontalAlignment="Right" FontWeight="SemiBold">
+                                                    <Run Text="{Binding Bytes, Mode=OneWay, StringFormat={}{0:N0} bytes}" />
+                                                </TextBlock>
+                                                <Button Content="Como remover" Style="{StaticResource BotaoBase}"
+                                                        Padding="9,4" Margin="0,5,0,0"
+                                                        Command="{Binding DataContext.ExplicarEspecialCommand,
+                                                                  RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                </TabItem>
+            </TabControl>
+        </Grid>
+
+        <!-- Rodape -->
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+            <ProgressBar Height="3" Value="{Binding Progresso}" Maximum="100" BorderThickness="0"
+                         Background="{StaticResource Superficie}" Foreground="{StaticResource Acento}"
+                         Margin="0,0,0,8"
+                         Visibility="{Binding Varrendo, Converter={StaticResource BoolParaVisibilidade}}" />
+
+            <TextBlock Text="{Binding SobOMouse}" Foreground="{StaticResource Acento}" FontSize="12"
+                       TextTrimming="CharacterEllipsis"
+                       Visibility="{Binding SobOMouse, Converter={StaticResource TextoParaVisibilidade}}" />
+            <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextoSecundario}" FontSize="12"
+                       Margin="0,3,0,0" />
+        </StackPanel>
+    </Grid>
+</UserControl>

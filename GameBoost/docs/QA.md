@@ -71,6 +71,19 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] Ponto de restauração aparece na Restauração do Sistema do Windows
 - [ ] `sfc /scannow` mostra a saída ao vivo e não parece travado
 
+## Fase 3 — analisador de espaço
+
+- [x] Varredura do disco do sistema (medido: 1.548.745 arquivos, 809,5 GB, em 18 a 20 s)
+- [x] Soma bate com o espaço ocupado, e o que falta é declarado no rodapé
+- [x] Treemap desenha proporcional e colorido por categoria
+- [x] Biblioteca lê Steam e Epic com tamanho e último jogo (14 jogos, 974 GB)
+- [x] Contador de pastas inacessíveis reporta o número real (543, não 40.871)
+- [x] Memória com a árvore aberta (medido: 594 MB para 1,5 milhão de nós)
+- [ ] Clicar num bloco do treemap desce um nível, e Subir volta
+- [ ] Enviar um arquivo para a Lixeira pela página e conferir que dá para restaurar
+- [ ] Varredura de um segundo volume (D:)
+- [ ] Cancelar a varredura no meio deixa a interface utilizável
+
 ## Ambiente
 
 - [x] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso

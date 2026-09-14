@@ -47,7 +47,7 @@ public sealed class DiskScanner
     {
         var relogio = Stopwatch.StartNew();
 
-        var raiz = new DiskNode(raizDoVolume, raizDoVolume, ehPasta: true);
+        var raiz = new DiskNode(raizDoVolume);
         var arquivos = 0;
         var ignoradas = 0;
         long bytes = 0;
@@ -75,7 +75,12 @@ public sealed class DiskScanner
                 new ParallelOptions { MaxDegreeOfParallelism = paralelismo, CancellationToken = ct },
                 pasta =>
                 {
-                    var entradas = FastFind.Listar(pasta.Caminho, out var acessoNegado);
+                    // Uma vez por pasta, nunca por arquivo: montar o caminho
+                    // sobe a arvore inteira, e fazer isso por arquivo tornaria
+                    // a varredura quadratica na profundidade.
+                    var caminhoDaPasta = pasta.Caminho;
+
+                    var entradas = FastFind.Listar(caminhoDaPasta, out var acessoNegado);
 
                     // So conta como ignorada quando o Windows recusou de fato.
                     // Pasta vazia nao e pasta inacessivel.
@@ -87,8 +92,8 @@ public sealed class DiskScanner
                         if (entrada.EhPasta && Pular.Contains(entrada.Nome))
                             continue;
 
-                        var caminho = Path.Combine(pasta.Caminho, entrada.Nome);
-                        var filho = new DiskNode(entrada.Nome, caminho, entrada.EhPasta, pasta)
+                        var caminho = Path.Combine(caminhoDaPasta, entrada.Nome);
+                        var filho = new DiskNode(entrada.Nome, entrada.EhPasta, pasta)
                         {
                             TamanhoProprio = entrada.Tamanho,
                             Modificado = entrada.Modificado,
