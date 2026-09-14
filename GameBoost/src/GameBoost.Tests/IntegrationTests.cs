@@ -460,6 +460,73 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Inicializacao_desativa_e_reativa_de_verdade()
+    {
+        // O ciclo completo, com uma entrada descartavel criada so para isto.
+        //
+        // O defeito que este teste cobre: o Reverter recebia GUIDs de
+        // ChangeRecord e tentava casa-los com o NOME do programa
+        // (id.Contains(e.Nome)). Um GUID nunca contem "WallpaperEngine", entao
+        // a lista de alvos saia vazia, nada era desfeito — e o metodo devolvia
+        // SUCESSO. A tela dizia "Pronto" e o item continuava desativado.
+        const string chaveRun = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        const string aprovado = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+        var nome = "GameBoostTeste_" + Guid.NewGuid().ToString("N")[..8];
+
+        var registro = _provider.GetRequiredService<Core.Abstractions.IRegistryService>();
+        var modulo = _provider.GetRequiredService<Core.Modules.Startup.StartupModule>();
+
+        registro.SetValue(Core.Abstractions.RegistryRoot.CurrentUser, chaveRun, nome,
+            @"C:\Windows\System32\notepad.exe", Core.Abstractions.RegistryValueKindLite.String);
+
+        try
+        {
+            var varredura = await modulo.ScanAsync(null, CancellationToken.None);
+            var item = varredura.Itens.FirstOrDefault(i => i.Titulo == nome);
+
+            Assert.NotNull(item);
+            Assert.False(item!.Bloqueado, "a entrada de teste nao deveria estar protegida");
+
+            // ---- desativar ----
+            var aplicado = await modulo.ApplyAsync(new[] { item.Id }, dryRun: false, CancellationToken.None);
+            Assert.True(aplicado.Sucessos > 0, "nao conseguiu desativar");
+
+            var bytes = registro.GetValue(
+                Core.Abstractions.RegistryRoot.CurrentUser, aprovado, nome) as byte[];
+
+            Assert.NotNull(bytes);
+            Assert.Equal(12, bytes!.Length);
+            Assert.Equal(3, bytes[0]);
+
+            // ---- reativar ----
+            var revertido = await modulo.RevertAsync(Array.Empty<string>(), dryRun: false, CancellationToken.None);
+
+            Assert.True(revertido.Sucessos > 0,
+                "o Reverter devolveu sucesso sem reativar nada: " + revertido.Resumo);
+
+            // Reativado pode ser de duas formas, e as duas valem:
+            //
+            // - valor APAGADO, quando ele nao existia antes de desativarmos. No
+            //   StartupApproved a ausencia significa habilitado, e o Gerenciador
+            //   de Tarefas le assim. E o caso mais limpo: nao deixa residuo.
+            // - byte 02, quando havia um valor antes e ele dizia habilitado.
+            //
+            // Exigir 02 sempre seria exigir que a reversao gravasse lixo onde
+            // nao havia nada — o mesmo erro que o resto do app evita.
+            var depois = registro.GetValue(
+                Core.Abstractions.RegistryRoot.CurrentUser, aprovado, nome) as byte[];
+
+            if (depois is not null)
+                Assert.Equal(2, depois[0]);
+        }
+        finally
+        {
+            try { registro.DeleteValue(Core.Abstractions.RegistryRoot.CurrentUser, chaveRun, nome); } catch { }
+            try { registro.DeleteValue(Core.Abstractions.RegistryRoot.CurrentUser, aprovado, nome); } catch { }
+        }
+    }
+
+    [Fact]
     public void Lixeira_recebe_arquivo_de_verdade_sem_derrubar_o_processo()
     {
         // Este teste existe por causa de um crash: a struct SHFILEOPSTRUCT

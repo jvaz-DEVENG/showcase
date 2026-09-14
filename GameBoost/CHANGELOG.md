@@ -4,6 +4,28 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - 2026-09-14
 
+### QA manual, quarta rodada - o Reverter da inicializacao nao revertia (2026-09-14)
+
+#### Corrigido
+- **Reverter da Inicializacao devolvia sucesso sem fazer nada.** A tela passa GUIDs de
+  ChangeRecord, mas o modulo esperava NOMES de programa e tentava casar com
+  `id.Contains(e.Nome)`. Um GUID nunca contem "WallpaperEngine": a lista de alvos saia
+  vazia, nada era desfeito e o metodo retornava sucesso. A tela dizia "Pronto" e o item
+  continuava desativado.
+
+  Alem de errado, aquilo dependia de alguem ter varrido na mesma sessao: reabrir o app e
+  clicar em Reverter nao funcionaria nem com o casamento certo. Agora usa o
+  RollbackEngine, que le o proprio ChangeRecord — mesmo caminho dos Tweaks.
+
+#### Adicionado
+- Teste do ciclo completo da inicializacao, com uma entrada descartavel criada so para
+  ele: desativa, confere os 12 bytes com o primeiro em 0x03, reativa e confere que voltou.
+
+#### Notas
+- Reativar pode apagar o valor em vez de gravar 0x02, e as duas formas valem: no
+  StartupApproved a ausencia significa habilitado. Apagar e mais limpo, porque nao deixa
+  residuo de uma chave que nao existia antes.
+
 ### QA manual, terceira rodada - a Lixeira derrubava o aplicativo (2026-09-14)
 
 #### Corrigido

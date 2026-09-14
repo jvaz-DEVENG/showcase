@@ -100,9 +100,9 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [x] Desinstalar um app de verdade (medido: Call of Duty, 180,3 GB; 217→216 apps, 1044→863,7 GB)
 - [ ] Desinstalar um app da Store (`Remove-AppxPackage`)
 - [x] Desinstalar um app cujo desinstalador abre janela própria (o GameBoost espera, não trava)
-- [ ] Desativar um item de inicialização e conferir no Gerenciador de Tarefas que ele
-      aparece como "Desabilitado" (mesmo formato de byte)
-- [ ] Reverter a desativação e conferir que o programa volta a abrir no boot
+- [x] Desativar um item e conferir no Gerenciador de Tarefas (medido: WallpaperEngine,
+      byte 0x03 + FILETIME, "Desabilitado" nos dois lados)
+- [x] Reverter a desativação e conferir que o programa volta a abrir no boot
 - [x] Enviar uma pasta de resto para a Lixeira (medido: qwen-updater, 119 MB, restaurável)
 
 ## Complemento da Fase 4 — aba Atualizações (winget)
@@ -226,6 +226,7 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | QA manual bloco 5 (inicializacao) | **1 bug achado**: o Reverter nao revertia |
 | 14/09/2026 | QA manual bloco 4 (apps, restos, winget) | **1 crash achado e corrigido**: a Lixeira derrubava o app |
 | 14/09/2026 | QA manual blocos 2 e 3 (tweaks, servicos, rede) | **4 bugs achados e corrigidos**, depois passou |
 | 14/09/2026 | QA manual bloco 1 (reversibilidade) elevado, na maquina real | **6 bugs achados e corrigidos**, depois passou |

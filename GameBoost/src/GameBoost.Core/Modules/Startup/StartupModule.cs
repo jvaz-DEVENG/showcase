@@ -27,15 +27,22 @@ public sealed class StartupModule : IModule
 
     private readonly IRegistryService _registro;
     private readonly IStateBackup _backup;
+    private readonly IRollbackEngine _rollback;
     private readonly IGameBoostLogger _log;
     private readonly IClock _relogio;
 
     private IReadOnlyList<StartupEntry> _ultimaLista = Array.Empty<StartupEntry>();
 
-    public StartupModule(IRegistryService registro, IStateBackup backup, IGameBoostLogger log, IClock relogio)
+    public StartupModule(
+        IRegistryService registro,
+        IStateBackup backup,
+        IRollbackEngine rollback,
+        IGameBoostLogger log,
+        IClock relogio)
     {
         _registro = registro;
         _backup = backup;
+        _rollback = rollback;
         _log = log;
         _relogio = relogio;
     }
@@ -490,21 +497,77 @@ public sealed class StartupModule : IModule
         }
     }
 
-    private ApplyResult Reverter(IReadOnlyList<string> ids, bool dryRun)
+    /// <summary>
+    /// Desfaz pelo ChangeRecord, e não por nome.
+    ///
+    /// A primeira versão recebia os ids que a tela manda — que são **GUIDs de
+    /// ChangeRecord** — e tentava casá-los com o nome do programa
+    /// (`id.Contains(e.Nome)`). Um GUID nunca contém "WallpaperEngine", então a
+    /// lista de alvos saía vazia, nada era desfeito, e o método **devolvia
+    /// sucesso**: a tela dizia "Pronto" e o item continuava desativado.
+    ///
+    /// Além de errado, aquilo dependia de `_ultimaLista` estar preenchida —
+    /// ou seja, de alguém ter varrido nesta sessão. Reabrir o app e clicar em
+    /// Reverter não funcionaria nem com o casamento certo.
+    ///
+    /// O ChangeRecord já carrega tudo o que a reversão precisa: a chave, o nome
+    /// do valor, o conteúdo anterior e se ele existia. É o que o
+    /// <see cref="IRollbackEngine"/> consome, e é o mesmo caminho que os Tweaks
+    /// usam.
+    /// </summary>
+    private ApplyResult Reverter(IReadOnlyList<string> changeIds, bool dryRun)
     {
-        // Reativar é o inverso exato de desativar; os ids podem vir da lista ou
-        // dos ChangeRecord pendentes.
-        var doModulo = ids.Count > 0
-            ? ids
-            : _backup.Pendentes.Where(r => r.Modulo == ModuloId).Select(r => r.SubAlvo ?? string.Empty).ToList();
+        var pendentes = _backup.Pendentes.Where(r => r.Modulo == ModuloId).ToList();
 
-        var alvos = _ultimaLista
-            .Where(e => doModulo.Any(id => id.Contains(e.Nome, StringComparison.OrdinalIgnoreCase)
-                                        || id.Contains(e.Id, StringComparison.OrdinalIgnoreCase)))
-            .Select(e => $"startup:{e.Id}")
+        var alvos = changeIds.Count > 0
+            ? pendentes.Where(r => changeIds.Contains(r.Id)).Select(r => r.Id).ToList()
+            : pendentes.Select(r => r.Id).ToList();
+
+        if (alvos.Count == 0)
+        {
+            return new ApplyResult
+            {
+                ModuloId = ModuloId,
+                DryRun = dryRun,
+                Resumo = "Não há item de inicialização para reativar."
+            };
+        }
+
+        var resultados = _rollback.Reverter(alvos, dryRun);
+
+        var acoes = resultados
+            .Select(r => new AppliedAction(r.ChangeId, r.Sucesso, r.Detalhe, r.ChangeId))
             .ToList();
 
-        return Alternar(alvos, desativar: false, dryRun);
+        var ok = acoes.Count(a => a.Sucesso);
+
+        // A lista em memória tem que acompanhar, senão a tela continua
+        // mostrando "já desativado" no item que acabou de voltar.
+        if (!dryRun && ok > 0)
+        {
+            var nomes = pendentes
+                .Where(r => alvos.Contains(r.Id))
+                .Select(r => r.SubAlvo)
+                .Where(n => n is not null)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)!;
+
+            foreach (var entrada in _ultimaLista.Where(e => nomes.Contains(e.Nome)))
+                entrada.Ativo = true;
+        }
+
+        _log.Info(ModuloId, dryRun ? "Reverter (dry-run)" : "Reverter", null,
+            $"{ok} de {acoes.Count} itens reativados");
+
+        return new ApplyResult
+        {
+            ModuloId = ModuloId,
+            Acoes = acoes,
+            DryRun = dryRun,
+            Resumo = dryRun
+                ? $"Simulação: {ok} de {acoes.Count} programas voltariam a abrir com o Windows."
+                : $"{ok} de {acoes.Count} programas voltam a abrir com o Windows.",
+            GanhoMedido = "O efeito aparece no próximo boot."
+        };
     }
 
     /// <summary>Reativa um item específico, pelo botão da lista.</summary>
