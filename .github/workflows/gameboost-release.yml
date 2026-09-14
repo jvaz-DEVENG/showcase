@@ -1,0 +1,220 @@
+name: release
+
+# Dispara só em tag `gameboost-vX.Y.Z`. O repositório guarda mais de um
+# projeto, então a tag carrega o nome do produto: uma tag `v2.0.0` solta
+# construiria o GameBoost por engano quando outro projeto for versionado.
+on:
+  push:
+    tags: ['gameboost-v*']
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: 'Versão a empacotar (ex.: 2.0.0). Só para teste manual.'
+        required: true
+
+defaults:
+  run:
+    working-directory: GameBoost
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Descobrir a versao
+        id: versao
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/gameboost-v*') {
+            $v = $env:GITHUB_REF -replace '.*/gameboost-v', ''
+          } else {
+            $v = '${{ github.event.inputs.versao }}'
+          }
+
+          if ($v -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Versao invalida: '$v'. Esperado X.Y.Z."
+          }
+
+          # A tag e o Directory.Build.props precisam concordar. Publicar uma
+          # tag 2.1.0 com o assembly dizendo 2.0.0 deixaria o auto-update
+          # comparando numeros que nao batem com o que o usuario tem.
+          $props = Get-Content Directory.Build.props -Raw
+          if ($props -notmatch "<VersionPrefix>$([regex]::Escape($v))</VersionPrefix>") {
+            throw "A tag diz $v mas o Directory.Build.props diz outra coisa. Alinhe os dois."
+          }
+
+          "versao=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Versao: $v"
+
+      - name: Restaurar
+        run: dotnet restore GameBoost.sln
+
+      - name: Testar
+        run: dotnet test GameBoost.sln -c Release --logger "trx;LogFileName=testes.trx"
+
+      - name: Publicar executavel
+        run: >
+          dotnet publish src/GameBoost.App/GameBoost.App.csproj
+          -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishReadyToRun=true
+          -p:Version=${{ steps.versao.outputs.versao }}
+          -o publish
+
+      # ------------------------------------------------------------------
+      # Assinatura de codigo
+      # ------------------------------------------------------------------
+      #
+      # Condicional de proposito. O certificado OV vive num token USB ou HSM
+      # (exigencia das CAs desde jun/2023), entao nem sempre esta disponivel
+      # para o CI. Sem o segredo, a release sai **sem assinatura** e o passo
+      # seguinte avisa em alto e bom som, em vez de falhar a build inteira.
+      #
+      # Ver docs/ASSINATURA.md para o que foi apurado sobre as opcoes.
+      - name: Assinar o executavel
+        if: ${{ secrets.GAMEBOOST_CERT_PFX != '' }}
+        env:
+          CERT_PFX: ${{ secrets.GAMEBOOST_CERT_PFX }}
+          CERT_SENHA: ${{ secrets.GAMEBOOST_CERT_SENHA }}
+        shell: pwsh
+        run: |
+          $pfx = "$env:RUNNER_TEMP\cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_PFX))
+
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -like '*\x64\*' } |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $signtool) { throw 'signtool.exe nao encontrado no runner.' }
+
+          & $signtool sign /f $pfx /p $env:CERT_SENHA `
+            /fd SHA256 /tr http://timestamp.sectigo.com /td SHA256 `
+            publish\GameBoost.exe
+
+          if ($LASTEXITCODE -ne 0) { throw "signtool falhou com codigo $LASTEXITCODE" }
+          Remove-Item $pfx -Force
+
+      - name: Avisar que a release sai sem assinatura
+        if: ${{ !secrets.GAMEBOOST_CERT_PFX }}
+        shell: pwsh
+        run: |
+          Write-Host '::warning::Sem certificado configurado: esta release sai SEM assinatura de codigo. O SmartScreen vai avisar no primeiro download. Ver docs/ASSINATURA.md.'
+
+      # ------------------------------------------------------------------
+      # Pacote de atualizacao (Velopack)
+      # ------------------------------------------------------------------
+      - name: Empacotar com o Velopack
+        shell: pwsh
+        run: |
+          dotnet tool install -g vpk
+          $env:PATH = "$env:USERPROFILE\.dotnet\tools;$env:PATH"
+
+          vpk pack `
+            --packId GameBoost `
+            --packVersion ${{ steps.versao.outputs.versao }} `
+            --packDir publish `
+            --mainExe GameBoost.exe `
+            --packTitle GameBoost `
+            --packAuthors "Jonathan Vaz" `
+            --outputDir velopack
+
+          if ($LASTEXITCODE -ne 0) { throw "vpk pack falhou com codigo $LASTEXITCODE" }
+
+      - name: Montar o instalador
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y --no-color
+
+          $candidatos = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+          )
+
+          $iscc = $candidatos | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe nao encontrado. Procurado em: $($candidatos -join '; ')" }
+
+          & $iscc /DAppVersion=${{ steps.versao.outputs.versao }} installer\GameBoost.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC falhou com codigo $LASTEXITCODE" }
+
+      # ------------------------------------------------------------------
+      # Portatil
+      # ------------------------------------------------------------------
+      #
+      # O mesmo exe, mais um portable.txt vazio ao lado. O AppPaths procura
+      # esse arquivo e, achando, guarda tudo em .\data\ em vez de
+      # %LOCALAPPDATA%. Nada muda no codigo.
+      - name: Montar o portatil
+        shell: pwsh
+        run: |
+          $pasta = "portatil\GameBoost-${{ steps.versao.outputs.versao }}-portatil"
+          New-Item -ItemType Directory -Force $pasta | Out-Null
+
+          Copy-Item publish\GameBoost.exe $pasta
+          Copy-Item README.md "$pasta\LEIA-ME.txt"
+
+          @(
+            'Este arquivo faz o GameBoost guardar tudo em .\data\, ao lado do executavel,'
+            'em vez de %LOCALAPPDATA%\GameBoost.'
+            ''
+            'Apague este arquivo para voltar ao comportamento normal.'
+            ''
+            'O modo portatil nao tem atualizacao automatica: baixe a versao nova pela'
+            'pagina de releases quando quiser trocar.'
+          ) | Set-Content "$pasta\portable.txt" -Encoding utf8
+
+          Compress-Archive -Path "$pasta\*" -DestinationPath "portatil\GameBoost-${{ steps.versao.outputs.versao }}-portatil.zip" -Force
+
+      - name: Gerar SHA256SUMS
+        shell: pwsh
+        run: |
+          $arquivos = @(
+            Get-ChildItem publish\GameBoost.exe -ErrorAction SilentlyContinue
+            Get-ChildItem installer\Output\*.exe -ErrorAction SilentlyContinue
+            Get-ChildItem portatil\*.zip -ErrorAction SilentlyContinue
+            Get-ChildItem velopack\*.nupkg, velopack\*.exe -ErrorAction SilentlyContinue
+          )
+
+          if ($arquivos.Count -eq 0) { throw 'Nenhum artefato para somar.' }
+
+          $arquivos | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)"
+          } | Set-Content SHA256SUMS.txt -Encoding utf8
+
+          Get-Content SHA256SUMS.txt
+
+      - name: Anexar tudo ao Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: GameBoost ${{ steps.versao.outputs.versao }}
+          body_path: GameBoost/installer/NOTAS-DA-RELEASE.md
+          files: |
+            GameBoost/publish/GameBoost.exe
+            GameBoost/installer/Output/*.exe
+            GameBoost/portatil/*.zip
+            GameBoost/velopack/*
+            GameBoost/SHA256SUMS.txt
+
+      - name: Guardar artefatos da execucao manual
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameboost-${{ steps.versao.outputs.versao }}
+          path: |
+            GameBoost/publish/GameBoost.exe
+            GameBoost/installer/Output/*.exe
+            GameBoost/portatil/*.zip
+            GameBoost/velopack/*
+            GameBoost/SHA256SUMS.txt

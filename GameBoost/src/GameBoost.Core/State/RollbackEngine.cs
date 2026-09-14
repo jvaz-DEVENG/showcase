@@ -1,0 +1,254 @@
+using System.Globalization;
+using GameBoost.Core.Abstractions;
+using GameBoost.Core.Logging;
+
+namespace GameBoost.Core.State;
+
+public sealed record RollbackOutcome(string ChangeId, bool Sucesso, string Detalhe);
+
+public interface IRollbackEngine
+{
+    /// <summary>Reverte os ChangeRecord indicados. Lista vazia reverte tudo que estiver pendente.</summary>
+    IReadOnlyList<RollbackOutcome> Reverter(IReadOnlyList<string> changeIds, bool dryRun);
+
+    IReadOnlyList<RollbackOutcome> ReverterTudo(bool dryRun);
+}
+
+/// <summary>
+/// Desfaz na ordem inversa da aplicacao: o ultimo ChangeRecord gravado e o
+/// primeiro revertido. Um item que falha nao interrompe os demais -- deixar
+/// metade do sistema alterado seria pior que a falha isolada.
+/// </summary>
+public sealed class RollbackEngine : IRollbackEngine
+{
+    private readonly IStateBackup _backup;
+    private readonly IRegistryService _registry;
+    private readonly IServiceControllerService _services;
+    private readonly IPowerService _power;
+    private readonly IGameBoostLogger _log;
+    private readonly IClock _clock;
+
+    public RollbackEngine(
+        IStateBackup backup,
+        IRegistryService registry,
+        IServiceControllerService services,
+        IPowerService power,
+        IGameBoostLogger log,
+        IClock clock)
+    {
+        _backup = backup;
+        _registry = registry;
+        _services = services;
+        _power = power;
+        _log = log;
+        _clock = clock;
+    }
+
+    public IReadOnlyList<RollbackOutcome> ReverterTudo(bool dryRun) => Reverter(Array.Empty<string>(), dryRun);
+
+    public IReadOnlyList<RollbackOutcome> Reverter(IReadOnlyList<string> changeIds, bool dryRun)
+    {
+        var pendentes = _backup.Pendentes;
+        var alvos = changeIds.Count == 0
+            ? pendentes.ToList()
+            : pendentes.Where(r => changeIds.Contains(r.Id)).ToList();
+
+        // Ordem inversa: desfaz da alteracao mais recente para a mais antiga.
+        alvos.Reverse();
+
+        var resultados = new List<RollbackOutcome>(alvos.Count);
+        foreach (var record in alvos)
+        {
+            var resultado = ReverterUm(record, dryRun);
+            resultados.Add(resultado);
+
+            if (resultado.Sucesso && !dryRun)
+                _backup.MarcarRevertido(record.Id, _clock.Now);
+
+            _log.Log(resultado.Sucesso ? LogLevel.Info : LogLevel.Warn,
+                record.Modulo, dryRun ? "Reverter (dry-run)" : "Reverter",
+                record.Alvo, resultado.Detalhe);
+        }
+
+        return resultados;
+    }
+
+    private RollbackOutcome ReverterUm(ChangeRecord r, bool dryRun)
+    {
+        try
+        {
+            return r.Tipo switch
+            {
+                ChangeType.Registry => ReverterRegistro(r, dryRun),
+                ChangeType.Service => ReverterServico(r, dryRun),
+                ChangeType.Power => ReverterEnergia(r, dryRun),
+                ChangeType.TimerResolution => new RollbackOutcome(r.Id, true,
+                    "Resolucao de timer volta sozinha quando o processo libera o pedido."),
+                ChangeType.Process => new RollbackOutcome(r.Id, true,
+                    "Processos encerrados sao reabertos pela sessao do Modo Game, nao pelo rollback."),
+                ChangeType.File => new RollbackOutcome(r.Id, false,
+                    "Arquivos removidos so voltam pela Lixeira do Windows."),
+                ChangeType.Startup => ReverterRegistro(r, dryRun),
+                _ => new RollbackOutcome(r.Id, false, $"Tipo {r.Tipo} sem reversao implementada.")
+            };
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or InvalidOperationException)
+        {
+            return new RollbackOutcome(r.Id, false, $"Falhou: {ex.Message}");
+        }
+    }
+
+    private RollbackOutcome ReverterRegistro(ChangeRecord r, bool dryRun)
+    {
+        if (!r.Extras.TryGetValue("root", out var rootTexto) || !Enum.TryParse<RegistryRoot>(rootTexto, out var root))
+            return new RollbackOutcome(r.Id, false, "ChangeRecord sem a raiz do registro.");
+
+        var valueName = r.SubAlvo ?? string.Empty;
+
+        if (!r.ValorAnteriorExistia)
+        {
+            if (dryRun)
+                return new RollbackOutcome(r.Id, true, $"Apagaria {root}\\{r.Alvo}\\{valueName} (nao existia antes).");
+
+            _registry.DeleteValue(root, r.Alvo, valueName);
+            return new RollbackOutcome(r.Id, true, $"Valor {valueName} apagado: nao existia antes.");
+        }
+
+        if (!r.Extras.TryGetValue("kind", out var kindTexto) || !Enum.TryParse<RegistryValueKindLite>(kindTexto, out var kind))
+            kind = RegistryValueKindLite.String;
+
+        var valor = ConverterValor(r.ValorAnterior, kind);
+        if (valor is null)
+            return new RollbackOutcome(r.Id, false, "Valor anterior nao pode ser reconstruido.");
+
+        if (dryRun)
+            return new RollbackOutcome(r.Id, true, $"Restauraria {root}\\{r.Alvo}\\{valueName} = {r.ValorAnterior}.");
+
+        _registry.SetValue(root, r.Alvo, valueName, valor, kind);
+        return new RollbackOutcome(r.Id, true, $"Valor {valueName} restaurado para {r.ValorAnterior}.");
+    }
+
+    private RollbackOutcome ReverterServico(ChangeRecord r, bool dryRun)
+    {
+        var deveEstarRodando = r.Extras.TryGetValue("estavaRodando", out var rodando)
+            && bool.TryParse(rodando, out var b) && b;
+
+        var temStartMode = Enum.TryParse<ServiceStartMode>(r.ValorAnterior, out var modoAnterior);
+
+        if (dryRun)
+        {
+            var plano = temStartMode ? $"StartMode={modoAnterior}" : "StartMode inalterado";
+            return new RollbackOutcome(r.Id, true,
+                $"Restauraria {r.Alvo}: {plano}, rodando={deveEstarRodando}.");
+        }
+
+        var ok = true;
+        var detalhes = new List<string>();
+
+        if (temStartMode)
+        {
+            ok &= _services.SetStartMode(r.Alvo, modoAnterior);
+            detalhes.Add($"StartMode={modoAnterior}");
+        }
+
+        var atual = _services.GetService(r.Alvo);
+        if (atual is not null && deveEstarRodando && !atual.IsRunning)
+        {
+            ok &= _services.Start(r.Alvo, TimeSpan.FromSeconds(30));
+            detalhes.Add("reiniciado");
+        }
+        else if (atual is not null && !deveEstarRodando && atual.IsRunning)
+        {
+            ok &= _services.Stop(r.Alvo, TimeSpan.FromSeconds(30));
+            detalhes.Add("parado");
+        }
+
+        return new RollbackOutcome(r.Id, ok,
+            detalhes.Count == 0 ? "Servico ja estava no estado original." : string.Join(", ", detalhes));
+    }
+
+    private RollbackOutcome ReverterEnergia(ChangeRecord r, bool dryRun)
+    {
+        // A hibernacao tambem e energia, mas nao e um plano: e um comando do
+        // powercfg, e o que se guarda e se ela estava ligada antes.
+        if (r.Extras.TryGetValue("powercfg", out var comando))
+            return ReverterPowercfg(r, comando, dryRun);
+
+        if (!Guid.TryParse(r.ValorAnterior, out var plano))
+            return new RollbackOutcome(r.Id, false, "GUID do plano anterior invalido.");
+
+        if (dryRun)
+            return new RollbackOutcome(r.Id, true, $"Voltaria ao plano de energia {plano}.");
+
+        var ok = _power.SetActivePlan(plano);
+        return new RollbackOutcome(r.Id, ok,
+            ok ? "Plano de energia anterior restaurado." : "Nao foi possivel restaurar o plano de energia.");
+    }
+
+    /// <summary>
+    /// Desfaz um `powercfg` rodando o comando inverso, que vem gravado no
+    /// proprio ChangeRecord. Nao ha estado a reconstruir: ligar hibernacao e
+    /// exatamente o oposto de desligar.
+    /// </summary>
+    private RollbackOutcome ReverterPowercfg(ChangeRecord r, string comando, bool dryRun)
+    {
+        if (dryRun)
+            return new RollbackOutcome(r.Id, true, $"Rodaria powercfg {comando}.");
+
+        try
+        {
+            using var processo = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "powercfg.exe",
+                Arguments = comando,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            });
+
+            if (processo is null)
+                return new RollbackOutcome(r.Id, false, "Nao foi possivel iniciar o powercfg.");
+
+            processo.WaitForExit(30_000);
+
+            return processo.ExitCode == 0
+                ? new RollbackOutcome(r.Id, true, $"powercfg {comando} executado.")
+                : new RollbackOutcome(r.Id, false, $"powercfg {comando} saiu com codigo {processo.ExitCode}.");
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return new RollbackOutcome(r.Id, false, $"powercfg falhou: {ex.Message}");
+        }
+    }
+
+    private static object? ConverterValor(string? texto, RegistryValueKindLite kind)
+    {
+        if (texto is null)
+            return null;
+
+        return kind switch
+        {
+            RegistryValueKindLite.DWord => int.TryParse(texto, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : null,
+            RegistryValueKindLite.QWord => long.TryParse(texto, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : null,
+            RegistryValueKindLite.Binary => ConverterHex(texto),
+            RegistryValueKindLite.MultiString => texto.Split(' ', StringSplitOptions.RemoveEmptyEntries),
+            _ => texto
+        };
+    }
+
+    private static byte[]? ConverterHex(string texto)
+    {
+        if (texto.Length % 2 != 0)
+            return null;
+
+        try
+        {
+            return Convert.FromHexString(texto);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+}

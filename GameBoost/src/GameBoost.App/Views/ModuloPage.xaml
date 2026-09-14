@@ -1,0 +1,145 @@
+<UserControl x:Class="GameBoost.App.Views.ModuloPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+      Padrao de pagina de modulo da secao 6, reutilizavel por qualquer IModule:
+      cabecalho com Varrer e resumo, lista generica de ActionItem agrupada por
+      categoria, rodape fixo com "Aplicar N selecionados" e "Reverter".
+    -->
+    <Grid Margin="26,22,26,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Cabecalho -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding Titulo}" FontSize="22" FontWeight="Bold" />
+                <TextBlock Text="{Binding Subtitulo}" Foreground="{StaticResource TextoSecundario}" Margin="0,3,12,0" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button Content="Varrer" Style="{StaticResource BotaoBase}"
+                        Command="{Binding VarrerCommand}"
+                        IsEnabled="{Binding Ocupado, Converter={StaticResource InverterBool}}" />
+                <Button Content="Cancelar" Style="{StaticResource BotaoBase}" Margin="8,0,0,0"
+                        Command="{Binding CancelarCommand}"
+                        Visibility="{Binding Ocupado, Converter={StaticResource BoolParaVisibilidade}}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Resumo da varredura -->
+        <Border Grid.Row="1" Background="{StaticResource Superficie}" CornerRadius="6"
+                Padding="14,10" Margin="0,0,0,12"
+                Visibility="{Binding Resumo, Converter={StaticResource TextoParaVisibilidade}}">
+            <StackPanel>
+                <TextBlock Text="{Binding Resumo}" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding GanhoMedido}" Foreground="{StaticResource Acento}" Margin="0,3,0,0"
+                           Visibility="{Binding GanhoMedido, Converter={StaticResource TextoParaVisibilidade}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Lista generica de ActionItem, agrupada por categoria -->
+        
+        <!-- Busca: entra em toda pagina de modulo pela classe base. -->
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource Superficie}"
+                    BorderBrush="{StaticResource Borda}" BorderThickness="1" CornerRadius="6">
+                <Grid>
+                    <TextBox Text="{Binding Busca, UpdateSourceTrigger=PropertyChanged}"
+                             Background="Transparent" BorderThickness="0"
+                             Foreground="{StaticResource Texto}" CaretBrush="{StaticResource Texto}"
+                             Padding="12,8" VerticalContentAlignment="Center"
+                             AutomationProperties.Name="Buscar na lista" />
+
+                    <TextBlock Text="Buscar pelo nome..." IsHitTestVisible="False"
+                               Foreground="{StaticResource TextoSecundario}"
+                               Margin="13,0,0,0" VerticalAlignment="Center"
+                               Visibility="{Binding Busca, Converter={StaticResource TextoParaVisibilidade}, ConverterParameter=inverter}" />
+                </Grid>
+            </Border>
+
+            <TextBlock Grid.Column="1" Text="{Binding TextoDoFiltro}" VerticalAlignment="Center"
+                       Margin="12,0,0,0" FontSize="12"
+                       Foreground="{StaticResource TextoSecundario}" />
+        </Grid>
+
+        <Border Grid.Row="3" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+                BorderThickness="1" CornerRadius="8">
+            <Grid>
+                <ListBox ItemsSource="{Binding Itens}" Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         HorizontalContentAlignment="Stretch" Padding="6"
+                         ItemContainerStyle="{StaticResource ItemDeAcao}"
+                         ItemTemplate="{StaticResource TemplateDeActionItem}" />
+
+                <!-- Estado vazio: antes da primeira varredura -->
+                <TextBlock Text="Nada na lista com esse texto."
+                           Foreground="{StaticResource TextoSecundario}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding ListaVaziaPorBusca, Converter={StaticResource BoolParaVisibilidade}}" />
+
+                <TextBlock Text="Clique em Varrer para ver o que pode ser feito."
+                           Foreground="{StaticResource TextoSecundario}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding JaVarreu, Converter={StaticResource BoolParaVisibilidade}, ConverterParameter=inverter}" />
+            </Grid>
+        </Border>
+
+        <!-- Rodape fixo -->
+        <Border Grid.Row="4" Margin="0,14,0,0" Padding="0,0,0,18">
+            <StackPanel>
+                <ProgressBar Height="3" Value="{Binding Progresso}" Maximum="100"
+                             Background="{StaticResource Superficie}" Foreground="{StaticResource Acento}"
+                             BorderThickness="0" Margin="0,0,0,10"
+                             Visibility="{Binding Ocupado, Converter={StaticResource BoolParaVisibilidade}}" />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0" Content="{Binding TextoAplicar}"
+                            Style="{StaticResource BotaoPrimario}"
+                            Command="{Binding AplicarCommand}" IsEnabled="{Binding PodeAgir}" />
+
+                    <Button Grid.Column="1" Content="Reverter" Style="{StaticResource BotaoBase}" Margin="8,0,0,0"
+                            Command="{Binding ReverterCommand}" IsEnabled="{Binding PodeAgir}" />
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                        <Button Content="Marcar todos" Style="{StaticResource BotaoBase}" Padding="10,6"
+                                Command="{Binding MarcarTodosCommand}" />
+                        <Button Content="Limpar" Style="{StaticResource BotaoBase}" Padding="10,6" Margin="6,0,0,0"
+                                Command="{Binding DesmarcarTodosCommand}" />
+                    </StackPanel>
+
+                    <CheckBox Grid.Column="4" Content="Simular (nao altera nada)" IsChecked="{Binding DryRun}"
+                              VerticalAlignment="Center"
+                              ToolTip="Dry-run: produz o mesmo relatorio sem tocar no sistema." />
+                </Grid>
+
+                <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextoSecundario}"
+                           FontSize="12" Margin="0,10,0,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

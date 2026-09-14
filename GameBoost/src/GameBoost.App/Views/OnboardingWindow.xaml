@@ -1,0 +1,65 @@
+<Window x:Class="GameBoost.App.Views.OnboardingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bem-vindo ao GameBoost"
+        Height="480" Width="620"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{StaticResource Fundo}"
+        Foreground="{StaticResource Texto}">
+
+    <!--
+      Onboarding da secao 6: tres telas dizendo o contrato, nao vendendo FPS.
+      Reversivel, sem telemetria, e o que faz diferenca de verdade.
+    -->
+    <Grid Margin="32,28,32,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,18">
+            <TextBlock Text="{Binding Passo}" FontSize="12"
+                       Foreground="{StaticResource TextoSecundario}" />
+            <TextBlock Text="{Binding Atual.Titulo}" FontSize="24" FontWeight="Bold"
+                       TextWrapping="Wrap" Margin="0,6,0,0" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Text="{Binding Atual.Texto}" TextWrapping="Wrap"
+                   FontSize="14" LineHeight="22"
+                   Foreground="{StaticResource TextoSecundario}" />
+
+        <StackPanel Grid.Row="2" Margin="0,16,0,18">
+            <TextBlock Text="{Binding Atual.Rodape}" FontStyle="Italic"
+                       Foreground="{StaticResource Acento}" />
+
+            <CheckBox Margin="0,14,0,0"
+                      Content="Rodar o relatório de saúde depois de fechar"
+                      IsChecked="{Binding AbrirRelatorio}"
+                      Visibility="{Binding EhUltima, Converter={StaticResource BoolParaVisibilidade}}" />
+        </StackPanel>
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" Content="Pular" Style="{StaticResource BotaoBase}"
+                    Command="{Binding PularCommand}" />
+
+            <Button Grid.Column="2" Content="Voltar" Style="{StaticResource BotaoBase}" Margin="0,0,8,0"
+                    Command="{Binding VoltarCommand}"
+                    IsEnabled="{Binding EhPrimeira, Converter={StaticResource InverterBool}}" />
+
+            <Button Grid.Column="3" Content="{Binding TextoDoAvancar}"
+                    Style="{StaticResource BotaoPrimario}"
+                    Command="{Binding AvancarCommand}" />
+        </Grid>
+    </Grid>
+</Window>

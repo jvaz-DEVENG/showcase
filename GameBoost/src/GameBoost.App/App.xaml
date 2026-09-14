@@ -1,0 +1,64 @@
+<Application x:Class="GameBoost.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:GameBoost.App.ViewModels"
+             xmlns:views="clr-namespace:GameBoost.App.Views">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Dark.xaml" />
+                <!-- Conversores antes de Controles.xaml: os templates de la usam estes recursos. -->
+                <ResourceDictionary Source="Themes/Conversores.xaml" />
+                <ResourceDictionary Source="Themes/Controles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--
+              Mapeamento pagina -> view. O shell so guarda ViewModels; o WPF
+              escolhe a tela. Um modulo novo que herde de ModulePageViewModel
+              cai automaticamente no template generico de ModuloPage.
+            -->
+            <DataTemplate DataType="{x:Type vm:InicioPageViewModel}">
+                <views:InicioPage />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:DiagnosticoPageViewModel}">
+                <views:DiagnosticoPage />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:EspacoPageViewModel}">
+                <views:EspacoPage />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:FerramentasPageViewModel}">
+                <views:FerramentasPage />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:PlaceholderPageViewModel}">
+                <views:PlaceholderPage />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:ConfiguracoesPageViewModel}">
+                <views:ConfiguracoesPage />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:JogosPageViewModel}">
+                <views:JogosPage />
+            </DataTemplate>
+
+            <!-- A pagina de Apps tem tres abas, entao tem tela propria. -->
+            <DataTemplate DataType="{x:Type vm:AppsPageViewModel}">
+                <views:AppsPage />
+            </DataTemplate>
+
+            <!-- A Rede vem antes do generico: ela tem tela propria, com as
+                 tabelas de medicao acima da lista de acoes. -->
+            <DataTemplate DataType="{x:Type vm:RedePageViewModel}">
+                <views:RedePage />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:ModulePageViewModel}">
+                <views:ModuloPage />
+            </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
