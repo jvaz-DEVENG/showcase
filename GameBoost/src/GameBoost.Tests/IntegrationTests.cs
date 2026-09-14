@@ -460,6 +460,34 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public void Lixeira_recebe_arquivo_de_verdade_sem_derrubar_o_processo()
+    {
+        // Este teste existe por causa de um crash: a struct SHFILEOPSTRUCT
+        // estava com Pack = 1, o que em x64 desloca o ponteiro pFrom e faz o
+        // shell32 ler um endereco invalido. Violacao de acesso, processo morto
+        // sem excecao gerenciada e sem log.
+        //
+        // Nenhum teste pegava porque nenhum chamava a funcao de verdade. O
+        // caminho para a Lixeira era o unico do app que so aparecia em QA
+        // manual, e o item estava marcado como nao testado desde a Fase 2.
+        var arquivo = Path.Combine(Path.GetTempPath(), "gb-lixeira-" + Guid.NewGuid().ToString("N")[..8] + ".txt");
+        File.WriteAllText(arquivo, "conteudo de teste do GameBoost");
+
+        Assert.True(File.Exists(arquivo));
+
+        // A chamada roda no processo do teste. Se a struct voltar a ficar
+        // errada, o processo de teste morre — e um runner que morre e falha
+        // igual, so que mais barulhenta.
+        var foi = Core.Native.RecycleBinBridge.ParaLixeira(new[] { arquivo });
+
+        Assert.True(foi, "SHFileOperation recusou o arquivo");
+        Assert.False(File.Exists(arquivo), "o arquivo continua no lugar de origem");
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-lixeira.txt"),
+            $"MEDIDO: {Path.GetFileName(arquivo)} foi para a Lixeira sem derrubar o processo.");
+    }
+
+    [Fact]
     public void Modo_portatil_guarda_tudo_ao_lado_do_executavel()
     {
         var pasta = Path.Combine(Path.GetTempPath(), "gb-teste-portatil-" + Guid.NewGuid().ToString("N")[..8]);

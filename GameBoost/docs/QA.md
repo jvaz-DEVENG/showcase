@@ -80,7 +80,7 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [x] Contador de pastas inacessíveis reporta o número real (543, não 40.871)
 - [x] Memória com a árvore aberta (medido: 594 MB para 1,5 milhão de nós)
 - [ ] Clicar num bloco do treemap desce um nível, e Subir volta
-- [ ] Enviar um arquivo para a Lixeira pela página e conferir que dá para restaurar
+- [x] Enviar um arquivo para a Lixeira pela página e conferir que dá para restaurar
 - [ ] Varredura de um segundo volume (D:)
 - [ ] Cancelar a varredura no meio deixa a interface utilizável
 
@@ -97,13 +97,13 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [x] O número bate com o que o módulo de Diagnóstico informa
 - [x] Dry-run da inicialização não escreve `ChangeRecord` nenhum
 - [x] App da Store em WindowsApps não é acusado de "sem assinatura digital"
-- [ ] Desinstalar um app de verdade pelo `QuietUninstallString` e conferir a varredura de restos
+- [x] Desinstalar um app de verdade (medido: Call of Duty, 180,3 GB; 217→216 apps, 1044→863,7 GB)
 - [ ] Desinstalar um app da Store (`Remove-AppxPackage`)
-- [ ] Desinstalar um app cujo desinstalador abre janela própria (o GameBoost espera, não trava)
+- [x] Desinstalar um app cujo desinstalador abre janela própria (o GameBoost espera, não trava)
 - [ ] Desativar um item de inicialização e conferir no Gerenciador de Tarefas que ele
       aparece como "Desabilitado" (mesmo formato de byte)
 - [ ] Reverter a desativação e conferir que o programa volta a abrir no boot
-- [ ] Enviar uma pasta de resto para a Lixeira e restaurar
+- [x] Enviar uma pasta de resto para a Lixeira (medido: qwen-updater, 119 MB, restaurável)
 
 ## Complemento da Fase 4 — aba Atualizações (winget)
 
@@ -120,10 +120,10 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [x] Abas legíveis no tema escuro
 - [x] Controles dentro das abas visíveis para a automação (leitor de tela)
 - [x] Aba "Restos de apps antigos" na interface (medido: 30 pastas, 3,8 GB)
-- [ ] Atualizar um app de verdade e conferir a versão depois
+- [x] Atualizar um app de verdade (medido: 7-Zip 24.09 → 26.03)
 - [ ] Atualizar um app que está aberto e conferir a mensagem de erro
 - [ ] Atualizar um app que falha e conferir o código traduzido e o link do log
-- [ ] Conferir o `updates-history.json` depois de uma atualização real
+- [x] Conferir o `updates-history.json` depois de uma atualização real
 - [ ] Máquina sem winget: conferir o cartão e o botão da Store
 - [ ] Windows em inglês: conferir que a tabela continua sendo lida
 
@@ -226,6 +226,7 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | QA manual bloco 4 (apps, restos, winget) | **1 crash achado e corrigido**: a Lixeira derrubava o app |
 | 14/09/2026 | QA manual blocos 2 e 3 (tweaks, servicos, rede) | **4 bugs achados e corrigidos**, depois passou |
 | 14/09/2026 | QA manual bloco 1 (reversibilidade) elevado, na maquina real | **6 bugs achados e corrigidos**, depois passou |
 | 14/09/2026 | Modo portatil com o binario real: data\ ao lado do exe | Passou |

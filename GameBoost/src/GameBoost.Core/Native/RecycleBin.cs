@@ -15,7 +15,19 @@ internal static class RecycleBin
     private const ushort FOF_NOERRORUI = 0x0400;
     private const ushort FOF_WANTNUKEWARNING = 0x4000;
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
+    /// <summary>
+    /// **Sem `Pack`.** O alinhamento tem que ser o natural da plataforma.
+    ///
+    /// Com `Pack = 1` o .NET tira o preenchimento entre os campos, e em x64 o
+    /// `pFrom` sai no deslocamento 12 em vez de 16. O shell32 continua lendo do
+    /// 16, pega metade de um ponteiro colada na metade de outro, e usa aquilo
+    /// como endereço: violação de acesso (0xc0000005) e o processo morre sem
+    /// exceção gerenciada, sem log e sem caixa de erro.
+    ///
+    /// O defeito derrubava o aplicativo em **todo** envio para a Lixeira —
+    /// Limpeza, Espaço e Restos usam esta mesma função.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct SHFILEOPSTRUCT
     {
         public IntPtr hwnd;

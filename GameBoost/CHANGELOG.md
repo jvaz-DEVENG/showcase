@@ -4,6 +4,23 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - 2026-09-14
 
+### QA manual, terceira rodada - a Lixeira derrubava o aplicativo (2026-09-14)
+
+#### Corrigido
+- **`Pack = 1` na struct do SHFileOperation derrubava o processo.** Em x64 o `Pack = 1`
+  tira o preenchimento entre os campos, e o ponteiro `pFrom` sai no deslocamento 12 em vez
+  de 16. O shell32 continua lendo do 16, pega metade de um ponteiro colada na metade de
+  outro e usa aquilo como endereco: violacao de acesso (0xc0000005), processo morto sem
+  excecao gerenciada, sem log e sem caixa de erro.
+
+  **A Lixeira nunca funcionou em lugar nenhum.** Limpeza, Espaco e Restos usam a mesma
+  funcao. Era o item que estava marcado como nao testado no docs/QA.md desde a Fase 2, e o
+  que ele escondia era um crash garantido em toda tentativa.
+
+#### Adicionado
+- Teste que manda um arquivo de verdade para a Lixeira e confere que ele saiu da origem.
+  Marshalling errado nao quebra a compilacao: so uma chamada real pega.
+
 ### QA manual, segunda rodada - medicao de velocidade e quatro correcoes (2026-09-14)
 
 Achados nos blocos de tweaks e de rede do docs/QA.md.

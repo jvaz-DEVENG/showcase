@@ -646,6 +646,53 @@ agora.
 
 ---
 
+## 2026-09-14 — Um `Pack = 1` apagou a Lixeira do aplicativo inteiro
+
+Ao confirmar o envio de uma pasta para a Lixeira, o GameBoost fechou. Sem caixa
+de erro, sem exceção no log — o log simplesmente parava na linha anterior. O
+Visualizador de Eventos do Windows mostrou o motivo:
+
+```
+Código de exceção: 0xc0000005
+Nome do módulo com falha: GameBoost.exe
+```
+
+Violação de acesso. Crash nativo, não exceção .NET — por isso os três handlers
+globais não pegaram nada.
+
+A causa estava numa linha:
+
+```csharp
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
+private struct SHFILEOPSTRUCT
+```
+
+Em x64 os campos dessa struct são alinhados em 8 bytes. Com `Pack = 1` o .NET
+remove o preenchimento, e o `pFrom` passa a ficar no deslocamento 12. O `shell32`
+continua lendo do 16 — pega a metade alta de um ponteiro colada na metade baixa
+do seguinte, e usa aquilo como endereço de memória.
+
+### O que isso diz sobre o que não foi testado
+
+**A Lixeira nunca funcionou.** Limpeza, Espaço e Restos chamam a mesma função.
+Três módulos, três fases, e em todos eles a ação de "mandar para a Lixeira"
+derrubaria o aplicativo.
+
+O `docs/QA.md` tinha o item desde a Fase 2:
+
+```
+- [ ] Enviar um arquivo para a Lixeira pela página e conferir que dá para restaurar
+```
+
+Ficou sem marcar por três fases. E não era um detalhe cosmético esperando na
+fila: era a única forma de descobrir um crash garantido.
+
+Marshalling de P/Invoke não quebra a compilação e não aparece em teste que use
+fake. O teste novo chama a função de verdade, com um arquivo de verdade. É o
+único jeito.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser
