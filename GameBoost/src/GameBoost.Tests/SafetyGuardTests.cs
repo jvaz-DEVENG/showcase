@@ -226,6 +226,58 @@ public sealed class SafetyGuardTests
         Assert.False(guard.PodePreMarcar(processo), nome + " veio pre-marcado e nao deveria.");
     }
 
+    // Os quatro casos abaixo vieram do primeiro teste com privilegios de
+    // administrador numa maquina real: todos vinham pre-marcados e nao deviam.
+
+    [Theory]
+    [InlineData("ksdeui")]
+    [InlineData("kpm")]
+    [InlineData("klnagent")]
+    public void Componente_de_antivirus_pouco_conhecido_tambem_e_protegido(string nome)
+    {
+        var veredito = Criar().CheckProcess(Processo(nome, caminho: @"C:\Program Files\AV\" + nome + ".exe"));
+
+        Assert.True(veredito.Protegido);
+        Assert.Equal(ProtectionReason.Seguranca, veredito.Motivo);
+    }
+
+    [Theory]
+    [InlineData("OneDrive")]
+    [InlineData("OneDrive.Sync.Service")]
+    [InlineData("FileCoAuth")]
+    [InlineData("Dropbox")]
+    [InlineData("syncthing")]
+    public void Cliente_de_sincronizacao_de_nuvem_nunca_e_pre_marcado(string nome)
+    {
+        // Encerrar no meio de um envio deixa arquivo pela metade na nuvem.
+        var guard = Criar();
+        var processo = Processo(nome, caminho: $@"C:\Program Files\{nome}\{nome}.exe");
+
+        Assert.False(guard.CheckProcess(processo).Protegido);
+        Assert.False(guard.PodePreMarcar(processo));
+    }
+
+    [Theory]
+    [InlineData("AntigravitySetup-stable-ecfbad74")]
+    [InlineData("AntigravitySetup-stable-ecfbad74.tmp")]
+    [InlineData("vc_redist.x64")]
+    [InlineData("ChromeSetup")]
+    [InlineData("AdobeUpdater")]
+    [InlineData("msiexec")]
+    public void Instalador_em_execucao_nunca_e_pre_marcado(string nome)
+    {
+        // Encerrar um instalador no meio do trabalho corrompe a instalacao.
+        Assert.False(Criar().PodePreMarcar(Processo(nome, caminho: @"C:\Users\User\AppData\Local\Temp\" + nome + ".exe")));
+    }
+
+    [Fact]
+    public void Nome_comum_nao_e_confundido_com_instalador()
+    {
+        // "update" nao pode transformar qualquer app em instalador por engano.
+        Assert.True(Criar().PodePreMarcar(Processo("chrome", caminho: @"C:\Program Files\Google\chrome.exe")));
+        Assert.True(Criar().PodePreMarcar(Processo("Discord", caminho: @"C:\Users\User\AppData\Local\Discord\Discord.exe")));
+    }
+
     [Fact]
     public void Executavel_em_pasta_de_jogo_nunca_e_pre_marcado()
     {

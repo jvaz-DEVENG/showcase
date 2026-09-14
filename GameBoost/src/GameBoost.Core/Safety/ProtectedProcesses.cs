@@ -45,7 +45,7 @@ public static class ProtectedProcesses
     {
         "msmpeng", "nissrv", "securityhealthservice", "securityhealthsystray",
         "mpdefendercoreservice", "smartscreen",
-        "avp", "avpui", "kavfs", "ksde",
+        "avp", "avpui", "kavfs", "ksde", "ksdeui", "kpm", "klnagent", "avpsus",
         "avastsvc", "avastui", "avgsvc", "avgui",
         "bdagent", "vsserv", "bdservicehost",
         "mcshield", "mfemms", "mfevtps",
@@ -83,8 +83,36 @@ public static class ProtectedProcesses
         "blender", "obsidian", "notion", "figma",
         "photoshop", "illustrator", "premiere pro", "afterfx",
         "excel", "winword", "powerpnt", "outlook",
-        "vmware", "vmware-vmx", "virtualbox", "vboxheadless", "docker desktop"
+        "vmware", "vmware-vmx", "virtualbox", "vboxheadless", "docker desktop",
+
+        // Sincronizacao de nuvem: encerrar no meio de um envio deixa arquivo
+        // pela metade na nuvem. O spec (secao 5.6) manda avisar, nunca marcar.
+        "onedrive", "onedrive.sync.service", "filecoauth", "dropbox",
+        "googledrivefs", "megasync", "syncthing", "nextcloud"
     };
+
+    /// <summary>
+    /// Instaladores e atualizadores em execucao. Encerrar um destes no meio do
+    /// trabalho pode deixar a instalacao corrompida, entao nunca vem marcado.
+    /// Detectado por padrao de nome, nao por lista: instalador novo aparece
+    /// toda semana.
+    /// </summary>
+    public static bool ParecerInstalador(string processName)
+    {
+        var nome = Normalizar(processName);
+
+        string[] marcadores =
+        {
+            "setup", "install", "updater", "update", "upgrade",
+            "patch", "msiexec", "redist", "unins"
+        };
+
+        if (marcadores.Any(m => nome.Contains(m, StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        // Instalador extraido para a pasta temporaria mantem o .tmp no nome.
+        return nome.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase);
+    }
 
     public static string Normalizar(string processName)
     {

@@ -63,6 +63,12 @@ ele.
 | Criação | Photoshop, Illustrator, Premiere, After Effects |
 | Office | Excel, Word, PowerPoint, Outlook |
 | Virtualização | VMware, VirtualBox, Docker Desktop |
+| Sincronização de nuvem | OneDrive, OneDrive.Sync.Service, FileCoAuth, Dropbox, Google Drive, MEGAsync, Syncthing, Nextcloud |
+
+**Instaladores e atualizadores em execução** também nunca vêm marcados. A detecção é por
+padrão de nome (`setup`, `install`, `updater`, `update`, `upgrade`, `patch`, `msiexec`,
+`redist`, `unins`, ou terminando em `.tmp`), e não por lista: instalador novo aparece toda
+semana. Encerrar um no meio do trabalho corrompe a instalação.
 
 Além da lista: **qualquer executável dentro de pasta de jogo** —
 `\steamapps\common\`, `\Epic Games\`, `\Riot Games\`, `\Battle.net\`,
@@ -138,3 +144,20 @@ Nunca alterados pelo GameBoost, em nenhuma fase:
 - **Mitigações de Spectre/Meltdown**
 - **Windows Defender**, **UAC**, **SmartScreen**, **assinatura de drivers**
 - **Limpeza de registro** — sem ganho mensurável, risco puro (regra 4)
+
+---
+
+## 6. O que **não** é jogo, mesmo morando na pasta da Steam
+
+`GameDetector.NaoSaoJogos`. Sem esta lista, o Wallpaper Engine era eleito "o jogo" só por
+estar em `steamapps\common` — e o Modo Game subia a prioridade de CPU do papel de parede em
+vez da do jogo de verdade. Foi encontrado no primeiro teste com privilégios numa máquina real.
+
+`wallpaper64`, `wallpaper32`, `wallpaperservice64`, `webwallpaper32`, `vrmonitor`,
+`vrserver`, `vrcompositor`, `vrdashboard`, `steamvr`, `aseprite`, `blender`, `krita`,
+`obs64`, `3dsmax`, `unity`, `unityhub`, `rpcs3`, `pcsx2`, `dolphin`, `retroarch`,
+`steamwebhelper`, `gameoverlayui`, `steamerrorreporter`
+
+Além da lista, a heurística de pasta ficou mais exigente: um executável desconhecido dentro
+de pasta de launcher só é considerado jogo se ocupar **mais de 300 MB** de memória.
+Utilitário não tem porte de jogo.

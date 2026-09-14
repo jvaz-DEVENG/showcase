@@ -36,9 +36,19 @@ internal static class Program
 
     private static int ExecutarCli(CommandLineOptions opcoes)
     {
-        // Sendo WinExe, o processo nao tem console proprio: anexa ao console de
-        // quem chamou para que `GameBoost.exe --scan` imprima no terminal, como na v1.
-        var anexou = AttachConsole(AttachParentProcess);
+        // Sendo WinExe, o processo nao tem console proprio.
+        //
+        // Quando a saida ja vem redirecionada (`--scan > arquivo.txt`, um pipe,
+        // ou um script), o handle padrao ja e valido e basta usa-lo. So quando
+        // nao ha redirecionamento e preciso anexar ao console de quem chamou,
+        // para que o comando imprima no terminal como na v1.
+        //
+        // A primeira versao so olhava o AttachConsole e descartava a saida
+        // inteira quando ele falhava, entao redirecionar para arquivo produzia
+        // um arquivo vazio.
+        var redirecionado = Console.IsOutputRedirected;
+        var anexou = !redirecionado && AttachConsole(AttachParentProcess);
+        var temSaida = redirecionado || anexou;
 
         ServiceProvider? provider = null;
 
@@ -52,7 +62,7 @@ internal static class Program
                 .Info("Cli", opcoes.Comando.ToString(), null,
                     $"admin={CoreServices.RodandoComoAdministrador()} dryRun={opcoes.DryRun}");
 
-            using var saida = anexou
+            using var saida = temSaida
                 ? new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true }
                 : TextWriter.Null;
 
@@ -70,7 +80,7 @@ internal static class Program
                 // Container nao chegou a subir: nao ha onde registrar.
             }
 
-            if (anexou)
+            if (temSaida)
                 Console.Error.WriteLine($"Erro: {ex.Message}");
 
             return 1;

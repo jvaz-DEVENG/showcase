@@ -81,6 +81,9 @@ public sealed class SafetyGuard : ISafetyGuard
         if (ProtectedProcesses.NuncaPreMarcados.Contains(nome))
             return false;
 
+        if (ProtectedProcesses.ParecerInstalador(nome))
+            return false;
+
         if (!string.IsNullOrEmpty(process.ExecutablePath) && ParecerJogo(process.ExecutablePath))
             return false;
 

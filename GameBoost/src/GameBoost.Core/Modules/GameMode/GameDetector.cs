@@ -47,12 +47,29 @@ public sealed class GameDetector
     {
         foreach (var nome in nomesDeProcesso)
         {
-            if (JogosConhecidos.Contains(Safety.ProtectedProcesses.Normalizar(nome)))
+            var normalizado = Safety.ProtectedProcesses.Normalizar(nome);
+
+            if (!NaoSaoJogos.Contains(normalizado) && JogosConhecidos.Contains(normalizado))
                 return nome;
         }
 
         return null;
     }
+
+    /// <summary>
+    /// Instalado pela Steam, mas nao e jogo. Sem esta lista, o Wallpaper Engine
+    /// vira "o jogo" so por morar em steamapps\common, e o Modo Game acaba
+    /// subindo a prioridade do papel de parede em vez da do jogo de verdade.
+    /// Foi exatamente o que aconteceu no primeiro teste com privilegios.
+    /// </summary>
+    private static readonly IReadOnlySet<string> NaoSaoJogos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "wallpaper64", "wallpaper32", "wallpaperservice64", "webwallpaper32",
+        "vrmonitor", "vrserver", "vrcompositor", "vrdashboard", "steamvr",
+        "aseprite", "blender", "krita", "obs64", "3dsmax", "unity", "unityhub",
+        "rpcs3", "pcsx2", "dolphin", "retroarch",
+        "steamwebhelper", "gameoverlayui", "steamerrorreporter"
+    };
 
     public DetectedGame? Detectar(IEnumerable<ProcessInfo> processos)
     {
@@ -75,6 +92,9 @@ public sealed class GameDetector
     {
         var nome = Safety.ProtectedProcesses.Normalizar(p.Name);
 
+        if (NaoSaoJogos.Contains(nome))
+            return null;
+
         if (JogosConhecidos.Contains(nome))
             return new DetectedGame(p, "nome de jogo conhecido", 100);
 
@@ -82,7 +102,15 @@ public sealed class GameDetector
         {
             var caminho = p.ExecutablePath.Replace('/', '\\');
             if (PastasDeJogo.Any(pasta => caminho.Contains(pasta, StringComparison.OrdinalIgnoreCase)))
+            {
+                // Estar na pasta do launcher nao basta: utilitarios instalados
+                // pela Steam moram no mesmo lugar. Jogo em execucao ocupa
+                // memoria de jogo.
+                if (p.WorkingSetBytes < 300L * 1024 * 1024)
+                    return null;
+
                 return new DetectedGame(p, "executavel dentro de uma pasta de launcher", 80);
+            }
         }
 
         // Heuristica fraca: processo pesado com janela propria. So vale se nada
