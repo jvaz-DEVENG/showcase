@@ -271,6 +271,62 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Lento")]
+    public void Varredura_de_disco_real_mede_o_volume_do_sistema()
+    {
+        var log = _provider.GetRequiredService<Core.Logging.IGameBoostLogger>();
+        var scanner = new Core.Modules.DiskAnalyzer.DiskScanner(log);
+
+        var raiz = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))!;
+        var resultado = scanner.Varrer(raiz, null, CancellationToken.None);
+
+        Assert.True(resultado.TotalDeArquivos > 1000, "poucos arquivos: a varredura nao entrou no disco");
+        Assert.True(resultado.Raiz.Tamanho > 0);
+
+        // O que foi somado nao pode passar do que cabe no volume.
+        Assert.True(resultado.Raiz.Tamanho <= resultado.EspacoTotal,
+            $"somou {resultado.Raiz.Tamanho} num volume de {resultado.EspacoTotal}");
+
+        // A soma tem que bater com o espaco ocupado, com folga para o que a
+        // varredura nao alcanca: System Volume Information, quotas e ACLs.
+        var ocupado = resultado.EspacoTotal - resultado.EspacoLivre;
+        var proporcao = (double)resultado.Raiz.Tamanho / ocupado;
+        Assert.InRange(proporcao, 0.55, 1.05);
+
+        // Numeros reais, para a documentacao nao chutar desempenho.
+        var linha = $"MEDIDO: {resultado.TotalDeArquivos} arquivos, "
+                  + $"{resultado.Raiz.Tamanho / 1024.0 / 1024 / 1024:0.0} GB somados, "
+                  + $"volume de {resultado.EspacoTotal / 1024.0 / 1024 / 1024:0} GB, "
+                  + $"em {resultado.Duracao.TotalSeconds:0.0}s, "
+                  + $"{resultado.PastasIgnoradas} pastas sem acesso";
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-disco.txt"), linha);
+
+        // A arvore tem que estar consolidada de baixo para cima.
+        var maiorPasta = resultado.Raiz.MaioresPastas(1).FirstOrDefault();
+        Assert.NotNull(maiorPasta);
+        Assert.True(maiorPasta!.Tamanho > 0);
+
+        var maiorArquivo = resultado.Raiz.MaioresArquivos(1).FirstOrDefault();
+        Assert.NotNull(maiorArquivo);
+        Assert.False(maiorArquivo!.EhPasta);
+    }
+
+    [Fact]
+    public void Arquivos_especiais_do_windows_sao_explicados()
+    {
+        var raiz = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))!;
+        var especiais = Core.Modules.DiskAnalyzer.SpecialFiles.Encontrar(raiz);
+
+        // pagefile.sys existe em praticamente toda instalacao.
+        Assert.All(especiais, e =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(e.OQueE));
+            Assert.False(string.IsNullOrWhiteSpace(e.ComoRemover));
+            Assert.True(e.Bytes > 0);
+        });
+    }
+
+    [Fact]
     public async Task Ajuda_lista_todos_os_comandos_da_secao_8()
     {
         var saida = new StringWriter();

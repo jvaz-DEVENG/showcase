@@ -174,6 +174,49 @@ caminho de navegação. Descoberto porque o log não registrava o início da col
 
 ---
 
+## 2026-09-13 — Fase 3: sem leitura crua da MFT, e não foi preciso
+
+**Spec.** A seção 5.4 pede leitura da MFT via `FSCTL_ENUM_USN_DATA`, com o critério de
+**500 GB e 1 milhão de arquivos em menos de 30 s**.
+
+**Problema com o caminho sugerido.** `FSCTL_ENUM_USN_DATA` devolve `USN_RECORD`, que traz
+nome, referência do pai e atributos — mas **não traz o tamanho do arquivo**. Para os
+tamanhos seria preciso parsear os registros da MFT crus, lendo os atributos `$DATA` a mão. É
+o que o WizTree faz, e é bem mais trabalho e risco do que a seção sugere.
+
+**Decisão.** A alternativa que o próprio spec autoriza: `FindFirstFileEx` com
+`FIND_FIRST_EX_LARGE_FETCH` e `FindExInfoBasic`, paralelizado por subárvore com uma fila de
+trabalho. O tamanho já vem no resultado da enumeração, sem uma chamada extra por arquivo.
+
+**Medido nesta máquina** (disco do sistema, NVMe de 953 GB):
+
+```
+1.548.745 arquivos, 809,5 GB somados, em 20,3 s
+```
+
+**Um milhão e meio de arquivos e 809 GB em 20 s** — acima do volume do critério e abaixo do
+tempo. A MFT crua fica para quando houver uma máquina onde isto não seja suficiente.
+
+### O contador de pastas inacessíveis estava mentindo
+
+A primeira versão contava **40.871 pastas "sem acesso"**. O número real é **543**: eu estava
+contando toda pasta vazia como inacessível, porque `FindFirstFileEx` devolve lista vazia nos
+dois casos. Agora o código separa pelos códigos de erro do Windows
+(`ERROR_FILE_NOT_FOUND`, `ERROR_PATH_NOT_FOUND`, `ERROR_NO_MORE_FILES` não são falta de
+permissão). Reportar 40 mil problemas onde há 543 é exatamente o número inventado que a
+regra 4 proíbe.
+
+### Outras decisões da varredura
+
+- **Reparse points são ignorados.** Junção e link simbólico apontam para outro lugar: segui-los
+  contaria o mesmo espaço duas vezes e pode virar laço infinito.
+- **Prefixo `\?\`** em todo caminho, senão a varredura para nos 260 caracteres — o que
+  acontece em qualquer `node_modules` ou pasta de build.
+- **`Consolidar` é iterativo**, não recursivo: há um teste com 20 mil níveis de profundidade,
+  que estouraria a pilha numa versão recursiva.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser
