@@ -1,0 +1,16 @@
+# Build
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+
+# Publish e instalador
+installer/Output/
+*.exe
+*.msi
+
+# Dados locais do app em modo portatil
+data/
+*.log

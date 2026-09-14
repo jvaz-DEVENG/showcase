@@ -1,0 +1,83 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    paths: ['GameBoost/**', '.github/workflows/build.yml']
+  pull_request:
+    paths: ['GameBoost/**']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: GameBoost
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restaurar
+        run: dotnet restore GameBoost.sln
+
+      - name: Compilar
+        run: dotnet build GameBoost.sln -c Release --no-restore -warnaserror
+
+      - name: Testar
+        run: dotnet test GameBoost.sln -c Release --no-build --logger "trx;LogFileName=testes.trx"
+
+      - name: Publicar testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultado-testes
+          path: GameBoost/**/TestResults/*.trx
+
+      - name: Publicar executavel
+        run: >
+          dotnet publish src/GameBoost.App/GameBoost.App.csproj
+          -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishReadyToRun=true
+          -o publish
+
+      # Trimming quebra WPF e reflexao (secao 10 do spec). Falha a build se alguem ligar.
+      - name: Conferir que o trimming segue desligado
+        shell: pwsh
+        run: |
+          $props = Get-Content Directory.Build.props -Raw
+          if ($props -notmatch '<PublishTrimmed>false</PublishTrimmed>') {
+            throw 'PublishTrimmed precisa continuar false: trimming quebra WPF.'
+          }
+
+      - name: Montar o instalador
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" installer\GameBoost.iss
+
+      - name: Gerar SHA256SUMS
+        shell: pwsh
+        run: |
+          $arquivos = @(Get-ChildItem publish\GameBoost.exe, installer\Output\*.exe -ErrorAction SilentlyContinue)
+          $arquivos | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)"
+          } | Set-Content SHA256SUMS.txt -Encoding utf8
+          Get-Content SHA256SUMS.txt
+
+      - name: Publicar artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameboost
+          path: |
+            GameBoost/publish/GameBoost.exe
+            GameBoost/installer/Output/*.exe
+            GameBoost/SHA256SUMS.txt
