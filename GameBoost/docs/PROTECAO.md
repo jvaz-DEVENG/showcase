@@ -161,3 +161,68 @@ vez da do jogo de verdade. Foi encontrado no primeiro teste com privilégios num
 Além da lista, a heurística de pasta ficou mais exigente: um executável desconhecido dentro
 de pasta de launcher só é considerado jogo se ocupar **mais de 300 MB** de memória.
 Utilitário não tem porte de jogo.
+
+---
+
+## 7. Desinstalador: o que nunca sai
+
+`UninstallerProtection`. Um app que case com qualquer destes trechos de nome aparece na lista
+**bloqueado**, com o motivo visível.
+
+| Grupo | Por quê |
+|---|---|
+| Visual C++ Redistributable, `vc_redist` | Outros programas param de abrir sem o runtime |
+| .NET Runtime, Desktop Runtime, ASP.NET Core, .NET SDK | Programas em .NET param de abrir |
+| DirectX | Jogos param de abrir |
+| Microsoft Edge, WebView2 | Muitos aplicativos usam o WebView2 para desenhar a interface |
+| Xbox Identity Provider, Gaming Services | Game Pass e anti-cheats da Microsoft dependem |
+| NVIDIA, AMD Software, Radeon, Intel, Realtek, chipset, áudio | Componentes de driver |
+| Windows SDK, Visual Studio | Remova pelo instalador oficial |
+| Atualizações e componentes de sistema | Não são aplicativos |
+| **Antivírus** (Kaspersky, Avast, AVG, Bitdefender, McAfee, Norton, ESET, Sophos, Malwarebytes, Trend Micro, F-Secure, Panda, CrowdStrike, SentinelOne, Webroot, Carbon Black) | Remover daqui deixaria a máquina desprotegida |
+| Pacotes da Store marcados `NonRemovable` pelo Windows | O próprio Windows recusa |
+
+**Bloatware conhecido** (Candy Crush, Solitaire, 3D Viewer, Clipchamp, LinkedIn, TikTok,
+Feedback Hub, Get Help, Your Phone, utilitários OEM e afins) aparece **sugerido**, com a caixa
+**vazia**. O que é bloat para um é ferramenta para outro — a decisão é do usuário (regra 3).
+
+---
+
+## 8. Restos de apps antigos: pastas nunca listadas
+
+`LeftoverScanner.Ignoradas`. A varredura de `%APPDATA%`, `%LOCALAPPDATA%` e `%PROGRAMDATA%`
+nunca inclui estas pastas, mesmo sem app correspondente:
+
+**Microsoft e Windows:** `Microsoft`, `MicrosoftEdge`, `Microsoft Corporation`, `Windows`,
+`WindowsApps`, `OneDrive`, `Microsoft OneDrive`, `Packages`, `Temp`, `Tmp`, `Cache`, `Comms`,
+`ConnectedDevicesPlatform`, `D3DSCache`, `ElevatedDiagnostics`, `Publisher Cache`,
+`VirtualStore`, `WebCacheLock`, `IconCache`, `Package Cache`, `Installer`, `Assembly`,
+`Diagnostics`, `History`, `Application Data`, `AppData`, `ProgramData`, `UsoShared`,
+`UsoPrivate`, `WindowsHolographicDevices`, `Desktop`, `Start Menu`, `ssh`
+
+**Guarda-chuva** (contêm vários apps ativos dentro): `Programs`, `Apps`, `Local`, `Roaming`,
+`LowLevel`, `Virtual Machines`
+
+**Hardware e driver:** `NVIDIA`, `NVIDIA Corporation`, `AMD`, `ATI`, `Intel`,
+`IntelGraphicsProfiles`, `Realtek`, `Logishrd`, `Logitech`, `Razer`, `Corsair`, `SteelSeries`,
+`Synaptics`, `ELAN`, `Qualcomm`, `Broadcom`
+
+**Compartilhadas:** `Adobe`, `Common Files`, `Oracle`, `Java`, `Sun`, `Mozilla`, `Google`,
+`Chromium`, `Chrome`, `CrashDumps`, `crashpad`, `CrashReports`, `Sentry`, `SquirrelTemp`,
+`node`, `npm`, `npm-cache`, `yarn`, `pip`, `nuget`, `.nuget`, `dotnet`, `JetBrains`,
+`VisualStudio`, `VSCode`, `Code`, `GitHub`, `Git`, `Docker`, `Kaspersky Lab`, `ESET`,
+`Avast Software`
+
+Além da lista: pastas começando com ponto, e qualquer pasta abaixo de 1 MB.
+
+### Por que o casamento não é só exato
+
+A primeira versão comparava nomes exatos e acusou `BraveSoftware` e `EpicGamesLauncher` como
+restos — os dois **estão instalados**, só escrevem a pasta sem os espaços do nome. A
+comparação passou a normalizar espaços e pontuação e a aceitar prefixo a partir de 5
+caracteres. Isso derrubou o resultado de **53 pastas e 26 GB** para **30 pastas e 3,9 GB**
+nesta máquina.
+
+**Falso positivo aqui é pior que falso negativo:** deixar de listar um resto custa espaço,
+apontar um app ativo como resto custa os dados do usuário. Por isso, e porque a heurística
+nunca será perfeita, **nada é pré-marcado e a remoção vai para a Lixeira**.

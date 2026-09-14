@@ -340,6 +340,95 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public void Inventario_de_apps_le_a_maquina_real_e_protege_o_que_deve()
+    {
+        var inventario = new Core.Modules.Uninstaller.AppInventory(
+            _provider.GetRequiredService<Core.Abstractions.IRegistryService>(),
+            _provider.GetRequiredService<Core.Logging.IGameBoostLogger>());
+
+        // Sem medir tamanho: medir pasta a pasta levaria minutos.
+        var apps = inventario.Listar(medirTamanho: false, CancellationToken.None);
+
+        Assert.True(apps.Count > 10, $"so {apps.Count} apps: o inventario nao leu o registro");
+
+        Assert.All(apps, a =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(a.Nome));
+            Assert.False(string.IsNullOrWhiteSpace(a.Id));
+        });
+
+        // Nada que seja runtime, driver ou antivirus pode ficar desprotegido.
+        foreach (var app in apps)
+        {
+            var nome = app.Nome.ToLowerInvariant();
+
+            if (nome.Contains("visual c++") || nome.Contains("webview2")
+                || nome.Contains(".net runtime") || nome.Contains("kaspersky"))
+            {
+                Assert.True(app.Protegido, $"'{app.Nome}' deveria estar protegido");
+                Assert.False(string.IsNullOrWhiteSpace(app.MotivoDaProtecao));
+            }
+        }
+
+        // Bloatware pode ser sugerido, mas nunca protegido por engano.
+        Assert.DoesNotContain(apps, a => a.Sugerido && a.Protegido);
+
+        var daStore = apps.Count(a => a.Origem == Core.Modules.Uninstaller.AppOrigem.Store);
+        var protegidos = apps.Count(a => a.Protegido);
+        var sugeridos = apps.Count(a => a.Sugerido);
+        var silenciosos = apps.Count(a => a.TemDesinstalacaoSilenciosa);
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-apps.txt"),
+            $"MEDIDO: {apps.Count} apps ({daStore} da Store), {protegidos} protegidos, "
+          + $"{sugeridos} sugeridos, {silenciosos} com desinstalacao silenciosa | "
+          + "protegidos: " + string.Join("; ", apps.Where(a => a.Protegido).Take(6).Select(a => a.Nome)) + " | "
+          + "sugeridos: " + string.Join("; ", apps.Where(a => a.Sugerido).Take(6).Select(a => a.Nome)));
+    }
+
+    [Fact]
+    public void Restos_de_apps_antigos_sao_encontrados_sem_falso_positivo_obvio()
+    {
+        var log = _provider.GetRequiredService<Core.Logging.IGameBoostLogger>();
+        var inventario = new Core.Modules.Uninstaller.AppInventory(
+            _provider.GetRequiredService<Core.Abstractions.IRegistryService>(), log);
+        var scanner = new Core.Modules.Uninstaller.LeftoverScanner(log);
+
+        var instalados = inventario.Listar(medirTamanho: false, CancellationToken.None);
+        var restos = scanner.Varrer(instalados, null, CancellationToken.None);
+
+        // Nada de Microsoft, NVIDIA e afins pode entrar: sao as pastas ignoradas.
+        Assert.DoesNotContain(restos, r =>
+            r.Nome.Equals("Microsoft", StringComparison.OrdinalIgnoreCase)
+            || r.Nome.Equals("NVIDIA", StringComparison.OrdinalIgnoreCase)
+            || r.Nome.Equals("Packages", StringComparison.OrdinalIgnoreCase)
+            || r.Nome.Equals("Temp", StringComparison.OrdinalIgnoreCase));
+
+        Assert.All(restos, r =>
+        {
+            Assert.True(r.Bytes >= 1024 * 1024, "pasta pequena demais entrou na lista");
+            Assert.True(Directory.Exists(r.Caminho), $"caminho inexistente: {r.Caminho}");
+        });
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-restos.txt"),
+            $"MEDIDO: {restos.Count} pastas sem app correspondente, "
+          + $"{(restos.Sum(r => r.Bytes) / 1024.0 / 1024):0} MB | "
+          + string.Join(" | ", restos.Take(8).Select(r =>
+                $"{r.Nome} ({r.Local}) {(r.Bytes / 1024.0 / 1024):0}MB, {r.Idade}")));
+    }
+
+    [Fact]
+    public void Rot13_do_userassist_vai_e_volta()
+    {
+        // O UserAssist guarda os nomes em ROT13; errar isso daria lixo no lugar
+        // do nome do executavel.
+        var original = @"C:\Program Files\Apppp.exe";
+        var codificado = Core.Modules.Uninstaller.AppInventory.Rot13(original);
+
+        Assert.NotEqual(original, codificado);
+        Assert.Equal(original, Core.Modules.Uninstaller.AppInventory.Rot13(codificado));
+    }
+
+    [Fact]
     public void Arquivos_especiais_do_windows_sao_explicados()
     {
         var raiz = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))!;
