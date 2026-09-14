@@ -60,8 +60,27 @@ jobs:
       - name: Montar o instalador
         shell: pwsh
         run: |
-          choco install innosetup --no-progress -y
-          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" installer\GameBoost.iss
+          choco install innosetup --no-progress -y --no-color
+
+          # $env:ProgramFiles(x86) nao e sintaxe valida: o PowerShell le
+          # "$env:ProgramFiles" e deixa "(x86)" solto, virando
+          # "C:\Program Files(x86)". A forma correta e ${env:...}.
+          # O ISCC tambem muda de lugar conforme a instalacao, entao vale
+          # procurar em vez de fixar um caminho.
+          $candidatos = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+          )
+
+          $iscc = $candidatos | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            throw "ISCC.exe nao encontrado. Procurado em: $($candidatos -join '; ')"
+          }
+
+          Write-Host "Usando $iscc"
+          & $iscc installer\GameBoost.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC falhou com codigo $LASTEXITCODE" }
 
       - name: Gerar SHA256SUMS
         shell: pwsh
