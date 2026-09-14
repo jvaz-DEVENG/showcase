@@ -11,17 +11,17 @@ Legenda: `[ ]` não testado · `[x]` passou · `[!]` falhou, ver observação.
 A v1 foi reconstruída a partir do `LEIA-ME.txt` (ver `DECISOES.md`), então a paridade
 funcional precisa ser conferida à mão contra o binário antigo.
 
-- [ ] `GameBoost.exe --scan relatorio.txt` gera relatório e **não encerra nada**
-- [ ] `GameBoost.exe --scan` sem argumento imprime no terminal que chamou
+- [x] `GameBoost.exe --scan relatorio.txt` gera relatório e **não encerra nada**
+- [x] `GameBoost.exe --scan` sem argumento imprime no terminal que chamou
 - [ ] Ativar o Modo Game abre a tela de confirmação com tudo pré-marcado **antes** de fechar
       qualquer coisa
 - [ ] Um app com trabalho não salvo (Bloco de Notas com texto) mostra o próprio diálogo de
       salvar; só é finalizado à força depois dos 3 s
-- [ ] Apps marcados com ★ reabrem sozinhos ao desligar
+- [x] Apps marcados com ★ reabrem sozinhos ao desligar
 - [ ] Apps não marcados aparecem na lista de restauração com botão individual
-- [ ] Plano de energia volta ao anterior ao desligar
+- [x] Plano de energia volta ao anterior ao desligar
 - [ ] Windows Update volta a rodar ao desligar (`Get-Service wuauserv`)
-- [ ] Game DVR e Game Bar voltam aos valores originais (conferir no `regedit`)
+- [x] Game DVR e Game Bar voltam aos valores originais (conferir no `regedit`)
 
 ## Reversão e recuperação
 
@@ -45,20 +45,20 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 ## Fase 1 — diagnóstico e relatório
 
-- [ ] Página Diagnóstico: os cinco medidores se movem e o gráfico de 60 s preenche
-- [ ] GPU aparece com valor numa máquina com placa dedicada (aqui os contadores respondem)
-- [ ] Temperatura aparece como "indisponível", nunca como 0 °C
+- [x] Página Diagnóstico: os cinco medidores se movem e o gráfico de 60 s preenche
+- [x] GPU aparece com valor numa máquina com placa dedicada (medido: 14%, 1,9 GB de VRAM)
+- [x] Temperatura aparece como "indisponível", nunca como 0 °C
 - [ ] Sair da página Diagnóstico para a coleta (conferir no log a linha de custo)
 - [ ] Achados não piscam: um que apareceu continua na tela por pelo menos 30 s
 - [ ] Botão de ação de cada achado leva ao lugar certo (Segurança do Windows, vídeo, energia)
-- [ ] `--report saida.html` gera arquivo que abre em qualquer navegador, sem link externo
-- [ ] `--report saida.json` gera JSON válido
-- [ ] Custo da coleta abaixo de 1,5% de CPU em máquina fraca (medido: 0,115% com 20 núcleos)
+- [x] `--report saida.html` gera arquivo que abre em qualquer navegador, sem link externo
+- [x] `--report saida.json` gera JSON válido
+- [x] Custo da coleta abaixo de 1,5% de CPU em máquina fraca (medido: 0,115% com 20 núcleos)
 - [ ] Numa máquina bem cuidada, a nota fica acima de 90 e quase não há achados
 
 ## Ambiente
 
-- [ ] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso
+- [x] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso
       visível de modo somente leitura
 - [ ] Windows 10 22H2
 - [ ] Windows 11 24H2 ou mais novo
@@ -88,4 +88,28 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
-| | | |
+| 13/09/2026 | Ciclo real ativar → desligar, com privilégios | **Passou.** Ver detalhe abaixo |
+| 13/09/2026 | `--scan`, `--report` (HTML, JSON e texto) no binário de produção | Passou |
+| 13/09/2026 | Custo da coleta | 0,115% de CPU, ciclo de 36 ms, em 20 núcleos |
+| 13/09/2026 | Telas Início e Diagnóstico | Passou, depois de corrigir um crash de XAML |
+
+### Ciclo real de reversibilidade — 13/09/2026
+
+Executado com o binário de produção (`requireAdministrator`), com todos os 129 processos da
+máquina em `NuncaEncerrar` e um único alvo descartável compilado para o teste.
+
+| Item | Antes | Com o Modo Game ativo | Depois de desligar |
+|---|---|---|---|
+| `GameDVR_Enabled` | `1` | `0` | `1` |
+| `UseNexusForGameBarEnabled` | não existia | `0` | **apagado** |
+| `ShowStartupPanel` | não existia | `0` | **apagado** |
+| `ToastEnabled` | não existia | `0` | **apagado** |
+| Plano de energia | Equilibrado | Alto desempenho | Equilibrado |
+| `wuauserv` | parado | parado (não foi tocado) | parado |
+| App marcado com ★ | rodando | encerrado | **reaberto** |
+
+Os três valores que **não existiam** foram apagados na reversão, não zerados — que é a
+diferença entre reverter e deixar um rastro. `state-backup.json` terminou com **0 pendências**.
+
+Ganho medido na ativação: RAM livre de 1,3 GB para 3,9 GB, com 13,2 GB retirados do working
+set de 462 processos.

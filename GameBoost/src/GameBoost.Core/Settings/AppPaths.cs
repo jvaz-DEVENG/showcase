@@ -1,4 +1,3 @@
-using System.Reflection;
 
 namespace GameBoost.Core.Settings;
 
@@ -29,9 +28,13 @@ public sealed class AppPaths
 
     public static AppPaths Resolve()
     {
-        var exeDir = Path.GetDirectoryName(Environment.ProcessPath
-            ?? Assembly.GetEntryAssembly()?.Location
-            ?? AppContext.BaseDirectory) ?? AppContext.BaseDirectory;
+        // Assembly.Location devolve string VAZIA num publish single-file, e ??
+        // nao trata vazio: o fallback quebraria justamente no formato em que o
+        // app e distribuido, que e onde o modo portatil importa.
+        // Environment.ProcessPath funciona em single-file.
+        var exeDir = Path.GetDirectoryName(Environment.ProcessPath) is { Length: > 0 } dir
+            ? dir
+            : AppContext.BaseDirectory;
 
         var marcador = Path.Combine(exeDir, "portable.txt");
         if (File.Exists(marcador))
