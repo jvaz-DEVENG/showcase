@@ -57,4 +57,78 @@
         </Border>
     </DataTemplate>
 
+
+    <!--
+      Abas no tema escuro. O TabItem padrao do WPF ainda usa o visual do
+      Windows Classic: fundo claro e texto escuro. Sobre a superficie escura
+      do GameBoost o rotulo fica branco no branco e a aba some.
+    -->
+    <Style TargetType="TabItem">
+        <Setter Property="Foreground" Value="{StaticResource TextoSecundario}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="16,9" />
+        <Setter Property="Margin" Value="0,0,4,0" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Fundo"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6,6,0,0"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter ContentSource="Header"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Fundo" Property="Background" Value="{StaticResource Superficie}" />
+                            <Setter Property="Foreground" Value="{StaticResource Texto}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Texto}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="TabControl">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TabPanel Grid.Row="0" IsItemsHost="True" Panel.ZIndex="1" />
+
+                        <!--
+                          O nome PART_SelectedContentHost nao e decoracao: o
+                          TabControlAutomationPeer do WPF procura exatamente por
+                          ele para expor o conteudo da aba selecionada. Sem o
+                          nome, a arvore de automacao fica vazia da aba para
+                          dentro: leitor de tela nao alcanca nenhum controle, e
+                          a navegacao por teclado entre abas perde o destino.
+                          Foi o que aconteceu aqui, e so apareceu porque o
+                          script de captura parou de achar os botoes.
+                        -->
+                        <Border Grid.Row="1" Background="Transparent">
+                            <ContentPresenter x:Name="PART_SelectedContentHost"
+                                              ContentSource="SelectedContent" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

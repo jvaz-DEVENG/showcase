@@ -41,6 +41,11 @@
                 <views:ConfiguracoesPage />
             </DataTemplate>
 
+            <!-- A pagina de Apps tem tres abas, entao tem tela propria. -->
+            <DataTemplate DataType="{x:Type vm:AppsPageViewModel}">
+                <views:AppsPage />
+            </DataTemplate>
+
             <!-- A Rede vem antes do generico: ela tem tela propria, com as
                  tabelas de medicao acima da lista de acoes. -->
             <DataTemplate DataType="{x:Type vm:RedePageViewModel}">

@@ -392,6 +392,65 @@ Na mesma seção 5.3 há outros dois pontos ainda não atendidos:
 
 ---
 
+## 2026-09-14 — A saída do winget não tem formato para máquina ler
+
+`winget upgrade` não tem `--output json`, nem XML, nem nada estruturado. O que
+existe é uma tabela de largura fixa desenhada para humano.
+
+O jeito óbvio de ler seria procurar a coluna "Available". Ele quebra na primeira
+máquina em outro idioma: em português o cabeçalho é "Disponível", e nesta máquina
+o winget imprimiu os cabeçalhos em inglês enquanto traduzia os **nomes** dos
+pacotes ("Subsistema do Windows para Linux"). Depender de qualquer palavra seria
+depender de uma combinação que nem é consistente dentro da mesma saída.
+
+A leitura é por **posição de coluna**: acha-se a régua de tracinhos, o cabeçalho é
+a linha acima dela, e as colunas começam onde há caractere visível logo depois de
+um espaço. Nenhuma palavra é lida. Sobre isso vêm duas defesas: id com espaço no
+meio é descartado (sinal de que a fatia caiu errado), e a fonte precisa ser uma
+das que o winget conhece.
+
+O teste que trava isso passa a mesma tabela com cabeçalho em português. Se o
+parser voltar a depender de idioma, ele devolve zero e o teste falha.
+
+## 2026-09-14 — Um template de TabControl apagou a árvore de acessibilidade
+
+As abas da página de Apps saíram ilegíveis no tema escuro: o `TabItem` padrão do
+WPF ainda usa o visual do Windows Classic, com fundo claro e texto escuro. Reescrevi
+o `ControlTemplate` do `TabItem` e do `TabControl`.
+
+O script de captura de tela parou de achar os botões. A investigação mostrou algo
+pior que um problema de teste: **a automação não enxergava nenhum controle dentro
+das abas**. As três abas apareciam; da aba para dentro, árvore vazia.
+
+A causa é que o `TabControlAutomationPeer` do WPF procura um `ContentPresenter`
+chamado exatamente `PART_SelectedContentHost` para expor o conteúdo da aba
+selecionada. O meu tinha `ContentSource="SelectedContent"` e nenhum nome, então
+renderizava certo e sumia da automação.
+
+Isso vale registrar por dois motivos. O primeiro é que um leitor de tela não
+alcançaria botão nenhum dessa página — regra de acessibilidade da seção 6.
+O segundo é o método: o defeito só apareceu porque **a mesma automação que um
+leitor de tela usa** é a que dirige os testes de tela. Um teste que clicasse por
+coordenada teria passado.
+
+## 2026-09-14 — Prefixo de id não é fronteira
+
+A classificação das atualizações casava o id do winget por prefixo cru. Na tela
+real, "Chrome Remote Desktop Host" apareceu marcado como **atualização de
+segurança** e como navegador que se atualiza sozinho: o id dele é
+`Google.ChromeRemoteDesktopHost`, e `StartsWith("Google.Chrome")` é verdadeiro.
+
+O id do winget é hierárquico e separado por ponto. O casamento passou a exigir
+fronteira: ou igualdade, ou o caractere seguinte é um ponto. Padrão terminado em
+ponto (`AMD.`, `Intel.`, `RiotGames.`) continua valendo para a família inteira, e
+isso é proposital.
+
+O mesmo erro pegaria `Git.GitLFS` como se fosse o `Git.Git`, e
+`Microsoft.EdgeWebView2Runtime` como se fosse o navegador Edge. Os três casos
+estão no teste.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

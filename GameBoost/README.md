@@ -58,6 +58,14 @@ desinstalador do próprio app, e depois procura o que ficou para trás. Uma aba 
 desinstalou. Runtimes, drivers e antivírus aparecem bloqueados, com o motivo. **Nada vem
 marcado** — nem o bloatware mais óbvio, nem o resto mais antigo.
 
+**Atualizações.** Uma aba da mesma tela mostra o que tem versão nova, em cima do winget,
+o gerenciador de pacotes da própria Microsoft — quem baixa e confere assinatura é ela, não
+o GameBoost. Navegador, compactador e Java desatualizados aparecem marcados como
+**atualização de segurança**, porque neles ficar para trás não é questão de conforto.
+Driver aparece bloqueado: o GameBoost não instala driver, nem pelo winget. O que se
+atualiza sozinho (Steam, Discord, navegadores) vem com a tag e a explicação de por que
+forçar pode brigar com o atualizador do próprio app.
+
 **O que abre com o Windows.** Chaves `Run`, pastas Inicializar e o estado real de cada item,
 lido de onde o Gerenciador de Tarefas lê. Mostra o fabricante, se o executável é assinado e
 uma estimativa grosseira do peso no boot — declarada como grosseira, porque vem do tamanho

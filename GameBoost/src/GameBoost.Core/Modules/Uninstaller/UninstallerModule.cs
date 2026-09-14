@@ -23,6 +23,7 @@ public sealed class UninstallerModule : IModule
 
     private readonly AppInventory _inventario;
     private readonly LeftoverScanner _restos;
+    private readonly WingetService _winget;
     private readonly IProcessService _processos;
     private readonly IGameBoostLogger _log;
     private readonly IClock _relogio;
@@ -32,12 +33,14 @@ public sealed class UninstallerModule : IModule
     public UninstallerModule(
         AppInventory inventario,
         LeftoverScanner restos,
+        WingetService winget,
         IProcessService processos,
         IGameBoostLogger log,
         IClock relogio)
     {
         _inventario = inventario;
         _restos = restos;
+        _winget = winget;
         _processos = processos;
         _log = log;
         _relogio = relogio;
@@ -469,6 +472,234 @@ public sealed class UninstallerModule : IModule
             GanhoMedido = "Para voltar atrás é preciso reinstalar o app. "
                         + "Se você criou um ponto de restauração antes, ele também serve."
         });
+
+    // ==================================================================
+    // Aba "Atualizações" (winget)
+    // ==================================================================
+
+    private IReadOnlyList<AtualizacaoDisponivel> _ultimasAtualizacoes = Array.Empty<AtualizacaoDisponivel>();
+
+    public IReadOnlyList<AtualizacaoDisponivel> UltimasAtualizacoes => _ultimasAtualizacoes;
+
+    public WingetService Winget => _winget;
+
+    /// <summary>
+    /// Lista o que tem versão nova, já classificado e com o que estiver aberto
+    /// marcado como tal.
+    ///
+    /// O winget **não** é chamado na varredura principal de propósito: ele
+    /// consulta a rede e leva dezenas de segundos na primeira vez do dia.
+    /// Amarrar isso à lista de apps instalados faria a tela inteira esperar por
+    /// uma informação que nem todo mundo abriu para ver.
+    /// </summary>
+    public async Task<ScanResult> VarrerAtualizacoesAsync(IProgress<ModuleProgress>? progresso, CancellationToken ct)
+    {
+        progresso?.Report(new ModuleProgress("Procurando o winget", 10));
+
+        if (await _winget.DetectarAsync(ct) is null)
+        {
+            return new ScanResult
+            {
+                ModuloId = ModuloId,
+                Momento = _relogio.Now,
+                Resumo = "O winget não está instalado nesta máquina.",
+                Avisos = new[]
+                {
+                    "O winget vem junto com o App Installer, da Microsoft. Sem ele esta aba "
+                  + "não tem como funcionar. O botão abre a página dele na Microsoft Store."
+                }
+            };
+        }
+
+        progresso?.Report(new ModuleProgress("Consultando o winget (pode demorar)", 30));
+
+        var lista = await _winget.ListarAsync(ct);
+        _ultimasAtualizacoes = lista;
+
+        progresso?.Report(new ModuleProgress("Cruzando com os apps instalados", 80));
+
+        // Quais estão rodando agora: atualizar app aberto falha ou, pior, mata
+        // o que o usuário estava usando.
+        var rodando = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            foreach (var processo in _processos.GetProcesses())
+                rodando.Add(processo.Name);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException)
+        {
+            _log.Warn(ModuloId, "Atualizacoes", null, ex.Message);
+        }
+
+        var itens = lista.Select(a => MontarAtualizacao(a, rodando)).ToList();
+
+        progresso?.Report(new ModuleProgress("Pronto", 100));
+
+        var seguranca = lista.Count(UpdateCatalog.EhDeSeguranca);
+        var sozinhos = lista.Count(a => UpdateCatalog.Classificar(a) == ClasseDeAtualizacao.AtualizaSozinho);
+
+        var avisos = new List<string>();
+
+        if (seguranca > 0)
+        {
+            avisos.Add($"{seguranca} são de programas que abrem arquivo vindo da internet "
+                     + "(navegador, compactador, leitor de PDF, Java). Nesses, ficar "
+                     + "desatualizado é problema de segurança, não de conforto.");
+        }
+
+        if (sozinhos > 0)
+        {
+            avisos.Add($"{sozinhos} se atualizam sozinhos e aparecem marcados assim. "
+                     + "Forçar pelo winget pode brigar com o atualizador do próprio app.");
+        }
+
+        return new ScanResult
+        {
+            ModuloId = ModuloId,
+            Itens = itens,
+            Momento = _relogio.Now,
+            Resumo = lista.Count == 0
+                ? "Tudo em dia: o winget não encontrou atualização pendente."
+                : $"{lista.Count} aplicativos com versão nova disponível.",
+            Avisos = avisos
+        };
+    }
+
+    private ActionItem MontarAtualizacao(AtualizacaoDisponivel a, IReadOnlySet<string> rodando)
+    {
+        var classe = UpdateCatalog.Classificar(a);
+        var seguranca = UpdateCatalog.EhDeSeguranca(a);
+
+        // O executável do app não vem na tabela do winget. O que dá para
+        // comparar é o nome, e só quando ele é específico o bastante: um nome de
+        // três letras casaria com qualquer coisa.
+        var primeiraPalavra = a.Nome.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+
+        var aberto = primeiraPalavra.Length >= 4
+                     && rodando.Any(nome => nome.StartsWith(primeiraPalavra, StringComparison.OrdinalIgnoreCase));
+
+        var detalhes = new List<string>
+        {
+            a.VersaoIncerta ? $"versão instalada desconhecida, repositório tem {a.VersaoNova}"
+                            : $"{a.VersaoAtual} para {a.VersaoNova}"
+        };
+
+        detalhes.Add(a.DaStore ? "Microsoft Store" : "winget");
+
+        if (seguranca)
+            detalhes.Add("atualização de segurança");
+
+        if (aberto)
+            detalhes.Add($"{primeiraPalavra} parece estar aberto — feche antes");
+
+        var explicacao = UpdateCatalog.Explicacao(classe);
+
+        if (explicacao.Length > 0)
+            detalhes.Add(explicacao);
+
+        var risco = classe switch
+        {
+            ClasseDeAtualizacao.Driver => RiskLevel.Alto,
+            ClasseDeAtualizacao.Runtime => RiskLevel.Medio,
+            ClasseDeAtualizacao.AtualizaSozinho => RiskLevel.Medio,
+            ClasseDeAtualizacao.Incerta => RiskLevel.Medio,
+            _ => RiskLevel.Baixo
+        };
+
+        return new ActionItem
+        {
+            Id = $"update:{a.Id}",
+            Categoria = UpdateCatalog.Categoria(classe),
+            Titulo = a.Nome,
+            Descricao = string.Join(" · ", detalhes),
+            Risco = risco,
+            GanhoEstimado = a.VersaoNova,
+
+            // Regra 3: nem a atualização de segurança vem marcada. Instalar
+            // versão nova pode quebrar o que funcionava, e a escolha é de quem
+            // usa a máquina.
+            PreMarcado = false,
+
+            // Driver é o único bloqueado: o GameBoost não instala driver, e
+            // isso vale também quando o winget se oferece para fazer.
+            Bloqueado = classe == ClasseDeAtualizacao.Driver,
+            MotivoBloqueio = classe == ClasseDeAtualizacao.Driver
+                ? UpdateCatalog.Explicacao(ClasseDeAtualizacao.Driver)
+                : null,
+            RotuloBloqueio = "Driver",
+
+            ComoDesfazer = a.DaStore
+                ? "A Microsoft Store não permite voltar a uma versão anterior."
+                : "Não há como voltar a versão pelo winget. Se a versão nova der problema, "
+                + "reinstale a antiga pelo instalador do fabricante.",
+            Payload = a
+        };
+    }
+
+    /// <summary>
+    /// Atualiza um app por vez, em sequência, com progresso por item.
+    ///
+    /// `winget upgrade --all` faria tudo de uma vez e seria mais curto, mas
+    /// perde o que importa: com `--all`, um app que falha some no meio da saída
+    /// e não dá para dizer ao usuário qual foi nem por quê.
+    /// </summary>
+    public async Task<ApplyResult> AtualizarAsync(
+        IReadOnlyList<string> itemIds, bool dryRun, IProgress<ModuleProgress>? progresso, CancellationToken ct)
+    {
+        var alvos = itemIds
+            .Where(id => id.StartsWith("update:", StringComparison.Ordinal))
+            .Select(id => id["update:".Length..])
+            .Select(id => _ultimasAtualizacoes.FirstOrDefault(a => a.Id == id))
+            .Where(a => a is not null)
+            .Select(a => a!)
+            .ToList();
+
+        var acoes = new List<AppliedAction>();
+
+        for (var i = 0; i < alvos.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var alvo = alvos[i];
+
+            progresso?.Report(new ModuleProgress(
+                $"Atualizando {alvo.Nome} ({i + 1} de {alvos.Count})",
+                alvos.Count == 0 ? 100 : (i + 1) * 100 / alvos.Count));
+
+            if (UpdateCatalog.Classificar(alvo) == ClasseDeAtualizacao.Driver)
+            {
+                acoes.Add(new AppliedAction($"update:{alvo.Id}", false,
+                    $"{alvo.Nome} é driver: o GameBoost não instala driver.", null));
+                continue;
+            }
+
+            var registro = await _winget.AtualizarAsync(alvo, dryRun, ct);
+
+            acoes.Add(new AppliedAction(
+                $"update:{alvo.Id}",
+                registro.Sucesso,
+                registro.Sucesso
+                    ? $"{alvo.Nome} atualizado para {alvo.VersaoNova}."
+                    : $"{alvo.Nome}: {registro.Erro}",
+                null));
+        }
+
+        var ok = acoes.Count(a => a.Sucesso);
+
+        return new ApplyResult
+        {
+            ModuloId = ModuloId,
+            Acoes = acoes,
+            DryRun = dryRun,
+            Resumo = dryRun
+                ? $"Simulação: {acoes.Count} aplicativos seriam atualizados."
+                : $"{ok} de {acoes.Count} aplicativos atualizados.",
+            GanhoMedido = acoes.Any(a => !a.Sucesso)
+                ? $"O log detalhado do winget fica em {WingetService.PastaDeLogs()}"
+                : string.Empty
+        };
+    }
 
     /// <summary>Restos deixados por apps já removidos (aba própria, seção 5.3).</summary>
     public IReadOnlyList<Resto> VarrerRestos(IProgress<string>? progresso, CancellationToken ct)

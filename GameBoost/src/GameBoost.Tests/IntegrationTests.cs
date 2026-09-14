@@ -434,6 +434,125 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Winget_lista_atualizacoes_da_maquina_real()
+    {
+        var winget = _provider.GetRequiredService<Core.Modules.Uninstaller.WingetService>();
+        var versao = await winget.DetectarAsync(CancellationToken.None);
+
+        if (versao is null)
+        {
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-winget.txt"),
+                "MEDIDO: winget nao esta instalado nesta maquina.");
+            return;
+        }
+
+        var lista = await winget.ListarAsync(CancellationToken.None);
+
+        // Toda linha precisa ter id sem espaco e versao nova preenchida: se a
+        // fatia de coluna sair errada, e aqui que aparece.
+        Assert.All(lista, a =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(a.Id));
+            Assert.DoesNotContain(' ', a.Id);
+            Assert.False(string.IsNullOrWhiteSpace(a.Nome));
+            Assert.False(string.IsNullOrWhiteSpace(a.VersaoNova));
+        });
+
+        // A fonte so pode ser uma das que o winget conhece. Qualquer outra
+        // coisa significa que a ultima coluna pegou pedaco da anterior.
+        Assert.All(lista, a =>
+            Assert.Contains(a.Fonte.ToLowerInvariant(), new[] { "winget", "msstore", "winget-font" }));
+
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-winget.txt"),
+            $"MEDIDO: winget {versao}, {lista.Count} atualizacoes | "
+          + string.Join(" | ", lista.Take(10).Select(a =>
+                $"{a.Nome} [{a.Id}] {a.VersaoAtual} -> {a.VersaoNova} ({a.Fonte})"
+              + (a.VersaoIncerta ? " INCERTA" : string.Empty))));
+    }
+
+    [Fact]
+    public void Tabela_do_winget_e_lida_por_posicao_e_nao_por_idioma()
+    {
+        // Mesma tabela, cabecalho em portugues. Se o parser dependesse da
+        // palavra "Available", isto devolveria zero.
+        var saida = string.Join("\n", new[]
+        {
+            "Nome                 Id                     Versão   Disponível  Fonte",
+            "-----------------------------------------------------------------------",
+            "7-Zip 24.09 (x64)    7zip.7zip              24.09    26.03       winget",
+            "Google Cloud SDK     Google.CloudSDK        Unknown  584.0.0     winget",
+            "Epic Games Launcher  XP99VR1BPSBQJ2         1.3.175  1.3.189     msstore",
+            "3 upgrades available."
+        });
+
+        var lista = Core.Modules.Uninstaller.WingetService.Interpretar(saida);
+
+        Assert.Equal(3, lista.Count);
+        Assert.Equal("7zip.7zip", lista[0].Id);
+        Assert.Equal("26.03", lista[0].VersaoNova);
+
+        // "Unknown" nao e uma versao: o winget nao sabe qual esta instalada.
+        Assert.True(lista[1].VersaoIncerta);
+        Assert.False(lista[0].VersaoIncerta);
+
+        Assert.True(lista[2].DaStore);
+
+        // O rodape nao pode virar uma linha da tabela.
+        Assert.DoesNotContain(lista, a => a.Nome.Contains("upgrades available"));
+    }
+
+    [Theory]
+    // O host de acesso remoto nao e navegador. Com casamento por prefixo cru,
+    // "Google.Chrome" pegava "Google.ChromeRemoteDesktopHost" e ele aparecia na
+    // tela como atualizacao de seguranca.
+    [InlineData("Google.ChromeRemoteDesktopHost", false)]
+    [InlineData("Google.Chrome", true)]
+    [InlineData("Git.Git", true)]
+    [InlineData("Git.GitLFS", false)]
+    [InlineData("7zip.7zip", true)]
+    [InlineData("Microsoft.Edge", true)]
+    [InlineData("Microsoft.EdgeWebView2Runtime", false)]
+    public void Id_do_winget_so_casa_em_fronteira_de_ponto(string id, bool esperado)
+    {
+        var alvo = new Core.Modules.Uninstaller.AtualizacaoDisponivel
+        {
+            Nome = id, Id = id, VersaoAtual = "1.0", VersaoNova = "2.0", Fonte = "winget"
+        };
+
+        Assert.Equal(esperado, Core.Modules.Uninstaller.UpdateCatalog.EhDeSeguranca(alvo));
+    }
+
+    [Theory]
+    // Familia inteira continua casando: o padrao termina em ponto de proposito.
+    [InlineData("Intel.IntelDriverAndSupportAssistant", Core.Modules.Uninstaller.ClasseDeAtualizacao.Driver)]
+    [InlineData("Microsoft.DotNet.SDK.9", Core.Modules.Uninstaller.ClasseDeAtualizacao.Runtime)]
+    [InlineData("Valve.Steam", Core.Modules.Uninstaller.ClasseDeAtualizacao.AtualizaSozinho)]
+    [InlineData("RARLab.WinRAR", Core.Modules.Uninstaller.ClasseDeAtualizacao.Normal)]
+    public void Classificacao_separa_driver_runtime_e_auto_update(
+        string id, Core.Modules.Uninstaller.ClasseDeAtualizacao esperada)
+    {
+        var alvo = new Core.Modules.Uninstaller.AtualizacaoDisponivel
+        {
+            Nome = id, Id = id, VersaoAtual = "1.0", VersaoNova = "2.0", Fonte = "winget"
+        };
+
+        Assert.Equal(esperada, Core.Modules.Uninstaller.UpdateCatalog.Classificar(alvo));
+    }
+
+    [Fact]
+    public void Codigo_de_saida_do_winget_vira_frase_em_portugues()
+    {
+        var texto = Core.Modules.Uninstaller.WingetService.Explicar(
+            unchecked((int)0x8A150056), string.Empty, string.Empty);
+
+        Assert.Contains("aberto", texto, StringComparison.OrdinalIgnoreCase);
+
+        // Codigo desconhecido nao pode virar mensagem vazia.
+        var outro = Core.Modules.Uninstaller.WingetService.Explicar(-12345, string.Empty, string.Empty);
+        Assert.Contains("-12345", outro);
+    }
+
+    [Fact]
     public async Task Nat_e_classificado_no_vocabulario_dos_jogos()
     {
         var nat = _provider.GetRequiredService<Core.Modules.Network.NatDiagnostics>();

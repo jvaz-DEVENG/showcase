@@ -90,6 +90,7 @@ public static class CoreServices
         // Fase 4: desinstalador.
         services.AddSingleton<AppInventory>();
         services.AddSingleton<LeftoverScanner>();
+        services.AddSingleton<WingetService>();
         services.AddSingleton<UninstallerModule>();
         services.AddSingleton<StartupModule>();
 

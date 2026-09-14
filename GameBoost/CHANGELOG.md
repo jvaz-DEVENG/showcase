@@ -4,6 +4,49 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - em desenvolvimento
 
+### Complemento da Fase 4 - aba Atualizacoes (winget) e aba Restos na tela (2026-09-14)
+
+Entrega retroativa: a secao 5.3 ganhou a aba de atualizacoes depois que a Fase 4 ja
+estava commitada. Vem em commit proprio para o historico nao mentir sobre o que cada
+fase entregou.
+
+#### Adicionado
+- Aba "Atualizacoes" em cima do winget: lista o que tem versao nova, classificado e
+  agrupado. Medido: 35 atualizacoes, 4 de seguranca, 7 que se atualizam sozinhos.
+- Classificacao por id: driver (bloqueado, o GameBoost nao instala driver), runtime,
+  "atualiza sozinho" e "o winget nao sabe a versao instalada". Cada grupo tras o texto
+  que explica por que tratar diferente.
+- Apps que abrem arquivo vindo da internet (navegador, compactador, leitor de PDF, Java)
+  sao marcados como atualizacao de seguranca: neles ficar desatualizado nao e conforto.
+- App aberto e detectado e a linha avisa "feche antes".
+- Atualizacao uma a uma, com progresso por item. `winget upgrade --all` seria mais curto
+  e perderia o que importa: com `--all` um app que falha some no meio da saida.
+- Codigos de saida do winget viram frase em portugues; o caminho do log detalhado aparece
+  quando algo falha. Historico em updates-history.json.
+- Quando o winget nao existe, a aba explica o que ele e e abre a pagina do App Installer
+  na Microsoft Store.
+- Aba "Restos de apps antigos" **na interface**. A varredura existia no Core desde a Fase
+  4, mas nunca tinha sido ligada a uma tela.
+- Pagina de Apps reorganizada em tres abas, cada uma com o seu proprio botao de acao.
+
+#### Corrigido
+- O template de TabControl escrito para o tema escuro quebrava a arvore de automacao:
+  nenhum controle dentro das abas era exposto. Leitor de tela nao alcancaria nada, e a
+  navegacao por teclado perdia o destino. Faltava o `ContentPresenter` chamado
+  `PART_SelectedContentHost`, que e o nome que o `TabControlAutomationPeer` procura.
+- O casamento de id do winget era por prefixo cru, entao "Google.Chrome" pegava
+  "Google.ChromeRemoteDesktopHost": o host de acesso remoto aparecia como navegador e
+  como atualizacao de seguranca. Agora exige fronteira de ponto.
+- As abas do TabControl saiam ilegiveis: o estilo padrao do WPF usa fundo claro e texto
+  escuro, que sobre a superficie escura do GameBoost fica branco no branco.
+
+#### Notas
+- A saida do `winget upgrade` nao tem formato estruturado: nem JSON, nem XML. E uma
+  tabela de largura fixa com cabecalho traduzido. A leitura e por **posicao de coluna**,
+  calculada a partir do cabecalho, o que funciona em qualquer idioma.
+- Nada e pre-marcado, nem a atualizacao de seguranca: instalar versao nova pode quebrar
+  o que funcionava, e a escolha e de quem usa a maquina.
+
 ### Fase 5 - Tweaks, servicos, rede com NAT e drivers (2026-09-14)
 
 #### Adicionado

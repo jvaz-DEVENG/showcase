@@ -105,6 +105,28 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] Reverter a desativação e conferir que o programa volta a abrir no boot
 - [ ] Enviar uma pasta de resto para a Lixeira e restaurar
 
+## Complemento da Fase 4 — aba Atualizações (winget)
+
+- [x] winget detectado e versão lida (medido: 1.29.290)
+- [x] Tabela lida por posição, não por idioma (teste com cabeçalho em português)
+- [x] Lista bate com `winget upgrade` rodado à mão (medido: 35 atualizações)
+- [x] Nenhum id sai com espaço no meio; toda fonte é winget ou msstore
+- [x] Driver aparece bloqueado com o motivo
+- [x] Runtime e "atualiza sozinho" aparecem com risco médio e explicação
+- [x] Atualização de segurança marcada só em quem abre arquivo da internet
+- [x] "Chrome Remote Desktop Host" **não** é marcado como navegador
+- [x] App aberto é detectado e a linha avisa "feche antes"
+- [x] Nada pré-marcado, nem a atualização de segurança
+- [x] Abas legíveis no tema escuro
+- [x] Controles dentro das abas visíveis para a automação (leitor de tela)
+- [x] Aba "Restos de apps antigos" na interface (medido: 30 pastas, 3,8 GB)
+- [ ] Atualizar um app de verdade e conferir a versão depois
+- [ ] Atualizar um app que está aberto e conferir a mensagem de erro
+- [ ] Atualizar um app que falha e conferir o código traduzido e o link do log
+- [ ] Conferir o `updates-history.json` depois de uma atualização real
+- [ ] Máquina sem winget: conferir o cartão e o botão da Store
+- [ ] Windows em inglês: conferir que a tabela continua sendo lida
+
 ## Fase 5 — tweaks, serviços, rede e drivers
 
 - [x] Catálogo lê o estado real de cada ajuste (medido: 24 itens, 1 já ativo)
@@ -164,6 +186,8 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | winget: 35 atualizacoes lidas e classificadas | Passou apos 3 correcoes |
+| 14/09/2026 | Abas de Apps (Instalados, Atualizacoes, Restos) renderizadas | Passou |
 | 14/09/2026 | Tweaks, servicos, NAT, velocidade e driver de video (nao elevado) | Passou apos 4 correcoes |
 | 14/09/2026 | Telas de Tweaks e Rede renderizadas e conferidas | Passou |
 | 14/09/2026 | Inventario de apps, restos, inicializacao (nao elevado) | Passou. 217 apps, 30 restos, 26 entradas |
