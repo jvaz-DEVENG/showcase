@@ -131,6 +131,19 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
     /// <summary>Texto da confirmacao antes de aplicar. Cada modulo explica o seu.</summary>
     protected abstract string MontarConfirmacao(IReadOnlyList<ActionItemViewModel> selecionados);
 
+    /// <summary>
+    /// Varrer de novo sozinho depois de aplicar ou reverter.
+    ///
+    /// Ligado onde a varredura e barata — ler registro e servico custa
+    /// milissegundos. Desligado onde ela demora: a lista de apps instalados
+    /// leva quase um minuto, e revarrer sozinho deixaria a tela travada logo
+    /// depois de uma acao.
+    ///
+    /// Quando esta desligado, a tela avisa que a lista pode estar
+    /// desatualizada em vez de mostrar um estado antigo como se fosse o atual.
+    /// </summary>
+    protected virtual bool RevarrerAposAgir => false;
+
     [RelayCommand]
     public async Task VarrerAsync()
     {
@@ -223,6 +236,8 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
             Ocupado = false;
             OnPropertyChanged(nameof(TemPendencias));
         }
+
+        await AtualizarListaAsync(DryRun);
     }
 
     [RelayCommand]
@@ -266,6 +281,8 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
             Ocupado = false;
             OnPropertyChanged(nameof(TemPendencias));
         }
+
+        await AtualizarListaAsync(DryRun);
     }
 
     [RelayCommand]
@@ -315,6 +332,29 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
     {
         if (e.PropertyName == nameof(ActionItemViewModel.Selecionado))
             NotificarSelecao();
+    }
+
+    /// <summary>
+    /// Depois de agir, a lista mostra o estado de ANTES ate alguem varrer de
+    /// novo. Isso fez o badge de um servico continuar dizendo "automatico"
+    /// depois de ele ja ter virado "manual": a tela parecia nao ter feito nada.
+    /// </summary>
+    private async Task AtualizarListaAsync(bool foiDryRun)
+    {
+        if (foiDryRun || !JaVarreu)
+            return;
+
+        if (RevarrerAposAgir)
+        {
+            var buscaAnterior = Busca;
+            await VarrerAsync();
+            Busca = buscaAnterior;
+            return;
+        }
+
+        Status = Status.Length == 0
+            ? "A lista ainda mostra o estado de antes. Varra de novo para ver como ficou."
+            : Status + "  A lista ainda mostra o estado de antes; varra de novo para ver como ficou.";
     }
 
     protected void NotificarSelecao()

@@ -231,8 +231,8 @@ public sealed partial class RedePageViewModel : ModulePageViewModel
         if (winsock)
         {
             texto += "ATENÇÃO: resetar o Winsock derruba a rede até você reiniciar o "
-                   + "computador, apaga configurações de VPN e proxy, e **não tem desfazer "
-                   + "automático**. Só faz sentido se a máquina já está sem internet.\n\n";
+                   + "computador, apaga configurações de VPN e proxy, e não tem desfazer "
+                   + "automático. Só faz sentido se a máquina já está sem internet.\n\n";
         }
 
         texto += "Continuar?";

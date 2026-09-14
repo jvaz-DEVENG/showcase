@@ -279,7 +279,7 @@ public sealed class NetworkModule : IModule
                 Categoria = "Servidor de DNS",
                 Titulo = $"Usar o DNS da {dns.Nome} ({dns.Endereco})",
                 Descricao = $"Medido agora: {dns.MediaMs} ms, {comparacao}. "
-                          + "DNS mais rápido faz página abrir mais rápido; **não muda o ping do jogo**, "
+                          + "DNS mais rápido faz página abrir mais rápido. Não muda o ping do jogo, "
                           + "porque o jogo resolve o nome uma vez e depois fala direto com o servidor.",
                 Risco = RiskLevel.Baixo,
                 GanhoEstimado = $"{dns.MediaMs} ms",
@@ -318,7 +318,7 @@ public sealed class NetworkModule : IModule
             Titulo = "Resetar o Winsock",
             Descricao = "Devolve a pilha de rede do Windows ao estado de fábrica. Serve para "
                       + "máquina que ficou sem internet depois de desinstalar VPN ou antivírus. "
-                      + "**Derruba a rede até você reiniciar**, apaga configurações de adaptador "
+                      + "Derruba a rede até você reiniciar, apaga configurações de adaptador "
                       + "e não tem desfazer automático. Não use como manutenção de rotina.",
             Risco = RiskLevel.Alto,
             GanhoEstimado = "só para consertar rede quebrada",
@@ -416,7 +416,7 @@ public sealed class NetworkModule : IModule
 
             return processo.ExitCode == 0
                 ? new AppliedAction(ItemWinsock, true,
-                    "Winsock resetado. **Reinicie o computador** para a rede voltar ao normal.", null)
+                    "Winsock resetado. Reinicie o computador para a rede voltar ao normal.", null)
                 : new AppliedAction(ItemWinsock, false, $"netsh saiu com código {processo.ExitCode}.", null);
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)

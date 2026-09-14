@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using GameBoost.Core.Logging;
 using GameBoost.Core.Settings;
 
@@ -16,51 +17,66 @@ public sealed record ResultadoDeVelocidade(
 }
 
 /// <summary>
-/// Teste de velocidade (seção 5.9).
+/// Teste de velocidade (seção 5.9.1).
 ///
-/// Três coisas que este teste **não** é, e que a tela precisa dizer:
+/// Três coisas que ele **não** é, e que a tela precisa dizer:
 ///
-/// - Não substitui um teste de banda dedicado. Ele usa um servidor só, não
-///   escolhe o mais próximo e não abre dezenas de conexões paralelas. O número
-///   tende a sair abaixo do que o Speedtest mostra.
+/// - Não substitui um teste de banda dedicado. Ele usa um servidor só e uma
+///   conexão só, enquanto o Speedtest escolhe o servidor mais próximo e abre
+///   várias em paralelo. O número sai por volta de 10% a 15% abaixo.
+///
+///   Vale lembrar que o teste dedicado também erra quando o servidor escolhido
+///   está congestionado: na mesma máquina e no mesmo minuto, um servidor deu
+///   73 Mbps de upload e outro deu 264.
 /// - Não mede a sua internet quando alguém está baixando algo em outra máquina.
-/// - Não tem relação com ping. Banda larga e latência são coisas diferentes, e
-///   é a latência que decide se o jogo está bom.
+/// - Não tem relação com ping. Banda e latência são coisas diferentes, e é a
+///   latência que decide se o jogo está bom.
 ///
-/// O que ele serve para responder é uma pergunta específica e útil: "a minha
-/// conexão está entregando algo próximo do que eu contratei, ou está muito
-/// abaixo?".
+/// O que ele responde é uma pergunta específica: "a minha conexão está
+/// entregando algo próximo do que eu contratei, ou está muito abaixo?".
 ///
-/// **Só roda quando o usuário permite acesso à rede** (regra 8: sem telemetria,
-/// e nenhuma chamada externa sem consentimento).
+/// **Só roda quando o usuário permite acesso à rede** (regra 8).
 /// </summary>
 public sealed class SpeedTest
 {
-    /// <summary>
-    /// Endpoint público da Cloudflare, o mesmo que o speed.cloudflare.com usa.
-    /// Foi escolhido por não exigir chave, não registrar o teste numa conta e
-    /// ter presença no Brasil.
-    /// </summary>
     private const string UrlDownload = "https://speed.cloudflare.com/__down?bytes=";
     private const string UrlUpload = "https://speed.cloudflare.com/__up";
 
-    /// <summary>
-    /// Três amostras, mediana no fim (seção 5.9.1). A mediana existe para
-    /// descartar a amostra estragada: basta o Windows Update acordar no meio de
-    /// uma delas para a média despencar e o número mentir. Com três, a do meio
-    /// sobrevive a uma interferência.
-    /// </summary>
+    /// <summary>Três amostras, mediana no fim (seção 5.9.1).</summary>
     private const int Amostras = 3;
 
     /// <summary>
-    /// 25 MB por amostra. O spec pede 10 segundos de transferência; medir por
-    /// tamanho fixo em vez de por tempo dá o mesmo resultado numa conexão
-    /// doméstica e evita o caso ruim: numa conexão de 1 Gb/s, 10 segundos
-    /// baixariam mais de 1 GB da franquia de alguém.
+    /// Duração de cada amostra.
+    ///
+    /// **Medir por tempo, não por tamanho.** A primeira versão transferia 25 MB
+    /// e cronometrava, o que parecia equivalente e era mais previsível para a
+    /// franquia de quem tem limite. Não é equivalente: numa fibra doméstica a
+    /// operadora deixa passar bem acima do contratado por um ou dois segundos,
+    /// e uma transferência que termina em 0,6 s mede **só essa rajada**.
+    ///
+    /// Na máquina de teste isso deu 380 Mbps de upload numa linha que entrega
+    /// 73. Não era ruído: com 8, 25 e 50 MB o resultado saiu 131, 354 e 275
+    /// Mbps — todos errados, e nenhum parecido com o outro.
     /// </summary>
-    private const int BytesDeDownload = 25 * 1024 * 1024;
+    private static readonly TimeSpan DuracaoDaAmostra = TimeSpan.FromSeconds(8);
 
-    private const int BytesDeUpload = 8 * 1024 * 1024;
+    /// <summary>
+    /// O começo da transferência é descartado.
+    ///
+    /// É onde moram a rajada da operadora e o slow start do TCP, que ainda está
+    /// descobrindo quanto a linha aguenta. O que interessa é a taxa sustentada,
+    /// e ela só aparece depois.
+    /// </summary>
+    private static readonly TimeSpan Aquecimento = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Teto por amostra, para não comer a franquia de quem tem limite. Numa
+    /// conexão de 500 Mbps, 8 segundos passariam de 500 MB.
+    /// </summary>
+    private const long TetoDeBytes = 120L * 1024 * 1024;
+
+    /// <summary>Pedaço pedido ao servidor a cada rodada do laço de download.</summary>
+    private const int BlocoDeDownload = 25 * 1024 * 1024;
 
     private readonly ISettingsStore _configuracoes;
     private readonly IGameBoostLogger _log;
@@ -86,15 +102,13 @@ public sealed class SpeedTest
 
         try
         {
-            using var http = new HttpClient
-            {
-                Timeout = TimeSpan.FromSeconds(60)
-            };
-
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("GameBoost/2.0");
 
             var downloads = new List<double>(Amostras);
+            var uploads = new List<double>(Amostras);
             long bytesBaixados = 0;
+            long bytesEnviados = 0;
 
             for (var i = 1; i <= Amostras; i++)
             {
@@ -108,9 +122,6 @@ public sealed class SpeedTest
                 }
             }
 
-            var uploads = new List<double>(Amostras);
-            long bytesEnviados = 0;
-
             for (var i = 1; i <= Amostras; i++)
             {
                 progresso?.Report($"Medindo upload ({i} de {Amostras})");
@@ -123,13 +134,14 @@ public sealed class SpeedTest
                 }
             }
 
+            relogio.Stop();
+
             var download = Mediana(downloads);
             var upload = Mediana(uploads);
 
-            relogio.Stop();
-
             _log.Info("network", "Velocidade", null,
-                $"download {download:0.0} Mbps, upload {upload:0.0} Mbps");
+                $"download {download:0.0} Mbps, upload {upload:0.0} Mbps, "
+              + $"{bytesBaixados / 1024 / 1024} MB baixados, {bytesEnviados / 1024 / 1024} MB enviados");
 
             return new ResultadoDeVelocidade(
                 Math.Round(download, 1), Math.Round(upload, 1),
@@ -149,49 +161,139 @@ public sealed class SpeedTest
         }
     }
 
+    /// <summary>
+    /// Baixa por <see cref="DuracaoDaAmostra"/> e conta só o que passou depois
+    /// do aquecimento.
+    /// </summary>
     private static async Task<(double Mbps, long Bytes)> MedirDownloadAsync(HttpClient http, CancellationToken ct)
     {
-        using var resposta = await http.GetAsync(
-            UrlDownload + BytesDeDownload, HttpCompletionOption.ResponseHeadersRead, ct);
-
-        resposta.EnsureSuccessStatusCode();
-
-        await using var fluxo = await resposta.Content.ReadAsStreamAsync(ct);
-
         var buffer = new byte[81920];
-        long total = 0;
+        long totalTransferido = 0;
+        long contados = 0;
 
-        // O cronômetro começa depois dos cabeçalhos: incluir o tempo de
-        // handshake TLS na conta faria a velocidade parecer menor do que é.
         var relogio = Stopwatch.StartNew();
+        TimeSpan? inicioDaContagem = null;
 
-        int lidos;
-        while ((lidos = await fluxo.ReadAsync(buffer, ct)) > 0)
-            total += lidos;
+        while (relogio.Elapsed < DuracaoDaAmostra && totalTransferido < TetoDeBytes)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            using var resposta = await http.GetAsync(
+                UrlDownload + BlocoDeDownload, HttpCompletionOption.ResponseHeadersRead, ct);
+
+            resposta.EnsureSuccessStatusCode();
+
+            await using var fluxo = await resposta.Content.ReadAsStreamAsync(ct);
+
+            int lidos;
+            while ((lidos = await fluxo.ReadAsync(buffer, ct)) > 0)
+            {
+                totalTransferido += lidos;
+
+                if (relogio.Elapsed >= Aquecimento)
+                {
+                    inicioDaContagem ??= relogio.Elapsed;
+                    contados += lidos;
+                }
+
+                if (relogio.Elapsed >= DuracaoDaAmostra || totalTransferido >= TetoDeBytes)
+                    break;
+            }
+        }
 
         relogio.Stop();
 
-        return (Mbps(total, relogio.Elapsed), total);
+        if (inicioDaContagem is null || contados == 0)
+            return (0, totalTransferido);
+
+        var janela = relogio.Elapsed - inicioDaContagem.Value;
+
+        return janela.TotalSeconds <= 0
+            ? (0, totalTransferido)
+            : (contados * 8.0 / janela.TotalSeconds / 1_000_000, totalTransferido);
     }
 
+    /// <summary>
+    /// Envia por <see cref="DuracaoDaAmostra"/>, contando só depois do
+    /// aquecimento.
+    ///
+    /// O corpo é escrito por um fluxo, não por um array pronto: assim dá para
+    /// cronometrar **enquanto** os bytes saem. Com `ByteArrayContent` só dava
+    /// para medir o POST inteiro, e era isso que fazia o resultado depender do
+    /// tamanho escolhido.
+    /// </summary>
     private static async Task<(double Mbps, long Bytes)> MedirUploadAsync(HttpClient http, CancellationToken ct)
     {
-        var dados = new byte[BytesDeUpload];
-        Random.Shared.NextBytes(dados);
+        var bloco = new byte[81920];
+        Random.Shared.NextBytes(bloco);
 
-        using var conteudo = new ByteArrayContent(dados);
+        long totalEnviado = 0;
+        long contados = 0;
         var relogio = Stopwatch.StartNew();
+        TimeSpan? inicioDaContagem = null;
+
+        using var conteudo = new ConteudoDeFluxo(async destino =>
+        {
+            while (relogio.Elapsed < DuracaoDaAmostra && totalEnviado < TetoDeBytes)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                await destino.WriteAsync(bloco, ct);
+                await destino.FlushAsync(ct);
+
+                totalEnviado += bloco.Length;
+
+                if (relogio.Elapsed >= Aquecimento)
+                {
+                    inicioDaContagem ??= relogio.Elapsed;
+                    contados += bloco.Length;
+                }
+            }
+        });
 
         using var resposta = await http.PostAsync(UrlUpload, conteudo, ct);
         relogio.Stop();
 
-        if (!resposta.IsSuccessStatusCode)
-            return (0, 0);
+        if (!resposta.IsSuccessStatusCode || inicioDaContagem is null || contados == 0)
+            return (0, totalEnviado);
 
-        return (Mbps(dados.Length, relogio.Elapsed), dados.Length);
+        var janela = relogio.Elapsed - inicioDaContagem.Value;
+
+        return janela.TotalSeconds <= 0
+            ? (0, totalEnviado)
+            : (contados * 8.0 / janela.TotalSeconds / 1_000_000, totalEnviado);
     }
 
-    private static double Mediana(List<double> valores)
+    /// <summary>
+    /// Conteúdo HTTP que escreve direto no fluxo de saída, sem montar o corpo
+    /// inteiro na memória antes. É o que permite cronometrar o envio enquanto
+    /// ele acontece.
+    /// </summary>
+    private sealed class ConteudoDeFluxo : HttpContent
+    {
+        private readonly Func<Stream, Task> _escrever;
+
+        public ConteudoDeFluxo(Func<Stream, Task> escrever)
+        {
+            _escrever = escrever;
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+            => _escrever(stream);
+
+        /// <summary>
+        /// Comprimento desconhecido de propósito: o envio termina por tempo, não
+        /// por tamanho. Sem Content-Length o .NET usa transferência em pedaços,
+        /// que é exatamente o que se quer.
+        /// </summary>
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+    }
+
+    internal static double Mediana(List<double> valores)
     {
         if (valores.Count == 0)
             return 0;
@@ -203,7 +305,4 @@ public sealed class SpeedTest
             ? ordenados[meio]
             : (ordenados[meio - 1] + ordenados[meio]) / 2;
     }
-
-    private static double Mbps(long bytes, TimeSpan tempo)
-        => tempo.TotalSeconds <= 0 ? 0 : bytes * 8 / tempo.TotalSeconds / 1_000_000;
 }

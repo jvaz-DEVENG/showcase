@@ -50,7 +50,7 @@ public sealed partial class AppsPageViewModel : ModulePageViewModel
     public override string Nome => "Apps";
     public override string Titulo => "Aplicativos instalados";
     public override string Subtitulo => "Desinstala em lote, inclusive apps da Store, e mostra o que ficou para trás.";
-    public override string Icone => "";
+    public override string Icone => "\uE71D";
 
     // ==================================================================
     // Aba: Atualizações
@@ -193,7 +193,7 @@ public sealed partial class AppsPageViewModel : ModulePageViewModel
         }
 
         texto += "Cada app é atualizado por vez, pelo instalador do próprio fabricante. "
-               + "**Não há como voltar a versão pelo winget**: se a versão nova der problema, "
+               + "Não há como voltar a versão pelo winget: se a versão nova der problema, "
                + "a reinstalação da antiga é pelo site do fabricante.\n\n"
                + "Feche os aplicativos que estiverem abertos antes de continuar.\n\nContinuar?";
 

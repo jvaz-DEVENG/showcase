@@ -4,6 +4,37 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - 2026-09-14
 
+### QA manual, segunda rodada - medicao de velocidade e quatro correcoes (2026-09-14)
+
+Achados nos blocos de tweaks e de rede do docs/QA.md.
+
+#### Corrigido
+- **O teste de velocidade media a rajada, nao a linha.** Ele transferia 25 MB e
+  cronometrava. Numa fibra domestica a operadora deixa passar bem acima do contratado por
+  um ou dois segundos, e uma transferencia que termina em 0,6 s mede so isso. Com 8, 25 e
+  50 MB o upload saiu 131, 354 e 275 Mbps — tres numeros que nao se parecem, na mesma
+  linha e no mesmo minuto. Agora mede por **tempo** (8 s por amostra), descartando os 2
+  primeiros segundos, onde moram a rajada e o slow start do TCP. O erro caiu de +44% para
+  -15% contra um teste dedicado, e 15% abaixo e o resultado certo para um teste de um
+  servidor so e uma conexao so.
+- **A lista nao atualizava depois de agir.** O badge de um servico continuava dizendo
+  "automatico" depois de ele ja ter virado "manual": a tela parecia nao ter feito nada.
+  Onde a varredura e barata (Tweaks), ela refaz sozinha; onde e cara (Apps), a tela avisa
+  que a lista mostra o estado de antes.
+- **Markdown cru aparecia na tela.** Textos escritos com `**negrito**` mostravam os
+  asteriscos, porque o WPF nao renderiza markdown. A enfase passou a vir da estrutura da
+  frase.
+- **Glifos de icone se perdiam.** Os icones do menu sao caracteres da area de uso privado
+  do Unicode, e todo reescrita do arquivo por outra ferramenta os apagava. Agora estao em
+  escape `\uXXXX`, que e ASCII puro.
+
+#### Notas
+- O teste de velocidade ganhou um teto de 120 MB por amostra, para nao comer a franquia de
+  quem tem limite.
+- Um teste de velocidade dedicado tambem erra quando o servidor escolhido esta
+  congestionado: na mesma maquina e no mesmo minuto, um servidor deu 73 Mbps de upload e
+  outro deu 264. A tela agora diz que o numero sai 10% a 15% abaixo e por que.
+
 ### QA manual, primeira rodada - seis correcoes (2026-09-14)
 
 Achados rodando o app elevado na maquina real, no bloco de reversibilidade do

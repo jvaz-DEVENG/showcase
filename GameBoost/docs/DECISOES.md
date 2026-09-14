@@ -586,6 +586,66 @@ a **sequência**: abrir, agir, fechar, reabrir. Foi aí que os seis apareceram.
 
 ---
 
+## 2026-09-14 — Medir banda por tamanho fixo mede a rajada, não a linha
+
+O spec pedia "3 amostras de 10 s". Eu troquei por 25 MB de transferência
+cronometrada, achando que era equivalente e mais previsível para quem tem
+franquia. Deixei isso escrito como se fosse uma melhoria.
+
+Não é equivalente. Numa fibra doméstica a operadora deixa passar bem acima do
+contratado por um ou dois segundos. Uma transferência que termina em 0,6 segundo
+mede **só essa rajada**.
+
+O sinal de que algo estava errado foi o número não bater com um teste dedicado.
+A investigação mostrou o problema de forma direta — mesma linha, mesmo minuto:
+
+| Tamanho | Tempo | Upload medido |
+|---|---|---|
+| 8 MB | 0,51 s | 131,5 Mbps |
+| 25 MB | 0,59 s | 354,7 Mbps |
+| 50 MB | 1,53 s | 274,9 Mbps |
+
+Três respostas diferentes para a mesma pergunta. Um teste cujo resultado depende
+do tamanho escolhido não está medindo a linha.
+
+A correção é medir por **tempo** (8 s) e descartar os 2 primeiros segundos, onde
+moram a rajada e o slow start do TCP. O teto de 120 MB por amostra continua
+protegendo a franquia.
+
+### E um erro meu de leitura, no meio disso
+
+Ao comparar com o Speedtest, eu vi 380 Mbps de upload contra 73 e afirmei que 380
+era impossível e 73 era o número real. Estava errado: aquele servidor específico
+(em Cotia) é que limitava. Trocando de servidor, o mesmo Speedtest deu **264
+Mbps**, e o ping caiu de 361 ms para 4 ms.
+
+A medição corrigida dá 224 Mbps — 15% abaixo dos 264, que é o esperado para um
+teste de um servidor só e uma conexão só.
+
+A lição vale para o texto da tela, e ela foi escrita lá: **um teste dedicado
+também erra** quando o servidor escolhido está congestionado. Dizer "o Speedtest
+é a verdade" seria tão impreciso quanto o defeito original.
+
+## 2026-09-14 — A tela mostrava o estado de antes depois de agir
+
+Quem testava perguntou se estava certo o badge de um serviço dizer "automático"
+depois da reversão. Estava — mas a pergunta revelou o problema: logo **depois de
+aplicar**, com o serviço já em Manual, o badge também dizia "automático".
+
+A lista guarda o resultado da varredura e não é refeita depois de agir. Na
+prática: a pessoa aplica, olha a linha, e parece que nada aconteceu.
+
+Refazer a varredura sozinho resolve onde ela é barata. Em Tweaks são
+milissegundos, e passou a ser automático. Na lista de apps instalados leva quase
+um minuto, e revarrer sozinho travaria a tela logo depois de uma ação — ali a
+tela avisa que a lista mostra o estado de antes.
+
+A regra que fica: **ou a tela mostra o estado atual, ou diz que não está
+mostrando.** O que não pode é apresentar um estado velho como se fosse o de
+agora.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

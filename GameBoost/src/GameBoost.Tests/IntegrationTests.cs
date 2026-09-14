@@ -759,9 +759,22 @@ public sealed class IntegrationTests : IDisposable
 
         var resultado = await teste.MedirAsync(null, CancellationToken.None);
 
+        // O upload nao pode sair maior que o download numa linha domestica.
+        // Fibra residencial e assimetrica; quando o upload passa o download, o
+        // que foi medido foi a rajada da operadora, nao a linha. Foi o defeito
+        // que deu 380 Mbps de upload numa linha de 73.
+        if (resultado.Funcionou && resultado.UploadMbps > 0)
+        {
+            Assert.True(resultado.UploadMbps <= resultado.DownloadMbps * 1.2,
+                $"upload {resultado.UploadMbps} Mbps maior que download {resultado.DownloadMbps} Mbps: "
+              + "a medicao pegou rajada em vez da taxa sustentada");
+        }
+
         File.WriteAllText(Path.Combine(Path.GetTempPath(), "gb-medida-velocidade.txt"),
             $"MEDIDO: download {resultado.DownloadMbps} Mbps, upload {resultado.UploadMbps} Mbps, "
-          + $"{resultado.BytesBaixados / 1024 / 1024} MB baixados em {resultado.Duracao.TotalSeconds:0.0}s");
+          + $"{resultado.BytesBaixados / 1024 / 1024} MB baixados, "
+          + $"{resultado.BytesEnviados / 1024 / 1024} MB enviados, "
+          + $"em {resultado.Duracao.TotalSeconds:0.0}s");
     }
 
     [Fact]

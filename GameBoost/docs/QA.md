@@ -142,13 +142,13 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [x] Teste de velocidade recusa sair para a rede sem a permissão, e diz por quê
 - [x] Driver de vídeo lido com versão de marketing (medido: GTX 1660 Ti, 616.64, 0 meses)
 - [x] Adaptador virtual do Hyper-V não entra na lista de placas
-- [ ] Aplicar um tweak de HKCU elevado e conferir a chave no `regedit`
-- [ ] Aplicar um tweak de HKLM e reverter, conferindo que valor ausente volta a ausente
-- [ ] Mudar um serviço para Manual e conferir em `services.msc`
-- [ ] Reverter o serviço e conferir que o estado de execução também volta
+- [x] Aplicar um tweak de HKCU elevado e conferir a chave (mouse: 1/6/10 viraram 0/0/0)
+- [x] Reverter tweak cujo valor **não existia**: `VisualFXSetting` foi apagado, não zerado
+- [x] Mudar um serviço para Manual e conferir (WSearch: Automatic → Manual)
+- [x] Reverter o serviço e conferir que o estado de execução também volta
 - [ ] Trocar o DNS do adaptador e reverter para automático (DHCP)
 - [ ] Reativar o Teredo numa máquina onde ele está desligado e conferir `netsh interface teredo show state`
-- [ ] Teste de velocidade com a permissão ligada, comparando com um teste conhecido
+- [x] Teste de velocidade comparado com teste dedicado (medido: -15%, dentro do esperado)
 - [ ] Máquina em CGNAT: conferir que o diagnóstico acusa e não sugere abrir porta
 - [ ] Máquina com NAT duplo: conferir a contagem de saltos privados
 - [ ] Comparar a classificação de NAT com o que o app do Xbox mostra na mesma rede
@@ -226,6 +226,7 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | QA manual blocos 2 e 3 (tweaks, servicos, rede) | **4 bugs achados e corrigidos**, depois passou |
 | 14/09/2026 | QA manual bloco 1 (reversibilidade) elevado, na maquina real | **6 bugs achados e corrigidos**, depois passou |
 | 14/09/2026 | Modo portatil com o binario real: data\ ao lado do exe | Passou |
 | 14/09/2026 | Perfis, afinidade, tela cheia, bandeja e onboarding | Passou apos 2 correcoes |

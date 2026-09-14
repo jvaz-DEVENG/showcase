@@ -23,6 +23,13 @@ public sealed class TweaksPageViewModel : ModulePageViewModel
     public override string Subtitulo => "Cada ajuste com o efeito real, não com a promessa. Nada vem marcado.";
     public override string Icone => "\uE90F";
 
+    /// <summary>
+    /// Ler o estado de 24 ajustes custa milissegundos: registro e consulta de
+    /// servico. Vale revarrer sozinho para o badge de cada linha mostrar como
+    /// as coisas ficaram, e nao como estavam.
+    /// </summary>
+    protected override bool RevarrerAposAgir => true;
+
     protected override string MontarConfirmacao(IReadOnlyList<ActionItemViewModel> selecionados)
     {
         var nomes = string.Join("\n  ", selecionados.Select(i => i.Titulo));
