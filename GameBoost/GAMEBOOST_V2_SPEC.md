@@ -269,6 +269,15 @@ Cada módulo abaixo tem: objetivo, fonte de dados/API, itens gerados, regras, UI
 4. Após cada desinstalação, **varredura de restos**: pasta `InstallLocation` residual, `%APPDATA%\<Publisher|Nome>`, `%LOCALAPPDATA%\<Nome>`, `%PROGRAMDATA%\<Nome>`, chaves `HKCU\Software\<Nome>` e `HKLM\Software\<Nome>`. Só sugerir se o nome tiver match exato (nunca substring curta). Restos vão para a Lixeira / chave exportada em `.reg` antes de apagar.
 5. Ponto de restauração do sistema opcional antes de lote grande (`Checkpoint-Computer` via PowerShell ou `SystemRestore` WMI), com aviso de que o Windows limita a 1 por 24 h por padrão.
 
+**Aba "Restos de apps antigos"** (pedido de 13/09/2026, além da varredura pós-desinstalação):
+
+- Varrer `%APPDATA%`, `%LOCALAPPDATA%` e `%PROGRAMDATA%` e listar pastas cujo nome **não corresponde a nenhum app instalado**.
+- Match **exato**, ignorando maiúsculas. Nunca substring curta.
+- Ignorar pastas de Microsoft, Windows, NVIDIA, AMD e Intel, e tudo que estiver na lista de proteção (seção 9).
+- Mostrar tamanho da pasta e data da última modificação.
+- **Nunca pré-marcado.** Remoção vai para a Lixeira (`FOF_ALLOWUNDO`).
+- A lista de pastas ignoradas é documentada em `docs/PROTECAO.md`.
+
 **Critérios de aceite:** lista bate com "Aplicativos instalados" do Windows (±2 itens de diferença aceitável por apps ocultos); desinstalação silenciosa de um app MSI de teste funciona; restos de app removido são detectados; nenhum item protegido aparece selecionável.
 
 ### 5.4 Analisador de espaço em disco

@@ -1,0 +1,58 @@
+<UserControl x:Class="GameBoost.App.Views.PlaceholderPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Pagina de modulo que ainda nao existe: diz o que vai fazer e quando chega. -->
+    <Grid Margin="26,22,26,26">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,18">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Titulo}" FontSize="22" FontWeight="Bold" VerticalAlignment="Center" />
+                <Border Background="{StaticResource SuperficieAlta}" BorderBrush="{StaticResource Borda}"
+                        BorderThickness="1" CornerRadius="12" Padding="10,3" Margin="12,0,0,0"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="{Binding AvisoDeFase}" FontSize="11"
+                               Foreground="{StaticResource RiscoMedio}" FontWeight="SemiBold" />
+                </Border>
+            </StackPanel>
+            <TextBlock Text="{Binding Subtitulo}" Foreground="{StaticResource TextoSecundario}" Margin="0,5,0,0" />
+        </StackPanel>
+
+        <Border Grid.Row="1" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+                BorderThickness="1" CornerRadius="8" Padding="24,20" VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="O que esta pagina vai fazer" FontWeight="SemiBold" Margin="0,0,0,12" />
+
+                <ItemsControl ItemsSource="{Binding OQueVaiFazer}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Grid.Column="0" Width="5" Height="5" Margin="2,7,12,0"
+                                         Fill="{StaticResource Acento}" VerticalAlignment="Top" />
+                                <TextBlock Grid.Column="1" Text="{Binding}"
+                                           Foreground="{StaticResource TextoSecundario}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Background="{StaticResource SuperficieAlta}" CornerRadius="6" Padding="14,11" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Nada aqui ainda altera o seu sistema."
+                                   Foreground="{StaticResource TextoSecundario}" FontSize="12" />
+                        <TextBlock Text="{Binding Referencia}"
+                                   Foreground="{StaticResource TextoDesabilitado}" FontSize="11" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

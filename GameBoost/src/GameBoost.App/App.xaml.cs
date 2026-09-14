@@ -24,13 +24,15 @@ public partial class App : Application
 
         var colecao = new ServiceCollection();
         colecao.AddGameBoostCore();
-        colecao.AddSingleton<MainViewModel>();
+        colecao.AddSingleton<InicioPageViewModel>();
+        colecao.AddSingleton<ConfiguracoesPageViewModel>();
+        colecao.AddSingleton<ShellViewModel>();
         _services = colecao.BuildServiceProvider();
 
         _services.GetRequiredService<IGameBoostLogger>().Info("App", "Startup", null,
             $"v{typeof(App).Assembly.GetName().Version} admin={CoreServices.RodandoComoAdministrador()}");
 
-        var janela = new MainWindow { DataContext = _services.GetRequiredService<MainViewModel>() };
+        var janela = new ShellWindow { DataContext = _services.GetRequiredService<ShellViewModel>() };
         MainWindow = janela;
         janela.Show();
     }
