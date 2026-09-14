@@ -56,6 +56,21 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [x] Custo da coleta abaixo de 1,5% de CPU em máquina fraca (medido: 0,115% com 20 núcleos)
 - [ ] Numa máquina bem cuidada, a nota fica acima de 90 e quase não há achados
 
+## Fase 2 — limpeza e ferramentas
+
+- [x] Varredura de limpeza mede o disco real (medido: 22,3 GB encontrados, 4,8 GB no preset seguro)
+- [x] Shader cache e prefetch aparecem desmarcados, com a advertência visível
+- [x] `Downloads` aparece bloqueado, com "o GameBoost nunca remove arquivo daqui"
+- [x] Cache de navegador aberto aparece bloqueado, pedindo para fechar
+- [x] `--clean --preset seguro --dry-run` não remove nada
+- [x] Teste de velocidade de disco apaga o arquivo de 1 GB, inclusive se falhar
+- [x] Informações do sistema leem dados reais da máquina
+- [ ] Limpeza real: rodar duas vezes seguidas, segunda libera ~0
+- [ ] Reiniciar o Explorer devolve a barra de tarefas
+- [ ] Reiniciar o driver de vídeo não derruba jogo aberto
+- [ ] Ponto de restauração aparece na Restauração do Sistema do Windows
+- [ ] `sfc /scannow` mostra a saída ao vivo e não parece travado
+
 ## Ambiente
 
 - [x] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso

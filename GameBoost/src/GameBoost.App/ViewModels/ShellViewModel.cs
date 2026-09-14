@@ -18,6 +18,7 @@ public sealed partial class ShellViewModel : ObservableObject
         InicioPageViewModel inicio,
         DiagnosticoPageViewModel diagnostico,
         LimpezaPageViewModel limpeza,
+        FerramentasPageViewModel ferramentas,
         ConfiguracoesPageViewModel configuracoes)
     {
         Paginas = new ObservableCollection<PageViewModelBase>
@@ -101,17 +102,7 @@ public sealed partial class ShellViewModel : ObservableObject
                     "Wi-Fi: banda, sinal e canal, com a recomendacao honesta de usar cabo"
                 }),
 
-            new PlaceholderPageViewModel(
-                "Ferramentas", "Ferramentas rapidas",
-                "Atalhos para o que costuma exigir prompt de comando ou caca no Painel de Controle.",
-                "\uE912", fase: 2, secaoDoSpec: "5.13",
-                new[]
-                {
-                    "Reiniciar o Explorer e o driver de video, limpar cache DNS, esvaziar a Lixeira",
-                    "Criar ponto de restauracao e verificar integridade do sistema",
-                    "Teste de velocidade do disco",
-                    "Informacoes do sistema com botao de copiar, para mandar a quem da suporte"
-                }),
+            ferramentas,
 
             configuracoes
         };

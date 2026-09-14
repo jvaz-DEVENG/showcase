@@ -5,9 +5,9 @@
 Central de otimização e manutenção para PC gamer no Windows 10 e 11. Sem anúncio, sem conta,
 sem telemetria, sem assinatura. PT-BR nativo.
 
-> **Estado:** v2.0.0 em desenvolvimento — Fases 0 e 1 concluídas.
-> Modo Game, diagnóstico de gargalos e relatório de saúde funcionais; os demais módulos
-> chegam nas fases seguintes.
+> **Estado:** v2.0.0 em desenvolvimento — Fases 0, 1 e 2 concluídas.
+> Modo Game, diagnóstico de gargalos, relatório de saúde, limpeza e ferramentas rápidas
+> funcionais; os demais módulos chegam nas fases seguintes.
 
 ---
 
@@ -36,11 +36,18 @@ em português claro: *"Chrome está usando 38% da CPU"*, *"seu monitor de 165 Hz
 Configuração para jogos) com os cinco principais achados, exportável como página HTML única
 para mandar a quem dá suporte.
 
+**Limpeza.** Vinte alvos, do `%TEMP%` ao shader cache, cada um mostrando quanto ocupa e
+qual o efeito colateral antes de você marcar. Arquivos seus vão para a Lixeira; navegador
+aberto bloqueia o próprio cache; `Downloads` só é listado, nunca tocado.
+
+**Ferramentas rápidas.** Reiniciar o Explorer ou o driver de vídeo, limpar o cache de DNS,
+criar ponto de restauração, rodar `sfc` e `DISM` com a saída ao vivo, medir a velocidade do
+disco e copiar as informações do sistema para mandar a quem dá suporte.
+
 ## O que vem depois
 
 | Fase | Módulo |
 |---|---|
-| 2 | Limpeza de temporários e caches, ferramentas rápidas |
 | 3 | Analisador de espaço em disco, biblioteca de jogos |
 | 4 | Desinstalador (Win32 + Store + restos), gerenciador de inicialização |
 | 5 | Tweaks de jogos, serviços, rede, drivers |

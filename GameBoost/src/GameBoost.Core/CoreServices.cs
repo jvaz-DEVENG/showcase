@@ -4,6 +4,7 @@ using GameBoost.Core.Logging;
 using GameBoost.Core.Modules;
 using GameBoost.Core.Modules.Bottleneck;
 using GameBoost.Core.Modules.Cleaner;
+using GameBoost.Core.Modules.Tools;
 using GameBoost.Core.Modules.GameMode;
 using GameBoost.Core.Modules.HealthReport;
 using GameBoost.Core.Safety;
@@ -74,6 +75,7 @@ public static class CoreServices
         // Fase 2: limpeza.
         services.AddSingleton<CleanupHistory>();
         services.AddSingleton<CleanerModule>();
+        services.AddSingleton<QuickToolsService>();
 
         services.AddSingleton<SystemSilencer>();
         services.AddSingleton<GameDetector>();

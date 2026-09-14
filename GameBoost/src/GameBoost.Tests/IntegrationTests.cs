@@ -225,6 +225,52 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Informacoes_do_sistema_leem_a_maquina_real_sem_alterar_nada()
+    {
+        var servico = _provider.GetRequiredService<Core.Modules.Tools.QuickToolsService>();
+
+        var resultado = await servico.ExecutarAsync(
+            Core.Modules.Tools.QuickToolsCatalog.InfoDoSistema, null, CancellationToken.None);
+
+        Assert.True(resultado.Sucesso);
+        Assert.NotNull(resultado.Detalhe);
+
+        // Precisa conter dados de verdade, nao "desconhecido" em tudo.
+        foreach (var secao in new[] { "=== Sistema ===", "=== Processador ===", "=== Memoria ===",
+                                      "=== Video ===", "=== Discos ===" })
+        {
+            Assert.Contains(secao.Replace("Memoria", "Memória").Replace("Video", "Vídeo"),
+                resultado.Detalhe!);
+        }
+
+        Assert.Contains("Windows", resultado.Detalhe!);
+        Assert.DoesNotContain("Núcleos lógicos   : 0", resultado.Detalhe!);
+    }
+
+    [Fact]
+    public async Task Teste_de_disco_mede_e_apaga_o_arquivo_temporario()
+    {
+        var servico = _provider.GetRequiredService<Core.Modules.Tools.QuickToolsService>();
+
+        var antes = Directory.GetFiles(Path.GetTempPath(), "gameboost-disco-*.tmp").Length;
+
+        var linhas = new List<string>();
+        var resultado = await servico.ExecutarAsync(
+            Core.Modules.Tools.QuickToolsCatalog.TesteDeDisco,
+            new Progress<string>(linhas.Add),
+            CancellationToken.None);
+
+        var depois = Directory.GetFiles(Path.GetTempPath(), "gameboost-disco-*.tmp").Length;
+
+        Assert.True(resultado.Sucesso, resultado.Mensagem);
+        Assert.Contains("MB/s", resultado.Mensagem);
+        Assert.NotNull(resultado.Detalhe);
+
+        // O arquivo de 1 GB nao pode ficar para tras.
+        Assert.Equal(antes, depois);
+    }
+
+    [Fact]
     public async Task Ajuda_lista_todos_os_comandos_da_secao_8()
     {
         var saida = new StringWriter();

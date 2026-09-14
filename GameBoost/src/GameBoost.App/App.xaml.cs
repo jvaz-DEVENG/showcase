@@ -33,6 +33,7 @@ public partial class App : Application
         colecao.AddSingleton<InicioPageViewModel>();
         colecao.AddSingleton<DiagnosticoPageViewModel>();
         colecao.AddSingleton<LimpezaPageViewModel>();
+        colecao.AddSingleton<FerramentasPageViewModel>();
         colecao.AddSingleton<ConfiguracoesPageViewModel>();
         colecao.AddSingleton<ShellViewModel>();
         _services = colecao.BuildServiceProvider();

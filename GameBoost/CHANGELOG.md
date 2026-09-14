@@ -4,6 +4,28 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - em desenvolvimento
 
+### Fase 2 - Limpeza e ferramentas rapidas (2026-09-13)
+
+#### Adicionado
+- Modulo Cleaner (secao 5.2): 20 alvos de limpeza, do %TEMP% ao shader cache, com
+  pagina no shell e o comando `--clean --preset seguro|completo`.
+- Whitelist de leitura separada da de remocao: a varredura pode olhar Downloads para
+  dizer quanto ha de instalador velho, sem nunca ganhar permissao de apagar de la.
+- Remocao de conteudo do usuario sempre pela Lixeira (SHFileOperation com FOF_ALLOWUNDO).
+- Historico de limpeza em cleanup-history.json.
+- Ferramentas rapidas (secao 5.13): reiniciar Explorer e driver de video, limpar cache
+  de DNS, esvaziar Lixeira, abrir Limpeza de Disco, criar ponto de restauracao, sfc e
+  DISM com saida ao vivo, teste de velocidade de disco e informacoes do sistema.
+
+#### Notas
+- Cada alvo de limpeza diz o efeito colateral antes: shader cache avisa do engasgo,
+  prefetch avisa que raramente compensa. Ha teste exigindo advertencia em todo alvo de
+  risco medio ou alto.
+- RevertAsync do Cleaner diz que nao ha reversao automatica, em vez de fingir que desfaz.
+- `ipconfig /flushdns` virou DnsFlushResolverCache, e Checkpoint-Computer virou WMI
+  SystemRestore: regra 9, sem chamar executavel quando ha API.
+- A pagina de Limpeza nao tem XAML proprio: herda a tela inteira do ModulePageViewModel.
+
 ### Shell de navegacao (2026-09-13)
 
 - Menu lateral com as 11 entradas da secao 6, tema escuro mantido.

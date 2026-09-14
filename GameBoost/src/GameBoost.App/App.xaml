@@ -25,6 +25,10 @@
                 <views:DiagnosticoPage />
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type vm:FerramentasPageViewModel}">
+                <views:FerramentasPage />
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type vm:PlaceholderPageViewModel}">
                 <views:PlaceholderPage />
             </DataTemplate>
