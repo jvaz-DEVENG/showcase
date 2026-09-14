@@ -43,6 +43,19 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] OBS gravando aparece desmarcado
 - [ ] Nenhum processo do antivírus aparece selecionável
 
+## Fase 1 — diagnóstico e relatório
+
+- [ ] Página Diagnóstico: os cinco medidores se movem e o gráfico de 60 s preenche
+- [ ] GPU aparece com valor numa máquina com placa dedicada (aqui os contadores respondem)
+- [ ] Temperatura aparece como "indisponível", nunca como 0 °C
+- [ ] Sair da página Diagnóstico para a coleta (conferir no log a linha de custo)
+- [ ] Achados não piscam: um que apareceu continua na tela por pelo menos 30 s
+- [ ] Botão de ação de cada achado leva ao lugar certo (Segurança do Windows, vídeo, energia)
+- [ ] `--report saida.html` gera arquivo que abre em qualquer navegador, sem link externo
+- [ ] `--report saida.json` gera JSON válido
+- [ ] Custo da coleta abaixo de 1,5% de CPU em máquina fraca (medido: 0,115% com 20 núcleos)
+- [ ] Numa máquina bem cuidada, a nota fica acima de 90 e quase não há achados
+
 ## Ambiente
 
 - [ ] **Usuário sem admin**: varreduras funcionam, botões de ação desabilitados com aviso

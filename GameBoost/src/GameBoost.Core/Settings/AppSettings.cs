@@ -48,6 +48,12 @@ public sealed class AppSettings
     public double LimiteCpuPercent { get; set; } = 2.0;
     public long LimiteRamMegabytes { get; set; } = 300;
 
+    /// <summary>
+    /// Build do Windows na ultima execucao. E o que permite detectar que uma
+    /// atualizacao grande desfez os ajustes do usuario (secao 3.4).
+    /// </summary>
+    public string? UltimaBuildDoWindows { get; set; }
+
     public bool IniciarComWindows { get; set; }
     public bool IniciarMinimizado { get; set; }
     public bool VerificarAtualizacoes { get; set; } = true;

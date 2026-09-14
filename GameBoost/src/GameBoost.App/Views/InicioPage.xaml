@@ -32,27 +32,82 @@
             </Grid>
         </Border>
 
-        <!-- Pontuacao de saude e findings: a Fase 1 preenche este espaco -->
+        <!-- Pontuacao de saude e principais achados (secoes 5.12 e 5.5) -->
         <Border Grid.Row="2" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
                 BorderThickness="1" CornerRadius="8" Padding="16,14" Margin="0,0,0,14">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Width="58" Height="58" CornerRadius="29"
+                <!-- Nota -->
+                <Border Grid.Column="0" Width="62" Height="62" CornerRadius="31"
                         Background="{StaticResource SuperficieAlta}"
-                        BorderBrush="{StaticResource Borda}" BorderThickness="1">
-                    <TextBlock Text="--" FontSize="19" FontWeight="Bold"
-                               Foreground="{StaticResource TextoDesabilitado}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        BorderBrush="{StaticResource Borda}" BorderThickness="2">
+                    <Grid>
+                        <TextBlock Text="--" FontSize="19" FontWeight="Bold"
+                                   Foreground="{StaticResource TextoDesabilitado}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding PontuacaoDisponivel, Converter={StaticResource BoolParaVisibilidade}, ConverterParameter=inverter}" />
+                        <TextBlock Text="{Binding NotaGeral}" FontSize="22" FontWeight="Bold"
+                                   Foreground="{StaticResource Acento}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding PontuacaoDisponivel, Converter={StaticResource BoolParaVisibilidade}}" />
+                    </Grid>
                 </Border>
 
-                <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="Saude do sistema" FontWeight="SemiBold" />
+                <StackPanel Grid.Column="1" Margin="16,0,12,0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Saude do sistema" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Conceito}" Margin="8,0,0,0"
+                                   Foreground="{StaticResource Acento}"
+                                   Visibility="{Binding PontuacaoDisponivel, Converter={StaticResource BoolParaVisibilidade}}" />
+                    </StackPanel>
+
+                    <!-- Antes da analise -->
                     <TextBlock Text="{Binding PontuacaoPlaceholder}"
-                               Foreground="{StaticResource TextoSecundario}" FontSize="12" Margin="0,3,0,0" />
+                               Foreground="{StaticResource TextoSecundario}" FontSize="12" Margin="0,3,0,0"
+                               Visibility="{Binding PontuacaoDisponivel, Converter={StaticResource BoolParaVisibilidade}, ConverterParameter=inverter}" />
+
+                    <!-- Notas por area -->
+                    <ItemsControl ItemsSource="{Binding Areas}" Margin="0,7,0,0"
+                                  Visibility="{Binding PontuacaoDisponivel, Converter={StaticResource BoolParaVisibilidade}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,14,0">
+                                    <TextBlock Text="{Binding Nome}" FontSize="11"
+                                               Foreground="{StaticResource TextoSecundario}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <Grid Margin="0,3,0,0">
+                                        <Border Background="{StaticResource SuperficieAlta}" CornerRadius="3" Height="6" />
+                                        <Border Background="{StaticResource Acento}" CornerRadius="3" Height="6"
+                                                HorizontalAlignment="Left"
+                                                Width="{Binding Nota}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding Nota}" FontSize="11" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="{Binding ProgressoDaAnalise}" FontSize="11" Margin="0,6,0,0"
+                               Foreground="{StaticResource TextoDesabilitado}"
+                               Visibility="{Binding ProgressoDaAnalise, Converter={StaticResource TextoParaVisibilidade}}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <Button Content="Analisar" Style="{StaticResource BotaoBase}" Padding="14,7"
+                            Command="{Binding AnalisarSaudeCommand}"
+                            IsEnabled="{Binding Analisando, Converter={StaticResource InverterBool}}" />
+                    <Button Content="Exportar relatorio" Style="{StaticResource BotaoBase}" Padding="14,7" Margin="0,6,0,0"
+                            Command="{Binding ExportarRelatorioCommand}"
+                            IsEnabled="{Binding Analisando, Converter={StaticResource InverterBool}}"
+                            ToolTip="Gera uma pagina HTML para mandar a quem da suporte." />
                 </StackPanel>
             </Grid>
         </Border>

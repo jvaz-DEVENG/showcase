@@ -3,6 +3,8 @@ using System.Text.Json;
 using GameBoost.Core;
 using GameBoost.Core.Modules;
 using GameBoost.Core.Modules.GameMode;
+using GameBoost.Core.Modules.Bottleneck;
+using GameBoost.Core.Modules.HealthReport;
 using GameBoost.Core.State;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,7 +42,7 @@ public sealed class CommandRunner
             CliCommand.GameModeOn => await GameModeAsync(opcoes, ligar: true, ct),
             CliCommand.GameModeOff => await GameModeAsync(opcoes, ligar: false, ct),
             CliCommand.RevertAll => ReverterTudo(opcoes),
-            CliCommand.Report => NaoImplementado("--report", "Fase 1 (Relatorio de saude, secao 5.12)"),
+            CliCommand.Report => await ReportAsync(opcoes, ct),
             CliCommand.Clean => NaoImplementado("--clean", "Fase 2 (Limpeza, secao 5.2)"),
             _ => Ajuda()
         };
@@ -56,6 +58,82 @@ public sealed class CommandRunner
     {
         _saida.WriteLine($"{comando} ainda nao esta disponivel. Chega na {fase}.");
         return 3;
+    }
+
+    private async Task<int> ReportAsync(CommandLineOptions opcoes, CancellationToken ct)
+    {
+        var modulo = _services.GetRequiredService<HealthReportModule>();
+
+        _saida.WriteLine("Medindo a maquina por alguns segundos...");
+
+        var progresso = new Progress<ModuleProgress>(p => _saida.WriteLine($"  {p.Percentual,3}%  {p.Etapa}"));
+        var relatorio = await modulo.GerarAsync(progresso, ct);
+
+        var destino = opcoes.ArquivoDeSaida;
+
+        if (destino is null)
+        {
+            _saida.WriteLine();
+            _saida.WriteLine(opcoes.Json ? HtmlReportWriter.GerarJson(relatorio) : FormatarRelatorio(relatorio));
+            return 0;
+        }
+
+        // A extensao decide o formato, e --json continua valendo por cima dela.
+        var json = opcoes.Json || destino.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
+        var conteudo = json ? HtmlReportWriter.GerarJson(relatorio) : HtmlReportWriter.GerarHtml(relatorio);
+
+        File.WriteAllText(destino, conteudo, new UTF8Encoding(false));
+
+        _saida.WriteLine();
+        _saida.WriteLine($"Nota geral: {relatorio.Pontuacao.NotaGeral} ({relatorio.Pontuacao.Conceito})");
+        _saida.WriteLine($"Relatorio gravado em {Path.GetFullPath(destino)}");
+        return 0;
+    }
+
+    private static string FormatarRelatorio(HealthSnapshot relatorio)
+    {
+        var sb = new StringBuilder();
+        var p = relatorio.Pontuacao;
+
+        sb.AppendLine("GameBoost - relatorio de saude");
+        sb.AppendLine($"Gerado em {relatorio.Momento:dd/MM/yyyy HH:mm:ss}");
+        sb.AppendLine();
+        sb.AppendLine($"Nota geral: {p.NotaGeral}/100  ({p.Conceito})");
+        sb.AppendLine();
+
+        foreach (var area in p.Areas)
+            sb.AppendLine($"  {area.Nome,-26} {area.Nota,3}/100  {area.Conceito}");
+
+        sb.AppendLine();
+
+        if (p.Principais.Count == 0)
+        {
+            sb.AppendLine("Nada fora do lugar. A maquina esta bem cuidada.");
+        }
+        else
+        {
+            sb.AppendLine("Principais achados:");
+            sb.AppendLine();
+
+            foreach (var f in p.Principais)
+            {
+                var marca = f.Severidade switch
+                {
+                    FindingSeverity.Critico => "[!]",
+                    FindingSeverity.Atencao => "[*]",
+                    _ => "[ ]"
+                };
+
+                sb.AppendLine($"  {marca} {f.Titulo}");
+                sb.AppendLine($"      {f.Detalhe}");
+                if (f.TextoDaAcao is not null)
+                    sb.AppendLine($"      Sugestao: {f.TextoDaAcao}");
+                sb.AppendLine();
+            }
+        }
+
+        sb.AppendLine("Nada foi alterado. Este comando so le o sistema.");
+        return sb.ToString();
     }
 
     private async Task<int> ScanAsync(CommandLineOptions opcoes, CancellationToken ct)

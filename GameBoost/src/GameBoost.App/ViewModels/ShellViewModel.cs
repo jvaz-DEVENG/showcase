@@ -14,23 +14,16 @@ namespace GameBoost.App.ViewModels;
 /// </summary>
 public sealed partial class ShellViewModel : ObservableObject
 {
-    public ShellViewModel(InicioPageViewModel inicio, ConfiguracoesPageViewModel configuracoes)
+    public ShellViewModel(
+        InicioPageViewModel inicio,
+        DiagnosticoPageViewModel diagnostico,
+        ConfiguracoesPageViewModel configuracoes)
     {
         Paginas = new ObservableCollection<PageViewModelBase>
         {
             inicio,
 
-            new PlaceholderPageViewModel(
-                "Diagnostico", "Diagnostico de gargalos",
-                "Mostra em tempo real o que esta consumindo CPU, GPU, RAM, disco e rede, e quem e o culpado.",
-                "\uE9D9", fase: 1, secaoDoSpec: "5.5",
-                new[]
-                {
-                    "Cinco medidores ao vivo com grafico dos ultimos 60 segundos",
-                    "Top 10 processos por recurso, com temperatura e deteccao de throttling",
-                    "Diagnostico em linguagem humana: \"o Chrome esta usando 38% da CPU com 62 abas\"",
-                    "Aviso quando uma atualizacao do Windows desfez seus ajustes"
-                }),
+            diagnostico,
 
             new PlaceholderPageViewModel(
                 "Limpeza", "Limpeza de temporarios e caches",
@@ -148,10 +141,19 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void Navegar(PageViewModelBase? pagina)
     {
-        if (pagina is null || ReferenceEquals(pagina, PaginaAtual))
-            return;
+        if (pagina is not null)
+            PaginaAtual = pagina;
+    }
 
-        PaginaAtual = pagina;
-        pagina.AoEntrar();
+    /// <summary>
+    /// AoEntrar tem que ficar aqui, e nao no comando Navegar: o menu lateral
+    /// troca de pagina pelo binding de SelectedItem, que nunca passa pelo
+    /// comando. Com o gancho no comando, o Diagnostico nao comecava a coletar
+    /// e o Historico nao recarregava ao abrir a pagina.
+    /// </summary>
+    partial void OnPaginaAtualChanged(PageViewModelBase? oldValue, PageViewModelBase newValue)
+    {
+        oldValue?.AoSair();
+        newValue?.AoEntrar();
     }
 }

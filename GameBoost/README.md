@@ -5,8 +5,9 @@
 Central de otimização e manutenção para PC gamer no Windows 10 e 11. Sem anúncio, sem conta,
 sem telemetria, sem assinatura. PT-BR nativo.
 
-> **Estado:** v2.0.0 em desenvolvimento — Fase 0 (fundação) concluída.
-> O Modo Game está funcional; os demais módulos chegam nas fases seguintes.
+> **Estado:** v2.0.0 em desenvolvimento — Fases 0 e 1 concluídas.
+> Modo Game, diagnóstico de gargalos e relatório de saúde funcionais; os demais módulos
+> chegam nas fases seguintes.
 
 ---
 
@@ -26,11 +27,19 @@ Três coisas que ele não faz, por princípio:
 - **Não inventa número.** O ganho mostrado é o medido: RAM livre antes e depois, apps
   fechados, alterações aplicadas.
 
+**Diagnóstico de gargalos.** Cinco medidores ao vivo (CPU, GPU, memória, disco, rede) com
+gráfico dos últimos 60 segundos, os 10 processos que mais consomem, e uma lista de achados
+em português claro: *"Chrome está usando 38% da CPU"*, *"seu monitor de 165 Hz está em
+60 Hz"*, *"a atualização 26H2 desfez 4 ajustes seus"*. A coleta custa 0,1% de CPU.
+
+**Relatório de saúde.** Nota de 0 a 100 por área (Desempenho, Espaço, Inicialização,
+Configuração para jogos) com os cinco principais achados, exportável como página HTML única
+para mandar a quem dá suporte.
+
 ## O que vem depois
 
 | Fase | Módulo |
 |---|---|
-| 1 | Diagnóstico de gargalos ("por que está lento?") e relatório de saúde |
 | 2 | Limpeza de temporários e caches, ferramentas rápidas |
 | 3 | Analisador de espaço em disco, biblioteca de jogos |
 | 4 | Desinstalador (Win32 + Store + restos), gerenciador de inicialização |
@@ -60,7 +69,7 @@ indefinidamente.
 ```
 GameBoost.exe                          abre a interface
 GameBoost.exe --scan [arquivo]         relatório de varredura, não encerra nada
-GameBoost.exe --report saida.html      relatório de saúde completo        (Fase 1)
+GameBoost.exe --report saida.html      relatório de saúde completo (HTML ou JSON)
 GameBoost.exe --clean --preset seguro  limpeza                            (Fase 2)
 GameBoost.exe --revert-all             reverte tudo do state-backup
 GameBoost.exe --gamemode on|off        liga ou desliga o Modo Game

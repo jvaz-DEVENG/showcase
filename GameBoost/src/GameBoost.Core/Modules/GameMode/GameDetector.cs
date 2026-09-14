@@ -37,6 +37,23 @@ public sealed class GameDetector
         "palworld-win64-shipping", "marvelrivals", "deltaforceclient"
     };
 
+    /// <summary>
+    /// Deteccao barata, so por nome conhecido. Existe para o monitor de
+    /// gargalos, que roda a cada segundo e nao pode pagar a varredura completa:
+    /// aquela consulta o WMI e enumera janelas, o que custaria mais que toda a
+    /// coleta de metricas junta.
+    /// </summary>
+    public string? DetectarPorNome(IEnumerable<string> nomesDeProcesso)
+    {
+        foreach (var nome in nomesDeProcesso)
+        {
+            if (JogosConhecidos.Contains(Safety.ProtectedProcesses.Normalizar(nome)))
+                return nome;
+        }
+
+        return null;
+    }
+
     public DetectedGame? Detectar(IEnumerable<ProcessInfo> processos)
     {
         DetectedGame? melhor = null;

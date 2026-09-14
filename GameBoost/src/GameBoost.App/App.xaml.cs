@@ -25,6 +25,7 @@ public partial class App : Application
         var colecao = new ServiceCollection();
         colecao.AddGameBoostCore();
         colecao.AddSingleton<InicioPageViewModel>();
+        colecao.AddSingleton<DiagnosticoPageViewModel>();
         colecao.AddSingleton<ConfiguracoesPageViewModel>();
         colecao.AddSingleton<ShellViewModel>();
         _services = colecao.BuildServiceProvider();

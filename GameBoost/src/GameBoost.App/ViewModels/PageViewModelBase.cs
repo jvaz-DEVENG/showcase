@@ -27,4 +27,13 @@ public abstract partial class PageViewModelBase : ObservableObject
     public virtual void AoEntrar()
     {
     }
+
+    /// <summary>
+    /// Chamado ao sair da pagina. Existe para quem liga trabalho continuo
+    /// poder desligar: o monitoramento do Diagnostico nao deve seguir rodando
+    /// enquanto o usuario le a tela de Limpeza.
+    /// </summary>
+    public virtual void AoSair()
+    {
+    }
 }

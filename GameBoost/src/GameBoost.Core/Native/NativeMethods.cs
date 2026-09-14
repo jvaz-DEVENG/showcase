@@ -198,6 +198,30 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX buffer);
 
+    // ---------------- Tempo de CPU da thread atual ----------------
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetCurrentThread();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetThreadTimes(
+        IntPtr thread, out long creation, out long exit, out long kernel, out long user);
+
+    /// <summary>
+    /// Tempo de CPU realmente gasto pela thread atual. Stopwatch mede tempo de
+    /// parede: um ciclo que passa 300 ms esperando WMI parece caro sem ter
+    /// custado CPU nenhuma. Medir errado o proprio custo seria justamente o
+    /// tipo de numero inventado que a regra 4 proibe.
+    /// </summary>
+    internal static TimeSpan TempoDeCpuDaThreadAtual()
+    {
+        if (!GetThreadTimes(GetCurrentThread(), out _, out _, out var kernel, out var user))
+            return TimeSpan.Zero;
+
+        return TimeSpan.FromTicks(kernel + user);
+    }
+
     // ---------------- Privilegio: helper ----------------
 
     /// <summary>

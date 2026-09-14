@@ -25,6 +25,10 @@
                 <views:InicioPage />
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type vm:DiagnosticoPageViewModel}">
+                <views:DiagnosticoPage />
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type vm:PlaceholderPageViewModel}">
                 <views:PlaceholderPage />
             </DataTemplate>

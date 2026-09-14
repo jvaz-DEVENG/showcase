@@ -136,6 +136,68 @@ public sealed class IntegrationTests : IDisposable
     }
 
     [Fact]
+    public void Coleta_nativa_de_processos_bate_com_a_api_gerenciada()
+    {
+        // Guarda dos deslocamentos de SYSTEM_PROCESS_INFORMATION: se algum
+        // estiver errado, sai lixo silencioso em vez de erro.
+        var coletor = _provider.GetRequiredService<Core.Modules.Bottleneck.IMetricsCollector>();
+
+        coletor.Coletar();
+        Thread.Sleep(600);
+        var snapshot = coletor.Coletar();
+
+        var pelaApi = System.Diagnostics.Process.GetProcesses()
+            .Select(p => { var n = p.ProcessName; p.Dispose(); return n; })
+            .Select(Core.Safety.ProtectedProcesses.Normalizar)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.NotEmpty(snapshot.Processos);
+
+        // Nomes conhecidos precisam aparecer nos dois lados.
+        var nativos = snapshot.Processos.Select(p => p.Nome).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("explorer", nativos, StringComparer.OrdinalIgnoreCase);
+
+        // A grande maioria dos nomes tem que coincidir: processos nascem e
+        // morrem entre as duas leituras, entao nao da para exigir 100%.
+        var coincidem = nativos.Count(n => pelaApi.Contains(n));
+        Assert.True(coincidem >= nativos.Count * 0.85,
+            $"so {coincidem} de {nativos.Count} nomes coincidiram: deslocamentos suspeitos");
+
+        // Valores tem que ser plausiveis, nao lixo de memoria.
+        Assert.All(snapshot.Processos, p =>
+        {
+            Assert.InRange(p.CpuPercent, 0, 100);
+            Assert.InRange(p.WorkingSetBytes, 0, 512L * 1024 * 1024 * 1024);
+            Assert.False(string.IsNullOrWhiteSpace(p.Nome));
+        });
+
+        // A soma do working set nao pode passar de varias vezes a RAM da maquina.
+        var somaRam = snapshot.Processos.Sum(p => p.WorkingSetBytes);
+        Assert.True(somaRam < snapshot.RamTotalBytes * 8,
+            "soma de working set absurda: deslocamento de WorkingSetSize suspeito");
+    }
+
+    [Fact]
+    public void Snapshot_real_tem_metricas_plausiveis()
+    {
+        var coletor = _provider.GetRequiredService<Core.Modules.Bottleneck.IMetricsCollector>();
+
+        coletor.Coletar();
+        Thread.Sleep(600);
+        var s = coletor.Coletar();
+
+        Assert.InRange(s.CpuPercent, 0, 100);
+        Assert.True(s.RamTotalBytes > 0);
+        Assert.InRange(s.RamUsadaPercent, 0, 100);
+        Assert.InRange(s.DiscoSistemaUsadoPercent, 0, 100);
+        Assert.True(s.NucleosLogicos > 0);
+
+        // Indisponivel e uma resposta valida; zero disfarcado de medida nao e.
+        if (s.GpuPercent.Disponivel)
+            Assert.InRange(s.GpuPercent.Valor, 0, 100);
+    }
+
+    [Fact]
     public void Leitura_de_energia_e_memoria_funciona_na_maquina_real()
     {
         var power = _provider.GetRequiredService<Core.Abstractions.IPowerService>();

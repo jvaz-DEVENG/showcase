@@ -2,7 +2,9 @@ using System.Diagnostics;
 using GameBoost.Core.Abstractions;
 using GameBoost.Core.Logging;
 using GameBoost.Core.Modules;
+using GameBoost.Core.Modules.Bottleneck;
 using GameBoost.Core.Modules.GameMode;
+using GameBoost.Core.Modules.HealthReport;
 using GameBoost.Core.Safety;
 using GameBoost.Core.Services;
 using GameBoost.Core.Settings;
@@ -57,6 +59,16 @@ public static class CoreServices
         services.AddSingleton<IStateBackup, StateBackup>();
         services.AddSingleton<IRollbackEngine, RollbackEngine>();
         services.AddSingleton<ISessionStore, SessionStore>();
+
+        // Fase 1: diagnostico de gargalos e relatorio de saude.
+        services.AddSingleton<ITemperatureProvider, WmiTemperatureProvider>();
+        services.AddSingleton<IMetricsCollector, WindowsMetricsCollector>();
+        services.AddSingleton<SystemFactsReader>();
+        services.AddSingleton<FindingEngine>(sp => new FindingEngine(
+            sp.GetRequiredService<IGameBoostLogger>(),
+            sp.GetRequiredService<IClock>()));
+        services.AddSingleton<BottleneckMonitor>();
+        services.AddSingleton<HealthReportModule>();
 
         services.AddSingleton<SystemSilencer>();
         services.AddSingleton<GameDetector>();

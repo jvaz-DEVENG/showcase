@@ -1,9 +1,13 @@
+using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameBoost.Core.Logging;
 using GameBoost.Core.Modules;
+using GameBoost.Core.Modules.Bottleneck;
 using GameBoost.Core.Modules.GameMode;
+using GameBoost.Core.Modules.HealthReport;
 using GameBoost.Core.State;
 
 namespace GameBoost.App.ViewModels;
@@ -21,17 +25,21 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
     private readonly IStateBackup _backup;
     private readonly IRollbackEngine _rollback;
     private readonly ISessionStore _sessions;
+    private readonly HealthReportModule _saude;
     private readonly IGameBoostLogger _log;
+    private CancellationTokenSource? _ctsSaude;
 
     public InicioPageViewModel(
         GameModeModule gameMode,
         IStateBackup backup,
         IRollbackEngine rollback,
         ISessionStore sessions,
+        HealthReportModule saude,
         IGameBoostLogger log)
         : base(gameMode, backup)
     {
         _gameMode = gameMode;
+        _saude = saude;
         _backup = backup;
         _rollback = rollback;
         _sessions = sessions;
@@ -61,14 +69,110 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
     [ObservableProperty] private bool _modoGameAtivo;
     [ObservableProperty] private string? _avisoDeRestauracao;
 
-    /// <summary>
-    /// Reservado para a Fase 1: pontuacao 0 a 100 por area e os 5 principais
-    /// findings do Relatorio de Saude (secoes 5.12 e 5.5).
-    /// </summary>
-    public bool PontuacaoDisponivel => false;
+    // ------------------------------------------------------------------
+    // Pontuacao de saude e principais findings (secoes 5.12 e 5.5)
+    // ------------------------------------------------------------------
+
+    public ObservableCollection<AreaScore> Areas { get; } = new();
+    public ObservableCollection<FindingViewModel> PrincipaisFindings { get; } = new();
+
+    [ObservableProperty] private bool _pontuacaoDisponivel;
+    [ObservableProperty] private bool _analisando;
+    [ObservableProperty] private int _notaGeral;
+    [ObservableProperty] private string _conceito = string.Empty;
+    [ObservableProperty] private string _progressoDaAnalise = string.Empty;
 
     public string PontuacaoPlaceholder =>
-        "A pontuacao de saude e o diagnostico de gargalos aparecem aqui na Fase 1.";
+        "Clique em Analisar para medir a maquina e ver a nota de saude com os principais achados.";
+
+    /// <summary>Roda o relatorio de saude completo: mede por alguns segundos e pontua.</summary>
+    [RelayCommand]
+    private async Task AnalisarSaudeAsync()
+    {
+        if (Analisando)
+            return;
+
+        _ctsSaude = new CancellationTokenSource();
+        Analisando = true;
+        ProgressoDaAnalise = "Medindo a maquina...";
+
+        var progresso = new Progress<ModuleProgress>(p => ProgressoDaAnalise = p.Etapa);
+
+        try
+        {
+            var relatorio = await _saude.GerarAsync(progresso, _ctsSaude.Token);
+
+            NotaGeral = relatorio.Pontuacao.NotaGeral;
+            Conceito = relatorio.Pontuacao.Conceito;
+
+            Areas.Clear();
+            foreach (var area in relatorio.Pontuacao.Areas)
+                Areas.Add(area);
+
+            PrincipaisFindings.Clear();
+            foreach (var f in relatorio.Pontuacao.Principais)
+                PrincipaisFindings.Add(new FindingViewModel(f));
+
+            PontuacaoDisponivel = true;
+            ProgressoDaAnalise = PrincipaisFindings.Count == 0
+                ? "Nada fora do lugar."
+                : $"{PrincipaisFindings.Count} achados. Detalhes no Diagnostico.";
+        }
+        catch (OperationCanceledException)
+        {
+            ProgressoDaAnalise = "Analise cancelada.";
+        }
+        finally
+        {
+            Analisando = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CancelarAnalise() => _ctsSaude?.Cancel();
+
+    /// <summary>Exportar o relatorio para mandar a quem da suporte (secao 5.12).</summary>
+    [RelayCommand]
+    private async Task ExportarRelatorioAsync()
+    {
+        var dialogo = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = $"gameboost-saude-{DateTime.Now:yyyy-MM-dd-HHmm}.html",
+            Filter = "Pagina HTML (*.html)|*.html|Dados JSON (*.json)|*.json",
+            Title = "Salvar relatorio de saude"
+        };
+
+        if (dialogo.ShowDialog() != true)
+            return;
+
+        Analisando = true;
+        ProgressoDaAnalise = "Medindo a maquina para o relatorio...";
+
+        try
+        {
+            var relatorio = await _saude.GerarAsync(
+                new Progress<ModuleProgress>(p => ProgressoDaAnalise = p.Etapa),
+                CancellationToken.None);
+
+            var json = dialogo.FileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
+            var conteudo = json
+                ? HtmlReportWriter.GerarJson(relatorio)
+                : HtmlReportWriter.GerarHtml(relatorio);
+
+            File.WriteAllText(dialogo.FileName, conteudo, new System.Text.UTF8Encoding(false));
+
+            ProgressoDaAnalise = $"Relatorio salvo em {dialogo.FileName}";
+            _log.Info("Inicio", "ExportarRelatorio", dialogo.FileName, $"nota {relatorio.Pontuacao.NotaGeral}");
+        }
+        catch (IOException ex)
+        {
+            ProgressoDaAnalise = $"Nao foi possivel salvar: {ex.Message}";
+        }
+        finally
+        {
+            Analisando = false;
+        }
+    }
 
     protected override string MontarConfirmacao(IReadOnlyList<ActionItemViewModel> selecionados)
     {

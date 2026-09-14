@@ -18,4 +18,7 @@ public static class NativeMethodsBridge
 
     public static bool TryQueryTimerResolution(out uint minimo, out uint maximo, out uint atual)
         => NativeMethods.NtQueryTimerResolution(out minimo, out maximo, out atual) == 0;
+
+    /// <summary>Tempo de CPU da thread atual, para medir o custo da propria coleta.</summary>
+    public static TimeSpan TempoDeCpuDaThreadAtual() => NativeMethods.TempoDeCpuDaThreadAtual();
 }

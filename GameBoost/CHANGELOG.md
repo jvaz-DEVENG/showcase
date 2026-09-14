@@ -4,6 +4,41 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - em desenvolvimento
 
+### Shell de navegacao (2026-09-13)
+
+- Menu lateral com as 11 entradas da secao 6, tema escuro mantido.
+- ModulePageViewModel: padrao de pagina de modulo reutilizavel, com cabecalho e Varrer,
+  lista generica de ActionItem, rodape com "Aplicar N selecionados" e "Reverter".
+- Paginas dos modulos ainda nao implementados explicam o que farao e em qual fase chegam.
+- Configuracoes com abas Preferencias e Historico, lendo o state-backup.
+
+### Fase 1 - Diagnostico de gargalos e relatorio de saude (2026-09-13)
+
+#### Adicionado
+- Modulo Bottleneck (secao 5.5): coleta a cada 1 s com buffer de 5 minutos, medindo CPU,
+  memoria, Standby List, GPU, disco, rede e temperatura.
+- 17 regras de diagnostico como classes IFindingRule testaveis, cada uma escrevendo em
+  linguagem humana: "Chrome esta usando 38% da CPU", nao "cpu_threshold_exceeded".
+- Deteccao de reset por atualizacao do Windows: guarda a build e avisa quando um update
+  desfez os ajustes. Nenhum concorrente faz isso.
+- FindingEngine com debounce de 30 s, entao a lista nao pisca a cada segundo.
+- Pagina Diagnostico: cinco medidores ao vivo com grafico de 60 s, top 10 processos e a
+  lista de achados com botao de acao.
+- Modulo HealthReport (secao 5.12): nota 0 a 100 por area com os 5 principais achados,
+  exportavel em HTML (arquivo unico, sem link externo) e JSON.
+- Pagina Inicio mostra a nota de saude e exporta o relatorio.
+- `GameBoost.exe --report saida.html` na CLI, com versao texto e `--json`.
+
+#### Desempenho
+- Custo da coleta: **0,115% de CPU, ciclo de 36 ms**, contra o limite de 1,5% da secao 5.5.
+  A primeira versao media 5,02% com ciclo de 1039 ms. Ver docs/DECISOES.md.
+
+#### Notas
+- Nada de PerformanceCounter por nome: num Windows pt-BR os contadores do spec nao existem
+  com aquele nome. Onde ha API nativa, usa-se API nativa.
+- Temperaturas ficam "indisponivel" nesta fase: a leitura boa exige driver de sensores.
+  Nunca aparece zero no lugar.
+
 ### Fase 0 - Fundacao (2026-09-13)
 
 #### Adicionado
