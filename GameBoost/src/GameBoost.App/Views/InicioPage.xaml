@@ -7,6 +7,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -113,7 +115,82 @@
         </Border>
 
         <!-- Lista do Modo Game: o mesmo template das demais paginas -->
-        <Border Grid.Row="3" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+
+        <!--
+          Lista de restauracao (secao 5.1). O que nao esta marcado com estrela
+          nao reabre sozinho; ate agora o app anunciava "N aguardando" sem dar
+          onde clicar.
+        -->
+        <Border Grid.Row="3" Background="{StaticResource Superficie}"
+                BorderBrush="{StaticResource Borda}" BorderThickness="1" CornerRadius="8"
+                Padding="14,12" Margin="0,0,0,10"
+                Visibility="{Binding TemAppsParaReabrir, Converter={StaticResource BoolParaVisibilidade}}">
+            <StackPanel>
+                <TextBlock Text="Aguardando para reabrir" FontWeight="SemiBold" Margin="0,0,0,8" />
+
+                <ItemsControl ItemsSource="{Binding ParaReabrir}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Nome}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Detalhe}" FontSize="12"
+                                               Foreground="{StaticResource TextoSecundario}" />
+                                </StackPanel>
+
+                                <Button Grid.Column="1" Content="Reabrir" Padding="12,5"
+                                        Style="{StaticResource BotaoBase}"
+                                        Command="{Binding DataContext.ReabrirCommand,
+                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="4" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource Superficie}"
+                    BorderBrush="{StaticResource Borda}" BorderThickness="1" CornerRadius="6">
+                <Grid>
+                    <TextBox Text="{Binding Busca, UpdateSourceTrigger=PropertyChanged}"
+                             Background="Transparent" BorderThickness="0"
+                             Foreground="{StaticResource Texto}" CaretBrush="{StaticResource Texto}"
+                             Padding="12,8" VerticalContentAlignment="Center"
+                             AutomationProperties.Name="Buscar aplicativo" />
+
+                    <TextBlock Text="Buscar pelo nome..." IsHitTestVisible="False"
+                               Foreground="{StaticResource TextoSecundario}"
+                               Margin="13,0,0,0" VerticalAlignment="Center"
+                               Visibility="{Binding Busca, Converter={StaticResource TextoParaVisibilidade}, ConverterParameter=inverter}" />
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                <Button Content="Marcar todos" Style="{StaticResource BotaoBase}" Padding="10,7"
+                        Command="{Binding MarcarTodosCommand}" />
+                <Button Content="Limpar" Style="{StaticResource BotaoBase}" Padding="10,7" Margin="6,0,0,0"
+                        Command="{Binding DesmarcarTodosCommand}" />
+            </StackPanel>
+
+            <TextBlock Grid.Column="2" Text="{Binding TextoDoFiltro}" VerticalAlignment="Center"
+                       Margin="12,0,0,0" FontSize="12"
+                       Foreground="{StaticResource TextoSecundario}" />
+        </Grid>
+
+        <Border Grid.Row="5" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
                 BorderThickness="1" CornerRadius="8">
             <Grid>
                 <ListBox ItemsSource="{Binding Itens}" Background="Transparent" BorderThickness="0"
@@ -121,6 +198,11 @@
                          HorizontalContentAlignment="Stretch" Padding="6"
                          ItemContainerStyle="{StaticResource ItemDeAcao}"
                          ItemTemplate="{StaticResource TemplateDeActionItem}" />
+
+                <TextBlock Text="Nada na lista com esse texto."
+                           Foreground="{StaticResource TextoSecundario}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding ListaVaziaPorBusca, Converter={StaticResource BoolParaVisibilidade}}" />
 
                 <TextBlock Text="Clique em Varrer para ver o que esta aberto."
                            Foreground="{StaticResource TextoSecundario}"
@@ -130,7 +212,7 @@
         </Border>
 
         <!-- Rodape: aqui os botoes sao os do Modo Game, nao o "Aplicar N" generico -->
-        <Border Grid.Row="4" Margin="0,14,0,0" Padding="0,0,0,18">
+        <Border Grid.Row="6" Margin="0,14,0,0" Padding="0,0,0,18">
             <StackPanel>
                 <ProgressBar Height="3" Value="{Binding Progresso}" Maximum="100"
                              Background="{StaticResource Superficie}" Foreground="{StaticResource Acento}"
@@ -169,8 +251,19 @@
                             ToolTip="Desfaz todas as alteracoes de sistema feitas pelo GameBoost." />
                 </Grid>
 
-                <TextBlock Text="{Binding Resumo}" FontWeight="SemiBold" Margin="0,12,0,0"
-                           Visibility="{Binding Resumo, Converter={StaticResource TextoParaVisibilidade}}" />
+                <!--
+                  O Resumo e o texto da varredura e nao acompanha o que voce
+                  marca. Sozinho ele dizia "38 apps marcados" com um marcado.
+                  A contagem viva vem do TextoDaSelecao, ao lado.
+                -->
+                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                    <TextBlock Text="{Binding TextoDaSelecao}" FontWeight="SemiBold"
+                               Foreground="{StaticResource Acento}"
+                               Visibility="{Binding JaVarreu, Converter={StaticResource BoolParaVisibilidade}}" />
+                    <TextBlock Text="{Binding Resumo}" Margin="10,0,0,0"
+                               Foreground="{StaticResource TextoSecundario}"
+                               Visibility="{Binding Resumo, Converter={StaticResource TextoParaVisibilidade}}" />
+                </StackPanel>
                 <TextBlock Text="{Binding GanhoMedido}" Foreground="{StaticResource Acento}" Margin="0,2,0,0"
                            Visibility="{Binding GanhoMedido, Converter={StaticResource TextoParaVisibilidade}}" />
                 <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextoSecundario}"

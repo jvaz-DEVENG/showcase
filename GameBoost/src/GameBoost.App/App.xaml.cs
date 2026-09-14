@@ -153,9 +153,12 @@ public partial class App : Application
     {
         // Sair sem desfazer o perfil aplicado deixaria prioridade e tweaks de
         // pe depois que o app sumiu. Isso e o oposto da regra 1.
+        //
+        // O GameWatcher NAO e descartado aqui: ele e singleton IDisposable, e o
+        // proprio container o descarta logo abaixo. Chamar nos dois lugares e o
+        // que fazia a excecao aparecer em toda saida.
         try
         {
-            _services?.GetService<Core.Modules.Profiles.GameWatcher>()?.Dispose();
             _services?.GetService<Core.Modules.Profiles.ProfileRunner>()?.Desfazer();
         }
         catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
@@ -163,8 +166,18 @@ public partial class App : Application
             Registrar("Exit", ex);
         }
 
-        _bandeja?.Dispose();
-        (_services as ServiceProvider)?.Dispose();
+        try
+        {
+            _bandeja?.Dispose();
+            (_services as ServiceProvider)?.Dispose();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
+        {
+            // Falhar ao fechar nao pode virar caixa de erro: o app ja esta
+            // saindo e nao ha nada que o usuario possa fazer a respeito.
+            Registrar("Exit", ex);
+        }
+
         base.OnExit(e);
     }
 

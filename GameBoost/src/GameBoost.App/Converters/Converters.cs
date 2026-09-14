@@ -52,8 +52,20 @@ public sealed class InverterBoolConverter : IValueConverter
 /// <summary>Mostra o elemento apenas quando o texto existe e nao esta vazio.</summary>
 public sealed class TextoParaVisibilidadeConverter : IValueConverter
 {
+    /// <summary>
+    /// Com ConverterParameter="inverter", aparece quando o texto esta VAZIO.
+    /// E o que faz o texto-fantasma de uma caixa de busca sumir assim que a
+    /// pessoa comeca a digitar.
+    /// </summary>
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
+    {
+        var vazio = string.IsNullOrWhiteSpace(value as string);
+
+        if (string.Equals(parameter as string, "inverter", StringComparison.OrdinalIgnoreCase))
+            return vazio ? Visibility.Visible : Visibility.Collapsed;
+
+        return vazio ? Visibility.Collapsed : Visibility.Visible;
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();

@@ -27,6 +27,7 @@
                 <Grid Margin="0,14,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -54,7 +55,43 @@
                         </StackPanel>
                     </Grid>
 
-                    <Border Grid.Row="1" Background="{StaticResource Superficie}"
+
+                    <Grid Grid.Row="1" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Background="{StaticResource Superficie}"
+                                BorderBrush="{StaticResource Borda}" BorderThickness="1" CornerRadius="6">
+                            <Grid>
+                                <TextBox Text="{Binding Busca, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="Transparent" BorderThickness="0"
+                                         Foreground="{StaticResource Texto}" CaretBrush="{StaticResource Texto}"
+                                         Padding="12,8" VerticalContentAlignment="Center"
+                                         AutomationProperties.Name="Buscar aplicativo" />
+
+                                <TextBlock Text="Buscar pelo nome..." IsHitTestVisible="False"
+                                           Foreground="{StaticResource TextoSecundario}"
+                                           Margin="13,0,0,0" VerticalAlignment="Center"
+                                           Visibility="{Binding Busca, Converter={StaticResource TextoParaVisibilidade}, ConverterParameter=inverter}" />
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                            <Button Content="Marcar todos" Style="{StaticResource BotaoBase}" Padding="10,7"
+                                    Command="{Binding MarcarTodosCommand}" />
+                            <Button Content="Limpar" Style="{StaticResource BotaoBase}" Padding="10,7" Margin="6,0,0,0"
+                                    Command="{Binding DesmarcarTodosCommand}" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="2" Text="{Binding TextoDoFiltro}" VerticalAlignment="Center"
+                                   Margin="12,0,0,0" FontSize="12"
+                                   Foreground="{StaticResource TextoSecundario}" />
+                    </Grid>
+
+                    <Border Grid.Row="2" Background="{StaticResource Superficie}"
                             BorderBrush="{StaticResource Borda}" BorderThickness="1" CornerRadius="8">
                         <Grid>
                             <ListBox ItemsSource="{Binding Itens}" Background="Transparent" BorderThickness="0"
@@ -70,7 +107,7 @@
                         </Grid>
                     </Border>
 
-                    <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                    <StackPanel Grid.Row="3" Margin="0,12,0,0">
                         <ProgressBar Height="3" Value="{Binding Progresso}" Maximum="100"
                                      Background="{StaticResource Superficie}" Foreground="{StaticResource Acento}"
                                      BorderThickness="0" Margin="0,0,0,10"
@@ -88,10 +125,9 @@
                                     Style="{StaticResource BotaoPrimario}"
                                     Command="{Binding AplicarCommand}" IsEnabled="{Binding PodeAgir}" />
 
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
-                                <Button Content="Limpar" Style="{StaticResource BotaoBase}" Padding="10,6"
-                                        Command="{Binding DesmarcarTodosCommand}" />
-                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="{Binding TextoDaSelecao}"
+                                       VerticalAlignment="Center" Margin="14,0,0,0"
+                                       Foreground="{StaticResource Acento}" />
 
                             <CheckBox Grid.Column="3" Content="Simular (nao altera nada)" IsChecked="{Binding DryRun}"
                                       VerticalAlignment="Center"

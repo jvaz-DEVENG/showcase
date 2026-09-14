@@ -13,19 +13,19 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 - [x] `GameBoost.exe --scan relatorio.txt` gera relatório e **não encerra nada**
 - [x] `GameBoost.exe --scan` sem argumento imprime no terminal que chamou
-- [ ] Ativar o Modo Game abre a tela de confirmação com tudo pré-marcado **antes** de fechar
-      qualquer coisa
-- [ ] Um app com trabalho não salvo (Bloco de Notas com texto) mostra o próprio diálogo de
-      salvar; só é finalizado à força depois dos 3 s
+- [x] Ativar o Modo Game abre a tela de confirmação **antes** de fechar qualquer coisa,
+      e lista só o que está marcado
+- [x] Um app com trabalho não salvo (Bloco de Notas com texto) não perde nada. O Bloco de
+      Notas do Windows 11 persiste sozinho e por isso não pergunta; o texto volta intacto
 - [x] Apps marcados com ★ reabrem sozinhos ao desligar
-- [ ] Apps não marcados aparecem na lista de restauração com botão individual
+- [x] Apps não marcados aparecem na lista de restauração com botão individual
 - [x] Plano de energia volta ao anterior ao desligar
-- [ ] Windows Update volta a rodar ao desligar (`Get-Service wuauserv`)
+- [x] Windows Update volta a rodar ao desligar (`Get-Service wuauserv`)
 - [x] Game DVR e Game Bar voltam aos valores originais (conferir no `regedit`)
 
 ## Reversão e recuperação
 
-- [ ] Ativar o Modo Game, **matar o GameBoost pelo Gerenciador de Tarefas**, reabrir:
+- [x] Ativar o Modo Game, **matar o GameBoost pelo Gerenciador de Tarefas**, reabrir:
       aparece o aviso "foi fechado com o Modo Game ainda ativo" com o botão Restaurar agora
 - [ ] Ativar o Modo Game, **reiniciar o PC**, abrir: mesmo aviso
 - [ ] "Reverter tudo" funciona a qualquer momento, mesmo sem Modo Game ativo
@@ -170,8 +170,8 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [ ] Marcar "ativa sozinho" e conferir que o próximo boot do jogo não pergunta
 - [ ] Recusar o convite e conferir que ele não volta na mesma sessão
 - [ ] Matar o GameBoost com perfil aplicado e conferir o aviso na reabertura
-- [ ] Fechar a janela e conferir que o app fica na bandeja, com o aviso uma vez só
-- [ ] "Sair" da bandeja encerra o processo de verdade
+- [x] Fechar a janela e conferir que o app fica na bandeja, com o aviso uma vez só
+- [x] "Sair" da bandeja encerra o processo de verdade
 - [ ] "Limpar RAM" pela bandeja com o app minimizado
 - [ ] Onboarding marcado como concluído não volta na segunda abertura
 - [ ] Perfil com afinidade num jogo real: conferir no Gerenciador de Tarefas
@@ -226,6 +226,7 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | QA manual bloco 1 (reversibilidade) elevado, na maquina real | **6 bugs achados e corrigidos**, depois passou |
 | 14/09/2026 | Modo portatil com o binario real: data\ ao lado do exe | Passou |
 | 14/09/2026 | Perfis, afinidade, tela cheia, bandeja e onboarding | Passou apos 2 correcoes |
 | 14/09/2026 | Telas de Jogos e onboarding renderizadas | Passou |

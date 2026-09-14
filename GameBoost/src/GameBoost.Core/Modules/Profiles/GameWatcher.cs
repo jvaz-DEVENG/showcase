@@ -88,7 +88,18 @@ public sealed class GameWatcher : IDisposable
 
     public void Parar()
     {
-        _cts?.Cancel();
+        if (_cts is null && _thread is null)
+            return;
+
+        try
+        {
+            _cts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Ja foi descartado. Nao e erro: significa que alguem parou antes.
+        }
+
         _thread?.Join(TimeSpan.FromSeconds(3));
         _thread = null;
         _log.Info("profiles", "Watcher", null, "vigia de jogos parado");
@@ -178,9 +189,28 @@ public sealed class GameWatcher : IDisposable
         AoAbrir?.Invoke(new JogoAbriu(detectado, perfil, telaCheia));
     }
 
+    private bool _descartado;
+
+    /// <summary>
+    /// Idempotente de proposito.
+    ///
+    /// O container de DI descarta todo singleton IDisposable ao ser fechado, e
+    /// o App tambem chamava Dispose aqui por conta propria. Na segunda chamada,
+    /// o `Cancel()` caia num CancellationTokenSource ja descartado e a excecao
+    /// subia ate a caixa de erro — em TODA saida do aplicativo.
+    ///
+    /// Quem escreve Dispose nao controla quantas vezes ele e chamado. A regra e
+    /// aguentar a segunda chamada em silencio.
+    /// </summary>
     public void Dispose()
     {
+        if (_descartado)
+            return;
+
+        _descartado = true;
+
         Parar();
         _cts?.Dispose();
+        _cts = null;
     }
 }

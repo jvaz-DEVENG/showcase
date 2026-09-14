@@ -4,6 +4,33 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - 2026-09-14
 
+### QA manual, primeira rodada - seis correcoes (2026-09-14)
+
+Achados rodando o app elevado na maquina real, no bloco de reversibilidade do
+docs/QA.md. Dois deles apareciam em toda sessao.
+
+#### Corrigido
+- **Sessao nunca era encerrada.** O botao "Restaurar agora" revertia tudo e limpava a tela,
+  mas nao marcava o session.json como encerrado. O aviso "foi fechado com o Modo Game ainda
+  ativo" voltava em TODA abertura, mesmo com zero pendencias. Um aviso que aparece sempre
+  deixa de ser aviso.
+- **Excecao em toda saida.** `GameWatcher.Dispose()` era chamado pelo App e de novo pelo
+  container de DI, que descarta todo singleton IDisposable. Na segunda chamada o `Cancel()`
+  caia num CancellationTokenSource ja descartado, e a excecao escapava para a caixa de erro
+  porque o `ServiceProvider.Dispose()` estava fora do try. Dispose agora e idempotente.
+- **Lista de restauracao nao existia.** O rodape anunciava "N aguardando na lista de
+  restauracao" e nao havia lista nenhuma. Agora ha o bloco "Aguardando para reabrir", com
+  botao por app e a explicacao de por que ele nao voltou sozinho.
+- **O contador contradizia a acao.** O resumo dizia "38 apps marcados" com um unico item
+  marcado, porque era o texto da varredura e nao acompanhava a selecao. Agora ha contagem
+  viva ao lado, e o resumo da varredura fica em segundo plano.
+
+#### Adicionado
+- **Busca em toda pagina de modulo.** Entrou na classe base, entao vale para Inicio, Apps,
+  Limpeza, Tweaks e todas as outras. Ignora acento e caixa: quem digita "gravacao" acha
+  "Gravação". Filtrar **nao** desmarca nada — a contagem continua sobre a lista inteira.
+- **Marcar todos e Limpar na tela Inicio**, que era a unica pagina sem eles.
+
 ### Fase 7 - Distribuicao: auto-update, CI de release, portatil e assinatura (2026-09-14)
 
 #### Adicionado

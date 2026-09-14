@@ -11,6 +11,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -49,7 +50,36 @@
         </Border>
 
         <!-- Lista generica de ActionItem, agrupada por categoria -->
-        <Border Grid.Row="2" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
+        
+        <!-- Busca: entra em toda pagina de modulo pela classe base. -->
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource Superficie}"
+                    BorderBrush="{StaticResource Borda}" BorderThickness="1" CornerRadius="6">
+                <Grid>
+                    <TextBox Text="{Binding Busca, UpdateSourceTrigger=PropertyChanged}"
+                             Background="Transparent" BorderThickness="0"
+                             Foreground="{StaticResource Texto}" CaretBrush="{StaticResource Texto}"
+                             Padding="12,8" VerticalContentAlignment="Center"
+                             AutomationProperties.Name="Buscar na lista" />
+
+                    <TextBlock Text="Buscar pelo nome..." IsHitTestVisible="False"
+                               Foreground="{StaticResource TextoSecundario}"
+                               Margin="13,0,0,0" VerticalAlignment="Center"
+                               Visibility="{Binding Busca, Converter={StaticResource TextoParaVisibilidade}, ConverterParameter=inverter}" />
+                </Grid>
+            </Border>
+
+            <TextBlock Grid.Column="1" Text="{Binding TextoDoFiltro}" VerticalAlignment="Center"
+                       Margin="12,0,0,0" FontSize="12"
+                       Foreground="{StaticResource TextoSecundario}" />
+        </Grid>
+
+        <Border Grid.Row="3" Background="{StaticResource Superficie}" BorderBrush="{StaticResource Borda}"
                 BorderThickness="1" CornerRadius="8">
             <Grid>
                 <ListBox ItemsSource="{Binding Itens}" Background="Transparent" BorderThickness="0"
@@ -59,6 +89,11 @@
                          ItemTemplate="{StaticResource TemplateDeActionItem}" />
 
                 <!-- Estado vazio: antes da primeira varredura -->
+                <TextBlock Text="Nada na lista com esse texto."
+                           Foreground="{StaticResource TextoSecundario}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding ListaVaziaPorBusca, Converter={StaticResource BoolParaVisibilidade}}" />
+
                 <TextBlock Text="Clique em Varrer para ver o que pode ser feito."
                            Foreground="{StaticResource TextoSecundario}"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -67,7 +102,7 @@
         </Border>
 
         <!-- Rodape fixo -->
-        <Border Grid.Row="3" Margin="0,14,0,0" Padding="0,0,0,18">
+        <Border Grid.Row="4" Margin="0,14,0,0" Padding="0,0,0,18">
             <StackPanel>
                 <ProgressBar Height="3" Value="{Binding Progresso}" Maximum="100"
                              Background="{StaticResource Superficie}" Foreground="{StaticResource Acento}"

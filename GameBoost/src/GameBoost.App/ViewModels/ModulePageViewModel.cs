@@ -33,7 +33,81 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
             : "Modo somente leitura: sem privilegios de administrador as varreduras funcionam, mas nada pode ser alterado.";
     }
 
+    /// <summary>
+    /// Tudo o que a varredura achou. A lista que a tela mostra e a
+    /// <see cref="Itens"/>, que e esta filtrada pela busca.
+    /// </summary>
+    private readonly List<ActionItemViewModel> _todos = new();
+
     public ObservableCollection<ActionItemViewModel> Itens { get; } = new();
+
+    /// <summary>
+    /// Texto da busca. Procura no titulo e na descricao, sem acento e sem
+    /// diferenciar maiuscula: quem procura "notepad" tem que achar "Notepad", e
+    /// quem procura "gravacao" tem que achar "Gravação".
+    /// </summary>
+    [ObservableProperty] private string _busca = string.Empty;
+
+    partial void OnBuscaChanged(string value) => AplicarBusca();
+
+    private void AplicarBusca()
+    {
+        Itens.Clear();
+
+        var termo = Normalizar(Busca);
+
+        foreach (var item in _todos)
+        {
+            if (termo.Length == 0
+                || Normalizar(item.Titulo).Contains(termo, StringComparison.Ordinal)
+                || Normalizar(item.Item.Descricao).Contains(termo, StringComparison.Ordinal))
+            {
+                Itens.Add(item);
+            }
+        }
+
+        OnPropertyChanged(nameof(TextoDoFiltro));
+        OnPropertyChanged(nameof(ListaVaziaPorBusca));
+    }
+
+    /// <summary>Tira acento e caixa para a busca casar do jeito que se digita.</summary>
+    private static string Normalizar(string texto)
+    {
+        var decomposto = texto.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(decomposto.Length);
+
+        foreach (var c in decomposto)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+                != System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                sb.Append(char.ToLowerInvariant(c));
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    public bool ListaVaziaPorBusca => Busca.Length > 0 && Itens.Count == 0;
+
+    public string TextoDoFiltro => Busca.Length == 0
+        ? string.Empty
+        : $"{Itens.Count} de {_todos.Count} itens";
+
+    /// <summary>
+    /// Quantos estao marcados agora, independente da busca.
+    ///
+    /// Conta sobre <see cref="_todos"/>, nao sobre <see cref="Itens"/>: filtrar
+    /// a lista nao pode desmarcar nada nem esconder da contagem o que vai ser
+    /// aplicado.
+    /// </summary>
+    public int SelecionadosNoTotal => _todos.Count(i => i.Selecionado);
+
+    public string TextoDaSelecao => SelecionadosNoTotal == 0
+        ? "Nada marcado."
+        : SelecionadosNoTotal == 1
+            ? "1 item marcado."
+            : $"{SelecionadosNoTotal} itens marcados.";
 
     [ObservableProperty] private string _status = string.Empty;
     [ObservableProperty] private string _resumo = string.Empty;
@@ -46,7 +120,7 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
 
     public bool PodeAgir => !Ocupado && EhAdministrador;
 
-    public int Selecionados => Itens.Count(i => i.Selecionado);
+    public int Selecionados => SelecionadosNoTotal;
 
     public string TextoAplicar => Selecionados == 1
         ? "Aplicar 1 selecionado"
@@ -68,9 +142,10 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
         Progresso = 0;
         GanhoMedido = null;
 
-        foreach (var antigo in Itens)
+        foreach (var antigo in _todos)
             antigo.PropertyChanged -= AoMudarSelecao;
 
+        _todos.Clear();
         Itens.Clear();
 
         var progresso = new Progress<ModuleProgress>(p =>
@@ -87,8 +162,10 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
             {
                 var vm = new ActionItemViewModel(item);
                 vm.PropertyChanged += AoMudarSelecao;
-                Itens.Add(vm);
+                _todos.Add(vm);
             }
+
+            AplicarBusca();
 
             Resumo = resultado.Resumo;
             Status = resultado.Avisos.Count > 0
@@ -116,7 +193,7 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
         if (Ocupado || !EhAdministrador)
             return;
 
-        var selecionados = Itens.Where(i => i.Selecionado && i.PodeSelecionar).ToList();
+        var selecionados = _todos.Where(i => i.Selecionado && i.PodeSelecionar).ToList();
 
         if (!DryRun && !Confirmar(selecionados))
             return;
@@ -197,14 +274,14 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
     [RelayCommand]
     private void MarcarTodos()
     {
-        foreach (var item in Itens.Where(i => i.PodeSelecionar))
+        foreach (var item in _todos.Where(i => i.PodeSelecionar))
             item.Selecionado = true;
     }
 
     [RelayCommand]
     private void DesmarcarTodos()
     {
-        foreach (var item in Itens)
+        foreach (var item in _todos)
             item.Selecionado = false;
     }
 
@@ -243,7 +320,9 @@ public abstract partial class ModulePageViewModel : PageViewModelBase
     protected void NotificarSelecao()
     {
         OnPropertyChanged(nameof(Selecionados));
+        OnPropertyChanged(nameof(SelecionadosNoTotal));
         OnPropertyChanged(nameof(TextoAplicar));
+        OnPropertyChanged(nameof(TextoDaSelecao));
     }
 
     partial void OnOcupadoChanged(bool value) => OnPropertyChanged(nameof(PodeAgir));

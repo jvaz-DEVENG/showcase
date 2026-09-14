@@ -545,6 +545,47 @@ antes do commit, e não confiando na leitura. O mesmo cuidado achou que o
 
 ---
 
+## 2026-09-14 — Seis bugs em três passos de QA manual
+
+A primeira rodada de QA à mão, com o binário elevado na máquina real, achou seis
+problemas nos três primeiros passos do checklist. Nenhum deles tinha aparecido em
+304 testes automatizados nem nas capturas de tela.
+
+Os dois piores eram de **ciclo de vida**, não de lógica:
+
+**A sessão nunca era encerrada.** `ReverterTudo` desfazia tudo e limpava a tela,
+mas não tocava no `session.json`. O arquivo continuava dizendo `Ativo: true` para
+sempre, e o aviso de "fechado com o Modo Game ainda ativo" voltava em toda
+abertura — com zero pendências. Nenhum teste pegaria: o estado do registro estava
+perfeito, e é isso que os testes conferem.
+
+**`Dispose` chamado duas vezes.** O `App.OnExit` descartava o `GameWatcher`, e o
+`ServiceProvider.Dispose()` logo abaixo descartava de novo, porque o container
+descarta todo singleton `IDisposable`. A segunda chamada caía num
+`CancellationTokenSource` já descartado. A exceção escapava porque o
+`ServiceProvider.Dispose()` estava **fora** do `try`.
+
+A lição que fica: quem escreve `Dispose` não controla quantas vezes ele é chamado.
+Aguentar a segunda chamada em silêncio é obrigação, não gentileza.
+
+Os outros quatro eram de **interface dizendo uma coisa e fazendo outra**:
+
+- O rodapé anunciava "N aguardando na lista de restauração" sem existir lista.
+- O resumo dizia "38 apps marcados" com um único item marcado, porque era o texto
+  da varredura e não acompanhava a seleção.
+- Faltava marcar/desmarcar todos na tela Início.
+- Faltava busca em qualquer lista.
+
+Os dois últimos vieram como sugestão de quem estava testando, não como defeito. A
+busca, em particular, já estava na seção 5.3 do spec e tinha passado despercebida
+por sete fases.
+
+**O que isso diz sobre o método.** As capturas de tela das fases anteriores
+mostravam cada tela funcionando, e todas estavam certas. O que elas não mostram é
+a **sequência**: abrir, agir, fechar, reabrir. Foi aí que os seis apareceram.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

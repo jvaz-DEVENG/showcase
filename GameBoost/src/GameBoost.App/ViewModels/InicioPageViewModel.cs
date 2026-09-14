@@ -20,6 +20,23 @@ namespace GameBoost.App.ViewModels;
 /// "Aplicar N selecionados" pelos botoes do Modo Game, que e o que o usuario
 /// espera encontrar na abertura.
 /// </summary>
+/// <summary>Uma linha da lista de restauracao.</summary>
+public sealed class AppParaReabrir
+{
+    public AppParaReabrir(Core.Modules.GameMode.ClosedApp item)
+    {
+        Item = item;
+    }
+
+    public Core.Modules.GameMode.ClosedApp Item { get; }
+
+    public string Nome => Item.Nome;
+
+    public string Detalhe => Item.Essencial
+        ? "marcado como essencial"
+        : "não reabre sozinho porque não está marcado com estrela";
+}
+
 public sealed partial class InicioPageViewModel : ModulePageViewModel
 {
     private readonly GameModeModule _gameMode;
@@ -57,6 +74,7 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
         if (sessao.Ativo)
         {
             ModoGameAtivo = true;
+            AtualizarListaDeRestauracao();
             AvisoDeRestauracao =
                 "O GameBoost foi fechado com o Modo Game ainda ativo. " +
                 "Clique em Restaurar agora para devolver o sistema ao estado anterior.";
@@ -75,6 +93,77 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
 
     [ObservableProperty] private bool _modoGameAtivo;
     [ObservableProperty] private string? _avisoDeRestauracao;
+
+    /// <summary>
+    /// Apps encerrados que ainda nao voltaram. Sem estrela eles nao reabrem
+    /// sozinhos, e ate agora o app anunciava "N aguardando na lista de
+    /// restauracao" sem existir lista nenhuma para agir.
+    /// </summary>
+    public ObservableCollection<AppParaReabrir> ParaReabrir { get; } = new();
+
+    public bool TemAppsParaReabrir => ParaReabrir.Count > 0;
+
+    private void AtualizarListaDeRestauracao()
+    {
+        ParaReabrir.Clear();
+
+        foreach (var app in _sessions.Load().AppsEncerrados.Where(a => !a.Reaberto))
+        {
+            if (!string.IsNullOrWhiteSpace(app.ExecutablePath))
+                ParaReabrir.Add(new AppParaReabrir(app));
+        }
+
+        OnPropertyChanged(nameof(TemAppsParaReabrir));
+    }
+
+    /// <summary>Reabre um app da lista, e so ele.</summary>
+    [RelayCommand]
+    private void Reabrir(AppParaReabrir? alvo)
+    {
+        if (alvo?.Item.ExecutablePath is null)
+            return;
+
+        var ok = _processos.Start(
+            alvo.Item.ExecutablePath, alvo.Item.Argumentos, alvo.Item.WorkingDirectory);
+
+        if (!ok)
+        {
+            Status = $"Não foi possível reabrir {alvo.Nome}. "
+                   + "Alguns apps da Microsoft Store só abrem pelo menu Iniciar.";
+            return;
+        }
+
+        // Marcar no arquivo, senao ele reaparece na lista na proxima abertura.
+        var sessao = _sessions.Load();
+
+        foreach (var app in sessao.AppsEncerrados.Where(a =>
+                     string.Equals(a.Nome, alvo.Item.Nome, StringComparison.OrdinalIgnoreCase)))
+        {
+            app.Reaberto = true;
+        }
+
+        _sessions.Save(sessao);
+
+        ParaReabrir.Remove(alvo);
+        OnPropertyChanged(nameof(TemAppsParaReabrir));
+
+        Status = $"{alvo.Nome} reaberto.";
+        _log.Info("gamemode", "Reabrir", alvo.Nome, "pela lista de restauração");
+    }
+
+    /// <summary>Encerra a sessao no arquivo e limpa a lista da tela.</summary>
+    private void EncerrarSessao()
+    {
+        var sessao = _sessions.Load();
+
+        if (!sessao.Ativo && sessao.AppsEncerrados.Count == 0)
+            return;
+
+        sessao.Ativo = false;
+        _sessions.Save(sessao);
+
+        AtualizarListaDeRestauracao();
+    }
 
     // ------------------------------------------------------------------
     // Pontuacao de saude e principais findings (secoes 5.12 e 5.5)
@@ -211,6 +300,9 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
 
         ModoGameAtivo = false;
         AvisoDeRestauracao = null;
+
+        // O que nao tinha estrela nao volta sozinho: aparece aqui com botao.
+        AtualizarListaDeRestauracao();
     }
 
     /// <summary>
@@ -276,6 +368,15 @@ public sealed partial class InicioPageViewModel : ModulePageViewModel
 
         var resultados = _rollback.ReverterTudo(DryRun);
         var falhas = resultados.Count(r => !r.Sucesso);
+
+        // Encerrar a sessao no arquivo, e nao so na tela.
+        //
+        // Sem isto, o session.json continuava dizendo Ativo=true para sempre, e
+        // o aviso "foi fechado com o Modo Game ainda ativo" voltava em TODA
+        // abertura — mesmo com zero pendencias. Um aviso que aparece sempre
+        // deixa de ser aviso.
+        if (!DryRun)
+            EncerrarSessao();
 
         ModoGameAtivo = false;
         AvisoDeRestauracao = null;
