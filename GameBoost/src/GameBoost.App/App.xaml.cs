@@ -52,6 +52,7 @@ public partial class App : Application
         MainWindow = janela;
         janela.Show();
 
+        // A bandeja vem primeiro: o vigia liga o convite nela.
         LigarBandeja(janela);
         LigarVigiaDeJogos();
         MostrarOnboarding(janela);
@@ -116,6 +117,16 @@ public partial class App : Application
 
         vigia.AoAbrir += evento => Dispatcher.Invoke(() => shell.JogoDetectado(evento));
         vigia.AoFechar += evento => Dispatcher.Invoke(() => shell.JogoEncerrado(evento));
+
+        // Sem isto o convite morre no lugar onde nasce: o shell dispara o
+        // evento e ninguem escuta. O jogo era detectado, o log registrava a
+        // deteccao, e o usuario nao via nada em lugar nenhum.
+        //
+        // Balao E faixa, nao um ou outro: com o jogo em tela cheia o Windows
+        // engole o balao, e a faixa fica esperando na janela. Sem tela cheia,
+        // o balao chega primeiro.
+        shell.AoPedirAviso += (titulo, texto) => Dispatcher.Invoke(() =>
+            _bandeja?.Avisar(titulo, texto));
 
         vigia.Iniciar();
     }

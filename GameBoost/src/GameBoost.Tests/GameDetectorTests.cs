@@ -88,4 +88,44 @@ public sealed class GameDetectorTests
 
         Assert.Null(_detector.DetectarPorNome(processos.Select(p => p.Name)));
     }
+
+    [Theory]
+    // O Agent do Battle.net e o atualizador do launcher, nao um jogo. Ele mora
+    // dentro da pasta que a deteccao usa como pista, e engorda enquanto baixa
+    // atualizacao: numa sessao real ele passou dos 300 MB e foi anunciado como
+    // "jogo detectado".
+    [InlineData("Agent", @"C:\ProgramData\Battle.net\Agent\Agent.9775\Agent.exe")]
+    [InlineData("Launcher", @"D:\Battle.net\Launcher.exe")]
+    [InlineData("Updater", @"D:\SteamLibrary\steamapps\common\QualquerJogo\Updater.exe")]
+    [InlineData("EpicWebHelper", @"C:\Program Files\Epic Games\Launcher\EpicWebHelper.exe")]
+    [InlineData("UnrealCEFSubProcess", @"C:\Program Files\Epic Games\Launcher\UnrealCEFSubProcess.exe")]
+    public void Maquinaria_de_launcher_nunca_e_jogo(string nome, string caminho)
+    {
+        var detector = new Core.Modules.GameMode.GameDetector();
+
+        // 2 GB: bem acima do limite de memoria, para provar que o filtro de
+        // nome vale mesmo quando o processo esta gordo.
+        var processo = new Core.Abstractions.ProcessInfo(
+            1234, nome, caminho, null, 2L * 1024 * 1024 * 1024, "janela", null, 1);
+
+        var achado = detector.Detectar(new[] { processo });
+
+        Assert.Null(achado);
+    }
+
+    [Fact]
+    public void Jogo_de_verdade_na_pasta_de_launcher_continua_sendo_detectado()
+    {
+        var detector = new Core.Modules.GameMode.GameDetector();
+
+        var processo = new Core.Abstractions.ProcessInfo(
+            1234, "Warframe.x64",
+            @"D:\SteamLibrary\steamapps\common\Warframe\Warframe.x64.exe",
+            null, 2L * 1024 * 1024 * 1024, "Warframe", null, 1);
+
+        var achado = detector.Detectar(new[] { processo });
+
+        Assert.NotNull(achado);
+        Assert.Equal("Warframe.x64", achado!.Process.Name);
+    }
 }

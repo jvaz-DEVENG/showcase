@@ -4,6 +4,41 @@ Formato baseado em Keep a Changelog. Versionamento semantico.
 
 ## [2.0.0] - 2026-09-14
 
+### QA manual, quinta rodada - a deteccao de jogo funcionava, o resto nao (2026-09-14)
+
+Seis correcoes no bloco de perfis. A deteccao em si sempre funcionou — o log registrava
+os tres criterios do spec, com confianca e tela cheia. Tudo o que vinha depois dela
+estava quebrado.
+
+#### Corrigido
+- **O convite era disparado e ninguem escutava.** O shell dispara `AoPedirAviso` e nenhum
+  assinante existia: nem balao, nem faixa. O jogo era detectado, o log registrava, e o
+  usuario nao via nada em lugar nenhum. Agora vai para a bandeja E para uma faixa na
+  janela — com o jogo em tela cheia o Windows engole o balao, e a faixa espera.
+- **Aceitar o convite nao aplicava o perfil.** So navegava para a tela Inicio. Prioridade,
+  afinidade e tweaks ficavam parados no arquivo, e o ProfileRunner nao era chamado por
+  ninguem.
+- **Fechar o jogo nao desfazia nada**, mas o aviso dizia "tudo o que o GameBoost alterou
+  foi desfeito". Afirmar reversao sem reverter e o oposto da regra 1.
+- **O perfil nao casava com o jogo.** O perfil e chaveado pelo executavel
+  ("warframe.x64") e o casamento usava o nome da pasta ("Warframe"). A linha aparecia
+  duas vezes: uma dizendo que tem perfil e outra que nao tem. Agora casa pela pasta de
+  instalacao, que os dois tem em comum.
+- **Falso positivo na deteccao: o Agent do Battle.net.** Ele mora em
+  `ProgramData\Battle.net\Agent`, que bate com a lista de pastas de launcher, e engorda
+  enquanto baixa atualizacao — passou do limite de memoria e foi anunciado como jogo numa
+  sessao real. Nome que descreve funcao ("agent", "launcher", "updater", "helper") dentro
+  de pasta de launcher e infraestrutura, nunca jogo.
+- **"Nao havia perfil aplicado" quando havia.** Quando o jogo fecha antes do Desfazer, nao
+  sobra prioridade para restaurar — ela morre com o processo. O texto negava que houvesse
+  perfil em vez de explicar isso.
+- O contador do cabecalho da pagina Jogos nao acompanhava criar e remover perfil.
+
+#### Adicionado
+- Teste que prova que maquinaria de launcher nunca e jogo, com 2 GB de RAM para garantir
+  que o filtro de nome vale mesmo com o processo gordo — e que um jogo de verdade na mesma
+  pasta continua sendo detectado.
+
 ### QA manual, quarta rodada - o Reverter da inicializacao nao revertia (2026-09-14)
 
 #### Corrigido

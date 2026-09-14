@@ -164,16 +164,19 @@ funcional precisa ser conferida à mão contra o binário antigo.
 - [x] Biblioteca cruza com perfis (medido: 14 jogos, 974,2 GB, 0 com perfil)
 - [x] Ícone na bandeja aparece e o vigia inicia (confirmado no log)
 - [x] Onboarding aparece na primeira abertura e é alcançável pela automação
-- [ ] Abrir um jogo de verdade e conferir o convite
-- [ ] Aceitar o convite e conferir que o perfil é aplicado
-- [ ] Fechar o jogo e conferir que tudo é desfeito sozinho
+- [x] Abrir um jogo de verdade e conferir o convite (medido: Warframe, confiança 80, tela cheia)
+- [x] Aceitar o convite e conferir que o perfil é aplicado (prioridade Normal → AboveNormal)
+- [x] Fechar o jogo e conferir o comportamento (prioridade morre com o processo; o texto diz isso)
 - [ ] Marcar "ativa sozinho" e conferir que o próximo boot do jogo não pergunta
-- [ ] Recusar o convite e conferir que ele não volta na mesma sessão
+- [x] Recusar o convite e conferir que ele não volta na mesma sessão
 - [ ] Matar o GameBoost com perfil aplicado e conferir o aviso na reabertura
 - [x] Fechar a janela e conferir que o app fica na bandeja, com o aviso uma vez só
 - [x] "Sair" da bandeja encerra o processo de verdade
 - [ ] "Limpar RAM" pela bandeja com o app minimizado
 - [ ] Onboarding marcado como concluído não volta na segunda abertura
+- [x] Anti-cheat: o jogo aparece na lista do Modo Game como **Protegido**, com "Este parece
+      ser o jogo", risco Alto e caixa desabilitada
+- [x] Atualizador de launcher (Agent do Battle.net) **não** é detectado como jogo
 - [ ] Perfil com afinidade num jogo real: conferir no Gerenciador de Tarefas
 
 ## Fase 7 — distribuição
@@ -226,6 +229,7 @@ funcional precisa ser conferida à mão contra o binário antigo.
 
 | Data | Item | Resultado |
 |---|---|---|
+| 14/09/2026 | QA manual bloco 6 (perfis, deteccao, bandeja) | **6 bugs achados**: a deteccao funcionava, o resto nao |
 | 14/09/2026 | QA manual bloco 5 (inicializacao) | **1 bug achado**: o Reverter nao revertia |
 | 14/09/2026 | QA manual bloco 4 (apps, restos, winget) | **1 crash achado e corrigido**: a Lixeira derrubava o app |
 | 14/09/2026 | QA manual blocos 2 e 3 (tweaks, servicos, rede) | **4 bugs achados e corrigidos**, depois passou |

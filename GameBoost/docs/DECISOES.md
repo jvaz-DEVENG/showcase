@@ -693,6 +693,65 @@ fake. O teste novo chama a função de verdade, com um arquivo de verdade. É o
 
 ---
 
+## 2026-09-14 — A detecção funcionava; era tudo depois dela que não
+
+O QA do bloco de perfis achou seis problemas, e o padrão entre eles diz mais que
+cada um isolado.
+
+A **detecção** estava certa desde a Fase 6. O log registrava exatamente o que o
+spec pede:
+
+```
+Watcher | Warframe.x64 | executavel dentro de uma pasta de launcher,
+                         confiança 80, tela cheia True
+```
+
+O que não existia era o resto do caminho:
+
+1. O convite era disparado num evento **sem nenhum assinante**. Nascia e morria
+   na mesma linha.
+2. Aceitar o convite só navegava para outra tela. O `ProfileRunner` — a classe
+   inteira escrita para aplicar o perfil — nunca era chamada por ninguém.
+3. Fechar o jogo também não chamava o `ProfileRunner`, mas a mensagem afirmava
+   que "tudo o que o GameBoost alterou foi desfeito".
+
+Três elos de uma corrente de quatro. O primeiro funcionava perfeitamente e os
+outros três não existiam — e nada disso aparece em teste unitário, porque cada
+peça isolada faz o que promete. O `ProfileRunner` tem teste e passa. O que não
+tinha teste era **alguém chamando o ProfileRunner**.
+
+### O falso positivo, e por que o filtro de memória não bastou
+
+Numa sessão real o app anunciou "Agent está rodando. Ativar o Modo Game?".
+
+`Agent.exe` é o atualizador do Battle.net, e mora em
+`C:\ProgramData\Battle.net\Agent\Agent.9775\`. A pasta bate com a lista de
+launchers, o que dá confiança 80.
+
+Existia um filtro: dentro de pasta de launcher, só conta como jogo quem usa mais
+de 300 MB. Parecia suficiente — o Agent usa 32 MB parado. Só que ele **engorda
+enquanto baixa atualização**, e naquele momento passou do limite.
+
+Filtro de memória não distingue jogo de instalador; distingue processo grande de
+processo pequeno. O que separa de verdade é o nome: jogo tem nome próprio,
+infraestrutura tem nome de função. "Agent", "Launcher", "Updater" e "Helper"
+descrevem o que o programa faz — e dentro da pasta de um launcher, isso é sempre
+a maquinaria dele.
+
+O teste novo passa 2 GB de RAM de propósito, para provar que o filtro de nome
+vale mesmo quando o processo está gordo.
+
+### Um texto que negava o que tinha acontecido
+
+Quando o jogo fecha antes de o Desfazer rodar, não sobra prioridade para
+restaurar: ela morre junto com o processo. Isso é o esperado.
+
+Mas o aviso dizia **"Não havia perfil aplicado"** — e havia. A frase negava um
+fato para descrever uma consequência. Agora ela explica o que aconteceu de
+verdade: o perfil saiu junto com o jogo.
+
+---
+
 ## Pendências conhecidas desta fase
 
 - `--clean` (seção 5.2) responde com "chega na Fase 2" e código de saída 3. Está no parser

@@ -96,7 +96,46 @@
             </DockPanel>
         </Border>
 
-        <!-- Pagina atual: o DataTemplate certo vem do App.xaml -->
-        <ContentControl Grid.Column="1" Content="{Binding PaginaAtual}" Margin="0" />
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--
+              Convite da deteccao automatica (secao 5.1). Fica acima da pagina,
+              sobre qualquer tela: quem esta no meio de outra coisa precisa ver
+              que um jogo foi detectado sem ter de procurar.
+
+              Existe junto com o balao da bandeja, nao no lugar dele. Com o jogo
+              em tela cheia o Windows engole o balao, e a faixa fica esperando
+              na janela para quando a pessoa voltar.
+            -->
+            <Border Grid.Row="0" Background="#332EC49A" BorderBrush="{StaticResource Acento}"
+                    BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="26,18,26,0"
+                    Visibility="{Binding Convite, Converter={StaticResource TextoParaVisibilidade}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{Binding Convite}" TextWrapping="Wrap"
+                               VerticalAlignment="Center" FontWeight="SemiBold" />
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
+                        <Button Content="Ativar Modo Game" Style="{StaticResource BotaoPrimario}"
+                                AutomationProperties.Name="Ativar Modo Game para o jogo detectado"
+                                Command="{Binding AceitarConviteCommand}" />
+                        <Button Content="Agora nao" Style="{StaticResource BotaoBase}" Margin="8,0,0,0"
+                                Command="{Binding RecusarConviteCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+
+            <!-- Pagina atual: o DataTemplate certo vem do App.xaml -->
+            <ContentControl Grid.Row="1" Content="{Binding PaginaAtual}" Margin="0" />
+        </Grid>
     </Grid>
 </Window>

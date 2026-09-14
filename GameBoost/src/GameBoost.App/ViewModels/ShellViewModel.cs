@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameBoost.Core;
@@ -22,6 +23,9 @@ public sealed partial class ShellViewModel : ObservableObject
         AppsPageViewModel apps,
         InicializacaoPageViewModel inicializacao,
         JogosPageViewModel jogos,
+        Core.Modules.Profiles.ProfileRunner executorDePerfil,
+        Core.Modules.Profiles.ProfileStore perfis,
+        Core.Modules.Profiles.GameWatcher vigia,
         TweaksPageViewModel tweaks,
         RedePageViewModel rede,
         FerramentasPageViewModel ferramentas,
@@ -54,12 +58,18 @@ public sealed partial class ShellViewModel : ObservableObject
 
         _inicio = inicio;
         _jogos = jogos;
+        _executorDePerfil = executorDePerfil;
+        _perfis = perfis;
+        _vigia = vigia;
         _paginaAtual = Paginas[0];
         EhAdministrador = CoreServices.RodandoComoAdministrador();
     }
 
     private readonly InicioPageViewModel _inicio;
     private readonly JogosPageViewModel _jogos;
+    private readonly Core.Modules.Profiles.ProfileRunner _executorDePerfil;
+    private readonly Core.Modules.Profiles.ProfileStore _perfis;
+    private readonly Core.Modules.Profiles.GameWatcher _vigia;
 
     public ObservableCollection<PageViewModelBase> Paginas { get; }
 
@@ -165,23 +175,110 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Guarda o evento inteiro; Convite e so o texto da faixa.</summary>
     public Core.Modules.Profiles.JogoAbriu? JogoDetectadoAgora { get; private set; }
 
+    /// <summary>
+    /// O jogo saiu: desfazer o que o perfil aplicou.
+    ///
+    /// A primeira versão só limpava o convite e anunciava que "tudo foi
+    /// desfeito" — sem desfazer nada. Prioridade, afinidade e tweaks ficariam
+    /// de pé até alguém reverter à mão, e o aviso na tela estaria mentindo.
+    /// </summary>
     public void JogoEncerrado(Core.Modules.Profiles.JogoFechou evento)
     {
         Convite = null;
         JogoDetectadoAgora = null;
 
-        AoPedirAviso?.Invoke("GameBoost",
-            $"{evento.Nome} fechou depois de {evento.Duracao.TotalMinutes:0} minutos. "
-          + "Tudo o que o GameBoost alterou foi desfeito.");
+        // Saber ANTES se havia sessao: depois do Desfazer nao da mais para
+        // distinguir "nao havia perfil" de "havia, mas nada sobrou para
+        // restaurar".
+        var haviaPerfil = _executorDePerfil.EmSessao;
+        var feitos = _executorDePerfil.Desfazer();
+
+        var texto = $"{evento.Nome} fechou depois de {evento.Duracao.TotalMinutes:0} minutos.";
+
+        // Só afirmar que desfez quando desfez mesmo, e nunca negar que havia
+        // perfil quando havia.
+        if (feitos.Count > 0)
+        {
+            texto += $" Desfeito: {string.Join(", ", feitos)}.";
+        }
+        else if (haviaPerfil)
+        {
+            // Prioridade e afinidade morrem junto com o processo: quando o jogo
+            // fecha primeiro, nao sobra o que restaurar. Isso e o esperado, nao
+            // uma falha.
+            texto += " O perfil saiu junto com o jogo: prioridade e afinidade "
+                   + "valem enquanto o processo existe.";
+        }
+        else
+        {
+            texto += " Não havia perfil aplicado.";
+        }
+
+        AoPedirAviso?.Invoke("GameBoost", texto);
     }
 
+    /// <summary>
+    /// Aceitar o convite aplica o perfil do jogo e leva para o Modo Game.
+    ///
+    /// A primeira versão só navegava para a tela Início. O perfil nunca era
+    /// aplicado: prioridade, afinidade e tweaks ficavam parados no arquivo, e o
+    /// `ProfileRunner` não era chamado por ninguém.
+    /// </summary>
     [RelayCommand]
     private void AceitarConvite()
     {
+        var evento = JogoDetectadoAgora;
         Convite = null;
+
+        if (evento is null)
+        {
+            AlternarModoGamePelaBandeja();
+            return;
+        }
+
+        AplicarPerfil(evento);
         AlternarModoGamePelaBandeja();
     }
 
+    /// <summary>
+    /// Aplica o perfil do jogo, criando um padrão quando ainda não existe.
+    ///
+    /// Criar aqui é o que faz a segunda vez ser diferente da primeira: o perfil
+    /// nasce com o executável certo, vindo do processo de verdade, e não de um
+    /// palpite sobre qual `.exe` da pasta é o jogo.
+    /// </summary>
+    private void AplicarPerfil(Core.Modules.Profiles.JogoAbriu evento)
+    {
+        var perfil = evento.Perfil;
+
+        if (perfil is null)
+        {
+            perfil = Core.Modules.Profiles.GameProfile.Padrao(
+                evento.Jogo.Process.Name,
+                evento.Jogo.Process.Name,
+                Path.GetDirectoryName(evento.Jogo.Process.ExecutablePath),
+                null);
+        }
+
+        try
+        {
+            _executorDePerfil.Aplicar(perfil, evento.Jogo.Process.Pid);
+            _perfis.Salvar(perfil);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            AoPedirAviso?.Invoke("GameBoost", $"Não foi possível aplicar o perfil: {ex.Message}");
+        }
+    }
+
     [RelayCommand]
-    private void RecusarConvite() => Convite = null;
+    private void RecusarConvite()
+    {
+        // Recusar tem que valer para a sessão: sem isto a pergunta voltaria
+        // dois segundos depois, e de novo, e de novo.
+        if (JogoDetectadoAgora is not null)
+            _vigia.Recusar(JogoDetectadoAgora.Jogo.Process.Name);
+
+        Convite = null;
+    }
 }

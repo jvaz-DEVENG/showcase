@@ -68,7 +68,23 @@ public sealed class GameDetector
         "vrmonitor", "vrserver", "vrcompositor", "vrdashboard", "steamvr",
         "aseprite", "blender", "krita", "obs64", "3dsmax", "unity", "unityhub",
         "rpcs3", "pcsx2", "dolphin", "retroarch",
-        "steamwebhelper", "gameoverlayui", "steamerrorreporter"
+        "steamwebhelper", "gameoverlayui", "steamerrorreporter",
+
+        // Atualizadores e serviços que moram DENTRO da pasta do launcher.
+        //
+        // O "Agent" do Battle.net vive em ProgramData\\Battle.net\\Agent e foi
+        // anunciado como jogo numa sessão real: ele engorda enquanto baixa
+        // atualização, passou do limite de memória, e a pasta bate com a lista
+        // de launchers. Nome genérico dentro de pasta de launcher é quase
+        // sempre infraestrutura, não jogo.
+        "agent", "battle.net helper", "blizzard error handler",
+        "epicgameslauncher", "epicwebhelper", "unrealcefsubprocess",
+        "eabackgroundservice", "eadesktop", "eacrashreporter",
+        "upc", "uplaywebcore", "ubisoftgamelauncher", "ubisoftconnect",
+        "riotclientservices", "riotclientux", "riotclientcrashhandler",
+        "galaxyclient", "galaxycommunication", "goggalaxynotifications",
+        "launcher", "updater", "update", "crashhandler", "crashreporter",
+        "bootstrapper", "installer", "setup", "helper", "service"
     };
 
     public DetectedGame? Detectar(IEnumerable<ProcessInfo> processos)
@@ -88,6 +104,25 @@ public sealed class GameDetector
         return melhor;
     }
 
+    /// <summary>
+    /// Nome que descreve função, não produto.
+    ///
+    /// Jogo tem nome próprio. "Agent", "Launcher" e "Updater" são o que o
+    /// programa faz, e dentro de uma pasta de launcher é sempre a
+    /// infraestrutura dele.
+    /// </summary>
+    private static bool NomeGenerico(string nome)
+    {
+        string[] genericos =
+        {
+            "agent", "launcher", "updater", "update", "helper", "service",
+            "host", "daemon", "bootstrap", "bootstrapper", "crashhandler",
+            "crashreporter", "installer", "setup", "client", "overlay"
+        };
+
+        return genericos.Contains(nome, StringComparer.OrdinalIgnoreCase);
+    }
+
     private static DetectedGame? Avaliar(ProcessInfo p)
     {
         var nome = Safety.ProtectedProcesses.Normalizar(p.Name);
@@ -103,6 +138,12 @@ public sealed class GameDetector
             var caminho = p.ExecutablePath.Replace('/', '\\');
             if (PastasDeJogo.Any(pasta => caminho.Contains(pasta, StringComparison.OrdinalIgnoreCase)))
             {
+                // Pasta de launcher tem jogo e tem a maquinaria do launcher.
+                // Um nome que so descreve funcao ("agent", "launcher",
+                // "updater") descreve a maquinaria.
+                if (NomeGenerico(nome))
+                    return null;
+
                 // Estar na pasta do launcher nao basta: utilitarios instalados
                 // pela Steam moram no mesmo lugar. Jogo em execucao ocupa
                 // memoria de jogo.

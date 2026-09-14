@@ -128,19 +128,19 @@ public sealed partial class JogosPageViewModel : PageViewModelBase
         {
             var achados = await Task.Run(() => _biblioteca.Listar());
 
+            var perfis = _perfis.Todos.ToList();
+
             foreach (var jogo in achados)
             {
-                var chave = ChaveDoJogo(jogo);
-
                 Jogos.Add(new JogoViewModel(
                     jogo.Nome, jogo.Pasta, jogo.Launcher, jogo.Bytes, jogo.QuandoJogou,
-                    chave is null ? null : _perfis.Buscar(chave)));
+                    CasarPerfil(jogo, perfis)));
             }
 
             // Perfis de jogos que a biblioteca não achou: instalado fora de
             // launcher, ou launcher que o GameBoost ainda não lê. Some da tela
             // seria pior que aparecer sem tamanho.
-            foreach (var perfil in _perfis.Todos)
+            foreach (var perfil in perfis)
             {
                 if (Jogos.Any(j => j.Perfil?.Executavel == perfil.Executavel))
                     continue;
@@ -270,11 +270,34 @@ public sealed partial class JogosPageViewModel : PageViewModelBase
         return marcadores.Any(m => nome.Contains(m, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string? ChaveDoJogo(JogoInstalado jogo)
+    /// <summary>
+    /// Acha o perfil do jogo, pela pasta antes do nome.
+    ///
+    /// A primeira versão casava pelo nome da pasta contra a chave do perfil,
+    /// que é o **executável**. "Warframe" nunca casa com "warframe.x64": o jogo
+    /// aparecia como "sem perfil" e o perfil entrava de novo na lista como
+    /// órfão. A mesma linha duas vezes, uma dizendo que tem perfil e a outra
+    /// que não tem.
+    ///
+    /// A pasta de instalação é o que os dois têm em comum e não muda, então é
+    /// por ela que o casamento começa. O nome fica de reserva, para o perfil
+    /// que foi gravado sem caminho.
+    /// </summary>
+    private static GameProfile? CasarPerfil(JogoInstalado jogo, IReadOnlyList<GameProfile> perfis)
     {
-        if (jogo.Pasta is null)
-            return null;
+        if (!string.IsNullOrWhiteSpace(jogo.Pasta))
+        {
+            var pasta = jogo.Pasta.TrimEnd('\\', '/');
 
-        return Path.GetFileName(jogo.Pasta.TrimEnd('\\'));
+            var porCaminho = perfis.FirstOrDefault(p =>
+                !string.IsNullOrWhiteSpace(p.Caminho)
+                && string.Equals(p.Caminho!.TrimEnd('\\', '/'), pasta, StringComparison.OrdinalIgnoreCase));
+
+            if (porCaminho is not null)
+                return porCaminho;
+        }
+
+        return perfis.FirstOrDefault(p =>
+            string.Equals(p.Nome, jogo.Nome, StringComparison.OrdinalIgnoreCase));
     }
 }
